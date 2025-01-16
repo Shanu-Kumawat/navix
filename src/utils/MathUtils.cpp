@@ -1,22 +1,36 @@
 #include "utils/MathUtils.hpp"
+#include <algorithm>
 
-namespace Drawing::Math {
+namespace Drawing {
+namespace Math {
 
 float calculateDistance(const ImVec2& p1, const ImVec2& p2) {
-    float dx = p2.x - p1.x;
-    float dy = p2.y - p1.y;
-    return std::sqrt(dx * dx + dy * dy);
+    return distance(p1, p2);
+}
+
+float calculateDistanceToLine(const ImVec2& point, const ImVec2& lineStart, const ImVec2& lineEnd) {
+    float lineLength = distance(lineStart, lineEnd);
+    if (lineLength < 0.0001f) return distance(point, lineStart);
+
+    ImVec2 lineDir = normalize(lineEnd - lineStart);
+    ImVec2 toPoint = point - lineStart;
+    
+    float projection = dot(toPoint, lineDir);
+    
+    if (projection <= 0.0f) return distance(point, lineStart);
+    if (projection >= lineLength) return distance(point, lineEnd);
+    
+    ImVec2 closestPoint = lineStart + lineDir * projection;
+    return distance(point, closestPoint);
 }
 
 ImVec2 calculateMidpoint(const ImVec2& p1, const ImVec2& p2) {
-    return ImVec2(
-        (p1.x + p2.x) * 0.5f,
-        (p1.y + p2.y) * 0.5f
-    );
+    return lerp(p1, p2, 0.5f);
 }
 
-float calculateAngle(const ImVec2& p1, const ImVec2& p2) {
-    return std::atan2(p2.y - p1.y, p2.x - p1.x);
+float calculateAngle(const ImVec2& v1, const ImVec2& v2) {
+    float d = dot(normalize(v1), normalize(v2));
+    return std::acos(clamp(d, -1.0f, 1.0f));
 }
 
 bool isPointInRect(const ImVec2& point, const ImVec2& rectMin, const ImVec2& rectMax) {
@@ -25,42 +39,40 @@ bool isPointInRect(const ImVec2& point, const ImVec2& rectMin, const ImVec2& rec
 }
 
 float calculateTriangleArea(const ImVec2& p1, const ImVec2& p2, const ImVec2& p3) {
-    return std::abs(
-        (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)) / 2.0f
+    return std::abs(cross(p2 - p1, p3 - p1)) * 0.5f;
+}
+
+ImVec2 snapToGrid(const ImVec2& point, float gridSize) {
+    return ImVec2(
+        std::round(point.x / gridSize) * gridSize,
+        std::round(point.y / gridSize) * gridSize
     );
 }
 
-ImVec2 snapToGrid(const ImVec2& point, float gridSpacing) {
-    float x = std::round(point.x / gridSpacing) * gridSpacing;
-    float y = std::round(point.y / gridSpacing) * gridSpacing;
-    return ImVec2(x, y);
-}
-
 bool isPointNearPoint(const ImVec2& p1, const ImVec2& p2, float threshold) {
-    return calculateDistance(p1, p2) <= threshold;
+    return distance(p1, p2) <= threshold;
 }
 
-ImVec2 normalizeVector(const ImVec2& vec) {
-    float length = std::sqrt(vec.x * vec.x + vec.y * vec.y);
-    if (length < 1e-6f) return ImVec2(0.0f, 0.0f);
-    return ImVec2(vec.x / length, vec.y / length);
+ImVec2 normalizeVector(const ImVec2& v) {
+    return normalize(v);
 }
 
 float dotProduct(const ImVec2& v1, const ImVec2& v2) {
-    return v1.x * v2.x + v1.y * v2.y;
+    return dot(v1, v2);
 }
 
 ImVec2 rotatePoint(const ImVec2& point, const ImVec2& center, float angle) {
     float s = std::sin(angle);
     float c = std::cos(angle);
-
-    float px = point.x - center.x;
-    float py = point.y - center.y;
-
-    float xnew = px * c - py * s;
-    float ynew = px * s + py * c;
-
-    return ImVec2(xnew + center.x, ynew + center.y);
+    
+    ImVec2 translated = point - center;
+    ImVec2 rotated(
+        translated.x * c - translated.y * s,
+        translated.x * s + translated.y * c
+    );
+    
+    return rotated + center;
 }
 
-} // namespace Drawing::Math 
+} // namespace Math
+} // namespace Drawing 

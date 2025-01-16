@@ -15,6 +15,7 @@
 #define ICON_RECTANGLE "R"  // Rectangle
 #define ICON_SPLINE "SP"    // Spline
 #define ICON_BEZIER "BZ"    // Bezier
+#define ICON_SELECT "S"     // Select
 
 // Window dimensions
 const int WINDOW_WIDTH = 1280;
@@ -42,37 +43,10 @@ namespace UIState {
 }
 
 // Helper function to handle tool selection
-void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas& canvas) {
+void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas& canvas, const std::string& message) {
     UIState::activeMode = mode;
     canvas.setDrawingMode(mode);
-    
-    // Update console message
-    switch (mode) {
-        case Drawing::DrawingMode::Point:
-            UIState::consoleMessage = "Click to place a point";
-            break;
-        case Drawing::DrawingMode::Line:
-            UIState::consoleMessage = "Click to set start point, click again to finish line";
-            break;
-        case Drawing::DrawingMode::Circle:
-            UIState::consoleMessage = "Click to set center, drag to set radius";
-            break;
-        case Drawing::DrawingMode::Triangle:
-            UIState::consoleMessage = "Click three points to create a triangle";
-            break;
-        case Drawing::DrawingMode::Square:
-            UIState::consoleMessage = "Click and drag to create a square";
-            break;
-        case Drawing::DrawingMode::Rectangle:
-            UIState::consoleMessage = "Click and drag to create a rectangle";
-            break;
-        case Drawing::DrawingMode::Spline:
-            UIState::consoleMessage = "Click to add control points, right-click to finish spline";
-            break;
-        case Drawing::DrawingMode::BezierCurve:
-            UIState::consoleMessage = "Click to place 4 control points for Bezier curve";
-            break;
-    }
+    UIState::consoleMessage = message;
 }
 
 void SetupImGuiStyle() {
@@ -144,6 +118,12 @@ void RenderToolPanel(Drawing::Canvas& canvas) {
         ImGuiWindowFlags_NoMove | 
         ImGuiWindowFlags_NoCollapse
     );
+    
+    // Select mode
+    if (ImGui::Button(ICON_SELECT "##select", ImVec2(30, 30))) {
+        SelectTool(Drawing::DrawingMode::Select, canvas, "Select Mode");
+    }
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("Select (S)");
     
     if (ImGui::CollapsingHeader("Drawing Tools", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Indent();
@@ -221,7 +201,7 @@ void RenderToolPanel(Drawing::Canvas& canvas) {
             
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 8));
             if (ImGui::Button(icon, ImVec2(columnWidth, buttonSize))) {
-                SelectTool(mode, canvas);
+                SelectTool(mode, canvas, tooltip);
             }
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("%s", tooltip);
@@ -249,7 +229,7 @@ void RenderToolPanel(Drawing::Canvas& canvas) {
             ImGui::PushStyleColor(ImGuiCol_Button, UIColors::BUTTON);
         }
         if (ImGui::Button(ICON_SPLINE, ImVec2(columnWidth, buttonSize))) {
-            SelectTool(Drawing::DrawingMode::Spline, canvas);
+            SelectTool(Drawing::DrawingMode::Spline, canvas, "Click to add control points, right-click to finish spline");
         }
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("Spline Tool");
@@ -265,7 +245,7 @@ void RenderToolPanel(Drawing::Canvas& canvas) {
             ImGui::PushStyleColor(ImGuiCol_Button, UIColors::BUTTON);
         }
         if (ImGui::Button(ICON_BEZIER, ImVec2(columnWidth, buttonSize))) {
-            SelectTool(Drawing::DrawingMode::BezierCurve, canvas);
+            SelectTool(Drawing::DrawingMode::BezierCurve, canvas, "Click to place 4 control points for Bezier curve");
         }
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("Bezier Curve Tool");
@@ -353,6 +333,12 @@ void RenderCanvas(Drawing::Canvas& canvas) {
     
     ImGui::End();
     ImGui::PopStyleVar();
+}
+
+void HandleKeyboardShortcuts(Drawing::Canvas& canvas) {
+    if (ImGui::IsKeyPressed(ImGuiKey_S)) {
+        SelectTool(Drawing::DrawingMode::Select, canvas, "Select Mode");
+    }
 }
 
 int main(int argc, char* argv[]) {

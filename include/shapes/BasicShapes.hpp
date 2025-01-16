@@ -2,90 +2,329 @@
 
 #include <imgui.h>
 #include <array>
-#include <vector>
-#include "utils/MathUtils.hpp"
+#include <cmath>  // for std::abs and other math functions
+#include <memory> // for std::unique_ptr
 #include "Constants.hpp"
 
 namespace Drawing {
 
-// Shape structures with validation methods
-struct Point {
-    ImVec2 position;
+enum class ShapeType {
+    POINT,
+    LINE,
+    CIRCLE,
+    TRIANGLE,
+    SQUARE,
+    RECTANGLE,
+    SPLINE,
+    BEZIER
+};
+
+struct Shape {
+    ShapeType type;
     ImU32 color;
+    float thickness;
+
+    Shape(ShapeType t, ImU32 c = Colors::LINE, float th = Constants::DEFAULT_LINE_THICKNESS) 
+        : type(t), color(c), thickness(th) {}
+    
+    virtual ~Shape() = default;
+    virtual std::unique_ptr<Shape> clone() const = 0;
+    virtual bool isValid() const = 0;
+    virtual bool isPointNear(const ImVec2& point, float threshold) const = 0;
+};
+
+struct Point : public Shape {
+    ImVec2 position;
     float size;
 
-    bool isValid() const { return size > 0.0f; }
-};
+    Point(const ImVec2& pos, ImU32 color = Colors::POINT, float s = Constants::DEFAULT_POINT_SIZE)
+        : Shape(ShapeType::POINT, color), position(pos), size(s) {}
 
-struct Line {
-    ImVec2 start;
-    ImVec2 end;
-    ImU32 color;
-    float thickness;
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Point>(*this);
+    }
 
-    bool isValid() const {
-        return thickness > 0.0f && 
-               Math::calculateDistance(start, end) > Constants::MIN_SHAPE_SIZE;
+    bool isValid() const override {
+        return size > 0;
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        float dx = point.x - position.x;
+        float dy = point.y - position.y;
+        return (dx * dx + dy * dy) <= threshold * threshold;
     }
 };
 
-struct Circle {
+struct Line : public Shape {
+    ImVec2 start;
+    ImVec2 end;
+
+    Line(const ImVec2& s, const ImVec2& e, ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::LINE, color, thickness), start(s), end(e) {}
+
+    bool isValid() const override {
+        return thickness > 0 && (start.x != end.x || start.y != end.y);
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        // Calculate distance from point to line segment
+        float lineLength = std::sqrt(
+            (end.x - start.x) * (end.x - start.x) + 
+            (end.y - start.y) * (end.y - start.y)
+        );
+        
+        if (lineLength < 0.0001f) {
+            // Line is actually a point
+            return std::sqrt(
+                (point.x - start.x) * (point.x - start.x) + 
+                (point.y - start.y) * (point.y - start.y)
+            ) <= threshold;
+        }
+        
+        // Calculate distance using the line segment formula
+        float t = ((point.x - start.x) * (end.x - start.x) + 
+                  (point.y - start.y) * (end.y - start.y)) / (lineLength * lineLength);
+        
+        if (t < 0.0f) {
+            // Point is beyond the start of the line
+            return std::sqrt(
+                (point.x - start.x) * (point.x - start.x) + 
+                (point.y - start.y) * (point.y - start.y)
+            ) <= threshold;
+        }
+        if (t > 1.0f) {
+            // Point is beyond the end of the line
+            return std::sqrt(
+                (point.x - end.x) * (point.x - end.x) + 
+                (point.y - end.y) * (point.y - end.y)
+            ) <= threshold;
+        }
+        
+        // Calculate the closest point on the line
+        float closestX = start.x + t * (end.x - start.x);
+        float closestY = start.y + t * (end.y - start.y);
+        
+        // Calculate distance to the closest point
+        return std::sqrt(
+            (point.x - closestX) * (point.x - closestX) + 
+            (point.y - closestY) * (point.y - closestY)
+        ) <= threshold;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Line>(*this);
+    }
+};
+
+struct Circle : public Shape {
     ImVec2 center;
     float radius;
-    ImU32 color;
-    float thickness;
 
-    bool isValid() const {
-        return thickness > 0.0f && radius > Constants::MIN_SHAPE_SIZE;
+    Circle(const ImVec2& c, float r, ImU32 color = Colors::CIRCLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::CIRCLE, color, thickness), center(c), radius(r) {}
+
+    bool isValid() const override {
+        return radius > 0 && thickness > 0;
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        float dx = point.x - center.x;
+        float dy = point.y - center.y;
+        float distance = std::sqrt(dx * dx + dy * dy);
+        return std::abs(distance - radius) <= threshold;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Circle>(*this);
     }
 };
 
-struct Triangle {
+struct Triangle : public Shape {
     std::array<ImVec2, 3> points;
-    ImU32 color;
-    float thickness;
 
-    bool isValid() const {
-        return thickness > 0.0f && 
-               Math::calculateTriangleArea(points[0], points[1], points[2]) > Constants::MIN_SHAPE_SIZE;
+    Triangle(const std::array<ImVec2, 3>& pts, ImU32 color = Colors::TRIANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::TRIANGLE, color, thickness), points(pts) {}
+
+    bool isValid() const override {
+        return thickness > 0 && calculateArea() > Constants::MIN_SHAPE_SIZE * Constants::MIN_SHAPE_SIZE;
+    }
+
+    float calculateArea() const {
+        return std::fabs((points[1].x - points[0].x) * (points[2].y - points[0].y) -
+                       (points[2].x - points[0].x) * (points[1].y - points[0].y)) * 0.5f;
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        // Check if point is near any of the edges
+        for (int i = 0; i < 3; ++i) {
+            const ImVec2& start = points[i];
+            const ImVec2& end = points[(i + 1) % 3];
+            
+            float lineLength = std::sqrt(
+                (end.x - start.x) * (end.x - start.x) + 
+                (end.y - start.y) * (end.y - start.y)
+            );
+            
+            if (lineLength < 0.0001f) continue;
+            
+            float t = ((point.x - start.x) * (end.x - start.x) + 
+                      (point.y - start.y) * (end.y - start.y)) / (lineLength * lineLength);
+            
+            if (t >= 0.0f && t <= 1.0f) {
+                float closestX = start.x + t * (end.x - start.x);
+                float closestY = start.y + t * (end.y - start.y);
+                
+                float distance = std::sqrt(
+                    (point.x - closestX) * (point.x - closestX) + 
+                    (point.y - closestY) * (point.y - closestY)
+                );
+                
+                if (distance <= threshold) return true;
+            }
+        }
+        return false;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Triangle>(*this);
     }
 };
 
-struct Square {
+struct Square : public Shape {
     ImVec2 start;
     ImVec2 end;
-    ImU32 color;
-    float thickness;
 
-    bool isValid() const {
-        return thickness > 0.0f && 
-               Math::calculateDistance(start, end) > Constants::MIN_SHAPE_SIZE;
+    Square(const ImVec2& s, const ImVec2& e, ImU32 color = Colors::SQUARE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::SQUARE, color, thickness), start(s), end(e) {}
+
+    bool isValid() const override {
+        float size = std::abs(end.x - start.x);
+        return thickness > 0 && size > Constants::MIN_SHAPE_SIZE;
+    }
+
+    ImVec2 getTopLeft() const {
+        return ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
+    }
+
+    float getSize() const {
+        return std::abs(end.x - start.x);
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        ImVec2 topLeft = getTopLeft();
+        float size = getSize();
+        
+        // Calculate the four corners
+        ImVec2 topRight(topLeft.x + size, topLeft.y);
+        ImVec2 bottomLeft(topLeft.x, topLeft.y + size);
+        ImVec2 bottomRight(topLeft.x + size, topLeft.y + size);
+        
+        // Check if point is near any of the edges
+        const std::array<std::pair<ImVec2, ImVec2>, 4> edges = {{
+            {topLeft, topRight},
+            {topRight, bottomRight},
+            {bottomRight, bottomLeft},
+            {bottomLeft, topLeft}
+        }};
+        
+        for (const auto& [edgeStart, edgeEnd] : edges) {
+            float lineLength = std::sqrt(
+                (edgeEnd.x - edgeStart.x) * (edgeEnd.x - edgeStart.x) + 
+                (edgeEnd.y - edgeStart.y) * (edgeEnd.y - edgeStart.y)
+            );
+            
+            if (lineLength < 0.0001f) continue;
+            
+            float t = ((point.x - edgeStart.x) * (edgeEnd.x - edgeStart.x) + 
+                      (point.y - edgeStart.y) * (edgeEnd.y - edgeStart.y)) / (lineLength * lineLength);
+            
+            if (t >= 0.0f && t <= 1.0f) {
+                float closestX = edgeStart.x + t * (edgeEnd.x - edgeStart.x);
+                float closestY = edgeStart.y + t * (edgeEnd.y - edgeStart.y);
+                
+                float distance = std::sqrt(
+                    (point.x - closestX) * (point.x - closestX) + 
+                    (point.y - closestY) * (point.y - closestY)
+                );
+                
+                if (distance <= threshold) return true;
+            }
+        }
+        return false;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Square>(*this);
     }
 };
 
-struct Rectangle {
+struct Rectangle : public Shape {
     ImVec2 start;
     ImVec2 end;
-    ImU32 color;
-    float thickness;
 
-    bool isValid() const {
-        return thickness > 0.0f && 
-               std::fabs(end.x - start.x) > Constants::MIN_SHAPE_SIZE &&
-               std::fabs(end.y - start.y) > Constants::MIN_SHAPE_SIZE;
+    Rectangle(const ImVec2& s, const ImVec2& e, ImU32 color = Colors::RECTANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::RECTANGLE, color, thickness), start(s), end(e) {}
+
+    bool isValid() const override {
+        return thickness > 0 && 
+               std::abs(end.x - start.x) > Constants::MIN_SHAPE_SIZE &&
+               std::abs(end.y - start.y) > Constants::MIN_SHAPE_SIZE;
     }
-};
 
-enum class DrawingMode {
-    None,
-    Point,
-    Line,
-    Circle,
-    Triangle,
-    Square,
-    Rectangle,
-    Spline,
-    BezierCurve
+    ImVec2 getTopLeft() const {
+        return ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
+    }
+
+    ImVec2 getSize() const {
+        return ImVec2(std::abs(end.x - start.x), std::abs(end.y - start.y));
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        ImVec2 topLeft = getTopLeft();
+        ImVec2 size = getSize();
+        
+        // Calculate the four corners
+        ImVec2 topRight(topLeft.x + size.x, topLeft.y);
+        ImVec2 bottomLeft(topLeft.x, topLeft.y + size.y);
+        ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
+        
+        // Check if point is near any of the edges
+        const std::array<std::pair<ImVec2, ImVec2>, 4> edges = {{
+            {topLeft, topRight},
+            {topRight, bottomRight},
+            {bottomRight, bottomLeft},
+            {bottomLeft, topLeft}
+        }};
+        
+        for (const auto& [edgeStart, edgeEnd] : edges) {
+            float lineLength = std::sqrt(
+                (edgeEnd.x - edgeStart.x) * (edgeEnd.x - edgeStart.x) + 
+                (edgeEnd.y - edgeStart.y) * (edgeEnd.y - edgeStart.y)
+            );
+            
+            if (lineLength < 0.0001f) continue;
+            
+            float t = ((point.x - edgeStart.x) * (edgeEnd.x - edgeStart.x) + 
+                      (point.y - edgeStart.y) * (edgeEnd.y - edgeStart.y)) / (lineLength * lineLength);
+            
+            if (t >= 0.0f && t <= 1.0f) {
+                float closestX = edgeStart.x + t * (edgeEnd.x - edgeStart.x);
+                float closestY = edgeStart.y + t * (edgeEnd.y - edgeStart.y);
+                
+                float distance = std::sqrt(
+                    (point.x - closestX) * (point.x - closestX) + 
+                    (point.y - closestY) * (point.y - closestY)
+                );
+                
+                if (distance <= threshold) return true;
+            }
+        }
+        return false;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Rectangle>(*this);
+    }
 };
 
 } // namespace Drawing 
