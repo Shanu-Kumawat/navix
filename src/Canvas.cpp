@@ -53,33 +53,6 @@ void Canvas::clearAll() {
     currentCurvePoints.clear();
 }
 
-void Canvas::toggleSplineClosure() {
-    if (selectedShape && selectedShape->type == ShapeType::SPLINE) {
-        auto* spline = static_cast<Spline*>(selectedShape);
-        spline->isClosed = !spline->isClosed;
-    }
-}
-
-bool Canvas::isSplineClosed() const {
-    if (selectedShape && selectedShape->type == ShapeType::SPLINE) {
-        auto* spline = static_cast<const Spline*>(selectedShape);
-        return spline->isClosed;
-    }
-    return false;
-}
-
-void Canvas::setTruncationPoints(float start, float end) {
-    curveStartT = std::clamp(start, 0.0f, 1.0f);
-    curveEndT = std::clamp(end, 0.0f, 1.0f);
-    if (curveEndT < curveStartT) {
-        std::swap(curveStartT, curveEndT);
-    }
-}
-
-std::pair<float, float> Canvas::getTruncationPoints() const {
-    return {curveStartT, curveEndT};
-}
-
 void Canvas::handleInput() {
     ImGuiIO& io = ImGui::GetIO();
     

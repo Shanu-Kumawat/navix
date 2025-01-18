@@ -1,6 +1,8 @@
 # Build directories
 build/
 out/
+glad/
+imgui/
 bin/
 lib/
 .cache/

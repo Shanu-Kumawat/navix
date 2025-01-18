@@ -5,7 +5,7 @@
 #include <vector>
 #include <optional>
 #include <string>
-#include <algorithm>  // for std::find_if
+#include <algorithm>  
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
 #include "utils/MathUtils.hpp"
@@ -86,10 +86,6 @@ public:
     }
 
     void clearAll();
-    void toggleSplineClosure();
-    bool isSplineClosed() const;
-    void setTruncationPoints(float start, float end);
-    std::pair<float, float> getTruncationPoints() const;
 
     struct SnapPoint {
         ImVec2 point;
