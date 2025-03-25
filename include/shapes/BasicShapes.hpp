@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>  // for std::abs and other math functions
 #include <memory> // for std::unique_ptr
+#include <algorithm> // for std::minmax_element
 #include "Constants.hpp"
 
 namespace Drawing {
@@ -259,35 +260,48 @@ struct Square : public Shape {
 };
 
 struct Rectangle : public Shape {
-    ImVec2 start;
-    ImVec2 end;
+    ImVec2 topLeft;
+    ImVec2 topRight;
+    ImVec2 bottomRight;
+    ImVec2 bottomLeft;
 
-    Rectangle(const ImVec2& s, const ImVec2& e, ImU32 color = Colors::RECTANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
-        : Shape(ShapeType::RECTANGLE, color, thickness), start(s), end(e) {}
+    Rectangle(const ImVec2& p1, const ImVec2& p2, const ImVec2& p3, const ImVec2& p4, 
+             ImU32 color = Colors::RECTANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::RECTANGLE, color, thickness) {
+        // Calculate the corners based on the points
+        std::vector<float> xCoords = {p1.x, p2.x, p3.x, p4.x};
+        std::vector<float> yCoords = {p1.y, p2.y, p3.y, p4.y};
+        
+        auto [minXIt, maxXIt] = std::minmax_element(xCoords.begin(), xCoords.end());
+        auto [minYIt, maxYIt] = std::minmax_element(yCoords.begin(), yCoords.end());
+        
+        float minX = *minXIt;
+        float maxX = *maxXIt;
+        float minY = *minYIt;
+        float maxY = *maxYIt;
+
+        topLeft = ImVec2(minX, minY);
+        topRight = ImVec2(maxX, minY);
+        bottomRight = ImVec2(maxX, maxY);
+        bottomLeft = ImVec2(minX, maxY);
+    }
 
     bool isValid() const override {
+        ImVec2 size = getSize();
         return thickness > 0 && 
-               std::abs(end.x - start.x) > Constants::MIN_SHAPE_SIZE &&
-               std::abs(end.y - start.y) > Constants::MIN_SHAPE_SIZE;
+               size.x > Constants::MIN_SHAPE_SIZE &&
+               size.y > Constants::MIN_SHAPE_SIZE;
     }
 
     ImVec2 getTopLeft() const {
-        return ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
+        return topLeft;
     }
 
     ImVec2 getSize() const {
-        return ImVec2(std::abs(end.x - start.x), std::abs(end.y - start.y));
+        return ImVec2(std::abs(topRight.x - topLeft.x), std::abs(bottomLeft.y - topLeft.y));
     }
 
     bool isPointNear(const ImVec2& point, float threshold) const override {
-        ImVec2 topLeft = getTopLeft();
-        ImVec2 size = getSize();
-        
-        // Calculate the four corners
-        ImVec2 topRight(topLeft.x + size.x, topLeft.y);
-        ImVec2 bottomLeft(topLeft.x, topLeft.y + size.y);
-        ImVec2 bottomRight(topLeft.x + size.x, topLeft.y + size.y);
-        
         // Check if point is near any of the edges
         const std::array<std::pair<ImVec2, ImVec2>, 4> edges = {{
             {topLeft, topRight},

@@ -12,11 +12,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(PkgConfig REQUIRED)
 find_package(glm REQUIRED)
 
-# Set OpenGL paths for NixOS
+# Set OpenGL preference to GLVND
 set(OpenGL_GL_PREFERENCE GLVND)
-set(OPENGL_opengl_LIBRARY "/run/opengl-driver/lib/libGL.so")
-set(OPENGL_glx_LIBRARY "/run/opengl-driver/lib/libGLX.so")
-set(OPENGL_INCLUDE_DIR "/run/opengl-driver/include")
+
+# Check if we are on NixOS or Ubuntu
+if(EXISTS "/run/opengl-driver/lib/libGL.so")
+    # NixOS-specific paths
+    set(OPENGL_opengl_LIBRARY "/run/opengl-driver/lib/libGL.so")
+    set(OPENGL_glx_LIBRARY "/run/opengl-driver/lib/libGLX.so")
+    set(OPENGL_INCLUDE_DIR "/run/opengl-driver/include")
+    message(STATUS "Using NixOS OpenGL paths")
+else()
+    # Standard paths (Ubuntu, etc.)
+    message(STATUS "Using standard OpenGL paths")
+endif()
 
 # Find OpenGL
 find_package(OpenGL REQUIRED)

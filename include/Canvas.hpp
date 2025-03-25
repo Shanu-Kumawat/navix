@@ -58,8 +58,38 @@ public:
     void setSnapToGrid(bool enabled) { snapToGrid = enabled; }
     bool isSnapToGridEnabled() const { return snapToGrid; }
     void setGridSpacing(float spacing) { gridSpacing = spacing; }
+    void setShowGrid(bool show) { showGrid = show; }
+    bool isGridVisible() const { return showGrid; }
     void setShowControlPoints(bool show) { showControlPoints = show; }
     bool getShowControlPoints() const { return showControlPoints; }
+
+    // Accessors for current tool dimensions
+    void setLineLength(float length) { lineLength = std::max(0.1f, length); }
+    float getLineLength() const { return lineLength; }
+    void setFixedLineLength(bool fixed) { fixedLineLength = fixed; }
+    bool isFixedLineLength() const { return fixedLineLength; }
+    
+    void setCircleRadius(float radius) { circleRadius = std::max(0.1f, radius); }
+    float getCircleRadius() const { return circleRadius; }
+    void setFixedCircleRadius(bool fixed) { fixedCircleRadius = fixed; }
+    bool isFixedCircleRadius() const { return fixedCircleRadius; }
+    
+    void setSquareSize(float size) { squareSize = std::max(0.1f, size); }
+    float getSquareSize() const { return squareSize; }
+    void setFixedSquareSize(bool fixed) { fixedSquareSize = fixed; }
+    bool isFixedSquareSize() const { return fixedSquareSize; }
+    
+    void setRectangleWidth(float width) { rectangleWidth = std::max(0.1f, width); }
+    float getRectangleWidth() const { return rectangleWidth; }
+    void setRectangleHeight(float height) { rectangleHeight = std::max(0.1f, height); }
+    float getRectangleHeight() const { return rectangleHeight; }
+    void setFixedRectangleSize(bool fixed) { fixedRectangleSize = fixed; }
+    bool isFixedRectangleSize() const { return fixedRectangleSize; }
+    
+    void setTriangleSide(float side) { triangleSide = std::max(0.1f, side); }
+    float getTriangleSide() const { return triangleSide; }
+    void setFixedTriangleSize(bool fixed) { fixedTriangleSize = fixed; }
+    bool isFixedTriangleSize() const { return fixedTriangleSize; }
 
     // Selection methods
     void selectShape(Shape* shape) { selectedShape = shape; }
@@ -114,11 +144,17 @@ private:
     bool isFirstClick{true};
     int clickCount{0};
     bool snapToGrid{true};
+    bool isDraggingCanvas{false};
     
     // Transform state
     float zoomLevel{1.0f};
+    float scaleFactor{1.0f};
     ImVec2 panOffset{0.0f, 0.0f};
+    ImVec2 zoomCenter{0.0f, 0.0f};
+    
+    // Grid & snapping
     float gridSpacing{Constants::DEFAULT_GRID_SPACING};
+    bool showGrid{true};
     
     // Shape collections
     std::vector<std::unique_ptr<Shape>> shapes;
@@ -134,12 +170,17 @@ private:
     bool isEditingCurve{false};
     float curveStartT{0.0f};
     float curveEndT{1.0f};
-
-    // History management
-    std::vector<HistoryState> history;
-    size_t currentHistoryIndex{0};
-    static constexpr size_t MAX_HISTORY_SIZE = 50;
-
+    
+    // Line specific state
+    
+    // Circle specific state
+    
+    // Square specific state
+    
+    // Rectangle specific state
+    
+    // Triangle specific state
+    
     float windowX{0.0f};
     float windowY{0.0f};
     float windowWidth{0.0f};
@@ -148,6 +189,34 @@ private:
     bool showControlPoints{true};
     Shape* selectedShape{nullptr};
 
+    // Drawing data
+    int selectedShapeIndex = -1;
+    
+    // History management
+    std::vector<HistoryState> history;
+    size_t currentHistoryIndex{0};
+    static constexpr size_t MAX_HISTORY_SIZE = 50;
+    
+    ImVec2 mousePos;
+    ImVec2 lastMousePos;
+    std::vector<ImVec2> splinePoints;
+    
+    bool isDragging = false;
+    bool isPanning = false;
+    
+    // Current dimensions - use fixed defaults
+    float lineLength = 100.0f;  // Default line length
+    bool fixedLineLength = true;  // Whether to use fixed or dynamic line length
+    float circleRadius = 50.0f;  // Default circle radius
+    bool fixedCircleRadius = false;  // Whether to use fixed or dynamic circle radius
+    float squareSize = 100.0f;  // Default square size
+    bool fixedSquareSize = false;  // Whether to use fixed or dynamic square size
+    float rectangleWidth{150.0f};
+    float rectangleHeight{100.0f};
+    bool fixedRectangleSize = false;  // Whether to use fixed or dynamic rectangle size
+    float triangleSide{100.0f};
+    bool fixedTriangleSize = false;  // Whether to use fixed or dynamic triangle size
+    
     // Helper methods
     void restoreHistoryState(const HistoryState& state);
     ImVec2 getSnappedPoint(const ImVec2& point) const;
@@ -155,6 +224,13 @@ private:
     void renderPreview(ImDrawList* drawList, const ImVec2& currentPos);
     std::optional<ImVec2> findNearestPoint(const ImVec2& point, float threshold) const;
     ImVec2 findNearestSnapPoint(const ImVec2& pos) const;
+    
+    // Vector math helpers
+    static ImVec2 normalizeVector(const ImVec2& vec) {
+        float length = std::sqrt(vec.x * vec.x + vec.y * vec.y);
+        if (length < 0.0001f) return ImVec2(1.0f, 0.0f); // Avoid division by zero
+        return ImVec2(vec.x / length, vec.y / length);
+    }
     
     // Drawing handlers
     void handlePointDrawing(ImDrawList* drawList, const ImVec2& currentPos);

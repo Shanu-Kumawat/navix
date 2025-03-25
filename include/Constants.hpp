@@ -6,19 +6,21 @@ namespace Drawing {
 
 // Common color definitions
 namespace Colors {
-    const ImU32 POINT = IM_COL32(255, 255, 255, 255);
-    const ImU32 LINE = IM_COL32(255, 255, 255, 255);
-    const ImU32 CIRCLE = IM_COL32(255, 255, 255, 255);
-    const ImU32 TRIANGLE = IM_COL32(255, 255, 255, 255);
-    const ImU32 SQUARE = IM_COL32(255, 255, 255, 255);
-    const ImU32 RECTANGLE = IM_COL32(255, 255, 255, 255);
-    const ImU32 SPLINE = IM_COL32(0, 255, 128, 255);  // Green
-    const ImU32 BEZIER = IM_COL32(255, 128, 0, 255);  // Orange
-    const ImU32 PREVIEW = IM_COL32(128, 128, 128, 128);
-    const ImU32 PREVIEW_LIGHT = IM_COL32(128, 128, 128, 128);  // Light gray
-    const ImU32 CONTROL_POINT = IM_COL32(255, 255, 0, 255);  // Yellow
-    const ImU32 CONTROL_LINE = IM_COL32(128, 128, 128, 128);  // Gray
-    const ImU32 GRID = IM_COL32(50, 50, 50, 255);
+    const ImU32 POINT = IM_COL32(255, 255, 255, 255);    // White (was Black)
+    const ImU32 LINE = IM_COL32(255, 255, 255, 255);     // White (was Black)
+    const ImU32 CIRCLE = IM_COL32(255, 255, 255, 255);   // White (was Black)
+    const ImU32 TRIANGLE = IM_COL32(255, 255, 255, 255); // White (was Black)
+    const ImU32 SQUARE = IM_COL32(255, 255, 255, 255);   // White (was Black)
+    const ImU32 RECTANGLE = IM_COL32(255, 255, 255, 255);// White (was Black)
+    const ImU32 SPLINE = IM_COL32(255, 255, 255, 255);   // White (was Black)
+    const ImU32 BEZIER = IM_COL32(255, 255, 255, 255);   // White (was Black)
+    const ImU32 PREVIEW = IM_COL32(150, 150, 150, 200);  // Light gray with opacity
+    const ImU32 PREVIEW_LIGHT = IM_COL32(180, 180, 180, 200); // Increased opacity
+    const ImU32 CONTROL_POINT = IM_COL32(255, 255, 0, 255);   // Yellow
+    const ImU32 CONTROL_LINE = IM_COL32(180, 180, 180, 200);  // Lighter gray for visibility
+    const ImU32 GRID_MINOR = IM_COL32(60, 60, 70, 120);       // Dark gray for minor grid lines
+    const ImU32 GRID_MAJOR = IM_COL32(90, 90, 100, 160);      // Medium gray for major grid lines
+    const ImU32 GRID = IM_COL32(80, 80, 90, 140);             // Updated grid color for compatibility
 }
 
 // Common constants
