@@ -62,5 +62,24 @@ float dotProduct(const ImVec2& v1, const ImVec2& v2);
  */
 ImVec2 rotatePoint(const ImVec2& point, const ImVec2& center, float angle);
 
+constexpr float MM_PER_INCH = 25.4f;
+constexpr float CM_PER_INCH = 2.54f;
+
+inline float pixelsToMillimeters(float pixels, float dpi = 96.0f) {
+    return pixels * MM_PER_INCH / dpi;
+}
+
+inline float millimetersToPixels(float mm, float dpi = 96.0f) {
+    return mm * dpi / MM_PER_INCH;
+}
+
+inline float pixelsToCentimeters(float pixels, float dpi = 96.0f) {
+    return pixels * CM_PER_INCH / dpi;
+}
+
+inline float centimetersToPixels(float cm, float dpi = 96.0f) {
+    return cm * dpi / CM_PER_INCH;
+}
+
 } // namespace Math
 } // namespace Drawing 

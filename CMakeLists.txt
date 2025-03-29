@@ -79,7 +79,14 @@ target_link_libraries(imgui PUBLIC
 add_library(drawing STATIC
     src/Canvas.cpp
     src/shapes/ComplexShapes.cpp
+    src/shapes/Bellows.cpp
+    src/shapes/Dimension.cpp
+    src/shapes/BasicShapes.cpp
     src/utils/MathUtils.cpp
+    src/Shader.cpp
+    src/BellowsModel3D.cpp
+    src/BellowsViewer3D.cpp
+    src/Camera.cpp
 )
 
 target_include_directories(drawing PUBLIC
@@ -117,3 +124,12 @@ target_link_libraries(main PRIVATE
 if(UNIX)
     target_link_libraries(main PRIVATE dl)
 endif()
+
+# Update drawing library include directories
+target_include_directories(drawing PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui
+)
+
+# Copy shader files to build directory
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})

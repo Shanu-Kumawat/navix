@@ -23,7 +23,8 @@ enum class DrawingMode {
     Square,
     Rectangle,
     Spline,
-    BezierCurve
+    BezierCurve,
+    Bellows
 };
 
 class Canvas {
@@ -93,7 +94,7 @@ public:
 
     // Selection methods
     void selectShape(Shape* shape) { selectedShape = shape; }
-    void clearSelection() { selectedShape = nullptr; }
+    void clearSelection();
     Shape* getSelectedShape() const { return selectedShape; }
 
     // Shape manipulation methods
@@ -136,6 +137,45 @@ public:
         ImVec2 panOffset;
         float zoomLevel;
     };
+
+    void setUnitSystem(Drawing::UnitSystem system) {
+        currentUnits = system;
+        updateConversionFactor();
+    }
+
+    float getDisplayValue(float pixels) const {
+        using namespace Drawing;
+        switch(currentUnits) {
+            case UnitSystem::Millimeters: 
+                return Math::pixelsToMillimeters(pixels, dpi);
+            case UnitSystem::Centimeters: 
+                return Math::pixelsToCentimeters(pixels, dpi);
+            case UnitSystem::Inches: 
+                return pixels / dpi;
+            default: return pixels;
+        }
+    }
+
+    float getInternalValue(float displayValue) const {
+        using namespace Drawing;
+        switch(currentUnits) {
+            case UnitSystem::Millimeters: 
+                return Math::millimetersToPixels(displayValue, dpi);
+            case UnitSystem::Centimeters: 
+                return Math::centimetersToPixels(displayValue, dpi);
+            case UnitSystem::Inches: 
+                return displayValue * dpi;
+            default: return displayValue;
+        }
+    }
+
+    // Unit system methods
+    bool hasUnitSystem() const { return currentUnits != UnitSystem::Pixels; }
+    UnitSystem getCurrentUnit() const { return currentUnits; }
+    float getZoomLevel() const { return zoomLevel; }
+    
+    // Bellows-specific methods
+    void fitBellowsToView();
 
 private:
     // Drawing state
@@ -241,6 +281,7 @@ private:
     void handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos);
+    void handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     
     // Preview methods
     void previewPoint(ImDrawList* drawList, const ImVec2& pos) const;
@@ -251,6 +292,7 @@ private:
     void previewRectangle(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
     void previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
+    void previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
     void drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
                        ImU32 color, float thickness, float dash_length) const;
 
@@ -265,6 +307,7 @@ private:
     void renderRectangles(ImDrawList* drawList) const;
     void renderSplines(ImDrawList* drawList) const;
     void renderBezierCurves(ImDrawList* drawList) const;
+    void renderBellows(ImDrawList* drawList) const;
 
     // Curve calculation methods
     ImVec2 calculateBezierPoint(const std::vector<ImVec2>& points, float t) const;
@@ -275,6 +318,19 @@ private:
     // Update helper methods
     void updateSelectedShape(const ImVec2& mousePos);
     void updateDrawingPreview(const ImVec2& mousePos);
+
+    Drawing::UnitSystem currentUnits = Drawing::UnitSystem::Millimeters;
+    float conversionFactor = 1.0f;
+    float dpi = 96.0f;
+
+    void updateConversionFactor() {
+        switch(currentUnits) {
+            case Drawing::UnitSystem::Millimeters: conversionFactor = dpi / 25.4f; break;
+            case Drawing::UnitSystem::Centimeters: conversionFactor = dpi / 2.54f; break;
+            case Drawing::UnitSystem::Inches: conversionFactor = dpi; break;
+            default: conversionFactor = 1.0f;
+        }
+    }
 };
 
 } // namespace Drawing 

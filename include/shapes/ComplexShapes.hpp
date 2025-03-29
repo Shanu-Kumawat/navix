@@ -144,4 +144,126 @@ namespace CurveUI {
                         float offset, bool isSelected);
 }
 
+// Bellows design class for generating parameterized bellows profiles
+class Bellows : public Shape {
+public:
+    // Bellows parameters
+    float cuffAInnerDiameter = 50.0f;     // Inner diameter of cuff A (mm)
+    float cuffBInnerDiameter = 50.0f;     // Inner diameter of cuff B (mm)
+    float cuffALength = 20.0f;            // Length of cuff A (mm)
+    float cuffBLength = 20.0f;            // Length of cuff B (mm)
+    float baseConvolutionDiameter = 60.0f; // Base/valley diameter of convolutions (mm)
+    float peakConvolutionDiameter = 80.0f; // Peak diameter of convolutions (mm)
+    float convolutedSectionLength = 100.0f; // Length of convoluted section (mm)
+    int numConvolutions = 6;              // Number of convolutions
+    float wallThickness = 2.0f;           // Wall thickness (mm)
+    bool showDimensions = true;           // Show dimension lines
+    bool isSelected = false;              // Selection state
+    
+    // Position and orientation
+    ImVec2 position = ImVec2(0, 0);       // Bellows origin position
+    float angle = 0.0f;                   // Bellows rotation angle
+
+    // Constructor
+    Bellows(ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::BELLOWS, color, thickness) {}
+
+    // Shape interface implementation
+    bool isValid() const override {
+        return numConvolutions > 0 && 
+               cuffALength > 0.0f && 
+               cuffBLength > 0.0f &&
+               convolutedSectionLength > 0.0f;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Bellows>(*this);
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override;
+    
+    // Generate bellows profile points
+    std::vector<ImVec2> generateProfile() const;
+    
+    // Generate dimension lines and labels
+    std::vector<std::pair<ImVec2, ImVec2>> generateDimensionLines() const;
+    
+    // Calculate overall length
+    float calculateOverallLength() const {
+        return cuffALength + convolutedSectionLength + cuffBLength;
+    }
+    
+    // Update convoluted section length based on overall length
+    void updateFromOverallLength(float overallLength) {
+        convolutedSectionLength = overallLength - cuffALength - cuffBLength;
+        if (convolutedSectionLength < 0.0f) convolutedSectionLength = 0.0f;
+    }
+    
+    // Validate parameter constraints
+    bool validateParameters() const {
+        // Check for positive values
+        if (cuffAInnerDiameter <= 0.0f || cuffBInnerDiameter <= 0.0f ||
+            cuffALength <= 0.0f || cuffBLength <= 0.0f ||
+            baseConvolutionDiameter <= 0.0f || peakConvolutionDiameter <= 0.0f ||
+            wallThickness <= 0.0f || numConvolutions <= 0) {
+            return false;
+        }
+        
+        // Check diameter relationships
+        if (cuffAInnerDiameter > baseConvolutionDiameter ||
+            cuffBInnerDiameter > baseConvolutionDiameter ||
+            baseConvolutionDiameter > peakConvolutionDiameter) {
+            return false;
+        }
+        
+        // Check reasonable wall thickness (arbitrary limits)
+        if (wallThickness > baseConvolutionDiameter / 4.0f ||
+            wallThickness > (peakConvolutionDiameter - baseConvolutionDiameter) / 2.0f) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Calculate bounding box for fit-to-view functionality
+    ImVec4 calculateBoundingBox() const {
+        // Get profile points
+        std::vector<ImVec2> profile = generateProfile();
+        
+        // Find min/max coordinates
+        float minX = profile[0].x;
+        float minY = profile[0].y;
+        float maxX = profile[0].x;
+        float maxY = profile[0].y;
+        
+        for (const auto& point : profile) {
+            minX = std::min(minX, point.x);
+            minY = std::min(minY, point.y);
+            maxX = std::max(maxX, point.x);
+            maxY = std::max(maxY, point.y);
+        }
+        
+        // Add margin for dimensions
+        minX -= peakConvolutionDiameter / 2.0f;
+        minY -= peakConvolutionDiameter / 2.0f;
+        maxX += peakConvolutionDiameter / 2.0f;
+        maxY += peakConvolutionDiameter / 2.0f;
+        
+        return ImVec4(minX, minY, maxX, maxY);
+    }
+    
+    // Reset parameters to defaults
+    void resetParameters() {
+        cuffAInnerDiameter = 50.0f;
+        cuffBInnerDiameter = 50.0f;
+        cuffALength = 20.0f;
+        cuffBLength = 20.0f;
+        baseConvolutionDiameter = 60.0f;
+        peakConvolutionDiameter = 80.0f;
+        convolutedSectionLength = 100.0f;
+        numConvolutions = 6;
+        wallThickness = 2.0f;
+    }
+};
+
 } // namespace Drawing 

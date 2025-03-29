@@ -5,6 +5,7 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl2.h>
 #include <iostream>
+#include "BellowsViewer3D.hpp"
 
 // Replace icon definitions with text labels
 #define ICON_LINE "Line"
@@ -64,6 +65,10 @@ static bool fixedSquareSize = false;  // Set to false by default for dynamic squ
 static bool fixedTriangleSize = false;  // Set to false by default for dynamic triangle size
 static bool fixedRectangleSize = false;  // Set to false by default for dynamic rectangle size
 
+// 3D view settings
+static bool show3DView = false;
+static bool bellows3DViewInitialized = false;
+
 // Command line
 static char commandBuffer[256] = "";
 static bool focusCommandLine = false;
@@ -83,7 +88,7 @@ static std::vector<bool> layerVisibility = {true};
 static std::vector<ImU32> layerColors = {IM_COL32(255, 255, 255, 255)};
 
 // Unit system
-static enum class UnitSystem { Pixels, Millimeters, Centimeters, Inches } units = UnitSystem::Pixels;
+static Drawing::UnitSystem units = Drawing::UnitSystem::Millimeters;
 static float unitScale = 1.0f;
 
 // Recent files
@@ -103,6 +108,10 @@ void RenderPropertyPanel(Drawing::Canvas &canvas);
 void RenderStatusBar(Drawing::Canvas &canvas);
 void RenderCanvas(Drawing::Canvas &canvas);
 void HandleKeyboardShortcuts(Drawing::Canvas &canvas);
+
+// Forward declare the 3D view functions
+void Render3DViewWindow(Drawing::Canvas &canvas);
+void Handle3DViewerInput(const SDL_Event& event);
 
 // Helper function to handle tool selection
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas,
@@ -303,7 +312,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Curves Panel
   ImGui::BeginGroup();
   ImGui::PushStyleColor(ImGuiCol_ChildBg, groupColor);
-  ImGui::BeginChild("CurvesPanel", ImVec2(155, panelHeight), true);
+  ImGui::BeginChild("CurvesPanel", ImVec2(225, panelHeight), true);  // Increased width to fit 3 buttons
   
   ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
   ImGui::PushStyleColor(ImGuiCol_Text, UIColors::HEADER);
@@ -324,6 +333,14 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   if (ImGui::Button(ICON_BEZIER, ImVec2(buttonSize, buttonSize)))
     SelectTool(Drawing::DrawingMode::BezierCurve, canvas, "Bezier Curve Tool: Click to place 4 control points");
   if (ImGui::IsItemHovered()) ImGui::SetTooltip("Bezier");
+  ImGui::PopStyleColor();
+  
+  ImGui::SameLine(0, buttonSpacing);
+  
+  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Bellows ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
+  if (ImGui::Button("Bellows", ImVec2(buttonSize, buttonSize)))
+    SelectTool(Drawing::DrawingMode::Bellows, canvas, "Bellows Tool: Click to set start, second click sets length");
+  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Parametric Bellows");
   ImGui::PopStyleColor();
   
   ImGui::EndChild();
@@ -457,16 +474,16 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
   // Units-aware coordinate display
   std::string unitSuffix;
   switch (UIState::units) {
-    case UIState::UnitSystem::Pixels:
+    case Drawing::UnitSystem::Pixels:
       unitSuffix = "px";
       break;
-    case UIState::UnitSystem::Millimeters:
+    case Drawing::UnitSystem::Millimeters:
       unitSuffix = "mm";
       break;
-    case UIState::UnitSystem::Centimeters:
+    case Drawing::UnitSystem::Centimeters:
       unitSuffix = "cm";
       break;
-    case UIState::UnitSystem::Inches:
+    case Drawing::UnitSystem::Inches:
       unitSuffix = "in";
       break;
   }
@@ -510,6 +527,9 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   ImGui::Begin("Properties", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                    ImGuiWindowFlags_NoCollapse);
+
+  // Get the selected shape
+  const Drawing::Shape* selectedShape = canvas.getSelectedShape();
 
   ImGui::PushStyleColor(ImGuiCol_Header, UIColors::HEADER);
   
@@ -722,21 +742,371 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
+  else if (UIState::activeMode == Drawing::DrawingMode::Bellows) {
+    if (ImGui::CollapsingHeader("Bellows Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Indent(10);
+      
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click to set start point");
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click again to set length");
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Adjust parameters in properties");
+      ImGui::Separator();
+      
+      ImGui::Text("Select an existing bellows to configure its parameters");
+      
+      ImGui::Unindent(10);
+    }
+  }
   
   // Selected object properties
   if (ImGui::CollapsingHeader("Object Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent(10);
     
-    // This would normally be filled with the selected object's properties
-    // For now, just display a placeholder
-    ImGui::Text("No object selected");
-    ImGui::Text("Select an object to");
-    ImGui::Text("view its properties");
+    // Get selected shape
+    Drawing::Shape *selectedShape = canvas.getSelectedShape();
+
+    if (selectedShape) {
+      // ... existing shape type handling ...
+      
+      // Add Bellows shape properties
+      if (selectedShape->type == Drawing::ShapeType::BELLOWS) {
+        Drawing::Bellows* bellows = static_cast<Drawing::Bellows*>(selectedShape);
+        
+        // Ensure the bellows is properly selected
+        bellows->isSelected = true;
+        
+        ImGui::SeparatorText("Bellows Design Module");
+        
+        // Overall dimensions with validation
+        float overallLength = bellows->calculateOverallLength();
+        if (ImGui::DragFloat("Overall Length (mm)", &overallLength, 1.0f, 20.0f, 1000.0f, "%.1f")) {
+          bellows->updateFromOverallLength(overallLength);
+        }
+        
+        ImGui::Separator();
+        
+        // Cuff parameters section with validation feedback
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.2f, 0.3f, 0.7f));
+        if (ImGui::CollapsingHeader("Cuff Dimensions", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::PushItemWidth(150.0f);
+          
+          bool validCuffDiameters = bellows->cuffAInnerDiameter <= bellows->baseConvolutionDiameter &&
+                                   bellows->cuffBInnerDiameter <= bellows->baseConvolutionDiameter;
+          
+          if (!validCuffDiameters) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+            ImGui::TextWrapped("Warning: Cuff diameters should be less than or equal to Base Diameter");
+            ImGui::PopStyleColor();
+          }
+          
+          // Ensure min/max limits are enforced
+          if (ImGui::DragFloat("Cuff A Inner Diameter (mm)", &bellows->cuffAInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
+            // Validate input - ensure it's positive
+            if (bellows->cuffAInnerDiameter < 5.0f) bellows->cuffAInnerDiameter = 5.0f;
+          }
+          
+          if (ImGui::DragFloat("Cuff B Inner Diameter (mm)", &bellows->cuffBInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
+            // Validate input - ensure it's positive
+            if (bellows->cuffBInnerDiameter < 5.0f) bellows->cuffBInnerDiameter = 5.0f;
+          }
+          
+          if (ImGui::DragFloat("Cuff A Length (mm)", &bellows->cuffALength, 0.5f, 5.0f, 100.0f, "%.1f")) {
+            // Validate input - ensure it's positive
+            if (bellows->cuffALength < 5.0f) bellows->cuffALength = 5.0f;
+            
+            // Update overall length
+            overallLength = bellows->calculateOverallLength();
+          }
+          
+          if (ImGui::DragFloat("Cuff B Length (mm)", &bellows->cuffBLength, 0.5f, 5.0f, 100.0f, "%.1f")) {
+            // Validate input - ensure it's positive
+            if (bellows->cuffBLength < 5.0f) bellows->cuffBLength = 5.0f;
+            
+            // Update overall length
+            overallLength = bellows->calculateOverallLength();
+          }
+          
+          ImGui::PopItemWidth();
+        }
+        ImGui::PopStyleColor();
+        
+        // Convolution parameters section
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.2f, 0.3f, 0.7f));
+        if (ImGui::CollapsingHeader("Convolution Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::PushItemWidth(150.0f);
+          
+          bool validDiameters = bellows->baseConvolutionDiameter < bellows->peakConvolutionDiameter;
+          if (!validDiameters) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+            ImGui::TextWrapped("Warning: Peak Diameter must be greater than Base Diameter");
+            ImGui::PopStyleColor();
+          }
+          
+          // Calculate minimum base diameter based on cuff diameters
+          float minBaseDiameter = std::max(bellows->cuffAInnerDiameter, bellows->cuffBInnerDiameter);
+          if (minBaseDiameter < 10.0f) minBaseDiameter = 10.0f;
+          
+          if (ImGui::DragFloat("Base Diameter (mm)", &bellows->baseConvolutionDiameter, 0.5f, 
+                           minBaseDiameter, 300.0f, "%.1f")) {
+            // Ensure peak diameter is always greater than base
+            if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter) {
+              bellows->peakConvolutionDiameter = bellows->baseConvolutionDiameter + 5.0f;
+            }
+          }
+          
+          if (ImGui::DragFloat("Peak Diameter (mm)", &bellows->peakConvolutionDiameter, 0.5f, 
+                           bellows->baseConvolutionDiameter + 0.1f, 350.0f, "%.1f")) {
+            // Enforce the constraint directly in the UI
+            if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter) {
+              bellows->peakConvolutionDiameter = bellows->baseConvolutionDiameter + 0.1f;
+            }
+          }
+          
+          // Prevent negative or zero convolution section length
+          if (ImGui::DragFloat("Convoluted Section Length (mm)", &bellows->convolutedSectionLength, 1.0f, 10.0f, 500.0f, "%.1f")) {
+            if (bellows->convolutedSectionLength < 10.0f) {
+              bellows->convolutedSectionLength = 10.0f;
+            }
+            
+            // Update overall length
+            overallLength = bellows->calculateOverallLength();
+          }
+          
+          // Enforce reasonable limits for number of convolutions
+          if (ImGui::DragInt("Number of Convolutions", &bellows->numConvolutions, 1, 1, 30)) {
+            // Keep numConvolutions at least 1
+            bellows->numConvolutions = std::max(1, bellows->numConvolutions);
+            
+            // Limit based on convoluted section length - prevent too many convolutions
+            float minSpacing = 5.0f; // Minimum spacing between convolutions
+            int maxConvolutions = static_cast<int>(bellows->convolutedSectionLength / minSpacing);
+            if (maxConvolutions < 1) maxConvolutions = 1;
+            
+            if (bellows->numConvolutions > maxConvolutions) {
+              bellows->numConvolutions = maxConvolutions;
+            }
+          }
+          
+          // Calculate and display convolution spacing
+          float convolutionSpacing = bellows->convolutedSectionLength / bellows->numConvolutions;
+          ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Convolution Spacing: %.1f mm", convolutionSpacing);
+          
+          ImGui::PopItemWidth();
+        }
+        ImGui::PopStyleColor();
+        
+        // Wall thickness with validation
+        ImGui::PushItemWidth(150.0f);
+        
+        // Calculate reasonable limits for wall thickness
+        float maxWallThickness = std::min(bellows->baseConvolutionDiameter / 4.0f, 
+                                       (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f);
+        if (maxWallThickness < 0.5f) maxWallThickness = 0.5f;
+        
+        if (ImGui::DragFloat("Wall Thickness (mm)", &bellows->wallThickness, 0.1f, 0.5f, maxWallThickness, "%.1f")) {
+          // Ensure wall thickness stays within reasonable limits
+          if (bellows->wallThickness < 0.5f) bellows->wallThickness = 0.5f;
+          if (bellows->wallThickness > maxWallThickness) bellows->wallThickness = maxWallThickness;
+        }
+        
+        bool validWallThickness = bellows->wallThickness <= bellows->baseConvolutionDiameter / 4.0f &&
+                                 bellows->wallThickness <= (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f;
+        
+        if (!validWallThickness) {
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+          ImGui::TextWrapped("Warning: Wall thickness too large for current dimensions");
+          ImGui::PopStyleColor();
+        }
+        
+        ImGui::PopItemWidth();
+        
+        // Display options
+        ImGui::Checkbox("Show Dimensions", &bellows->showDimensions);
+        
+        ImGui::Separator();
+        
+        // Action buttons
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.7f, 1.0f));
+        
+        // Generate profile button
+        if (ImGui::Button("Generate Profile", ImVec2(150, 30))) {
+          // Validate parameters
+          if (!bellows->validateParameters()) {
+            ImGui::OpenPopup("Invalid Parameters");
+          } else {
+            // Force a refresh of the profile
+            bellows->isSelected = true;
+          }
+        }
+        
+        ImGui::SameLine();
+        
+        // Reset parameters button
+        if (ImGui::Button("Reset Parameters", ImVec2(150, 30))) {
+          bellows->resetParameters();
+        }
+        
+        // Fit to view button
+        if (ImGui::Button("Fit to View", ImVec2(150, 30))) {
+          canvas.fitBellowsToView();
+        }
+        
+        ImGui::PopStyleColor(2);
+        
+        // Validation popup
+        if (ImGui::BeginPopupModal("Invalid Parameters", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+          ImGui::Text("Please check the following parameters:");
+          
+          if (bellows->cuffAInnerDiameter <= 0.0f || bellows->cuffBInnerDiameter <= 0.0f)
+            ImGui::BulletText("Cuff inner diameters must be positive");
+            
+          if (bellows->cuffALength <= 0.0f || bellows->cuffBLength <= 0.0f)
+            ImGui::BulletText("Cuff lengths must be positive");
+            
+          if (bellows->baseConvolutionDiameter <= 0.0f || bellows->peakConvolutionDiameter <= 0.0f)
+            ImGui::BulletText("Convolution diameters must be positive");
+            
+          if (bellows->wallThickness <= 0.0f)
+            ImGui::BulletText("Wall thickness must be positive");
+            
+          if (bellows->cuffAInnerDiameter > bellows->baseConvolutionDiameter ||
+              bellows->cuffBInnerDiameter > bellows->baseConvolutionDiameter)
+            ImGui::BulletText("Cuff diameters must be ≤ Base Diameter");
+            
+          if (bellows->baseConvolutionDiameter >= bellows->peakConvolutionDiameter)
+            ImGui::BulletText("Base Diameter must be < Peak Diameter");
+            
+          if (bellows->wallThickness > bellows->baseConvolutionDiameter / 4.0f ||
+              bellows->wallThickness > (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f)
+            ImGui::BulletText("Wall thickness is too large for current dimensions");
+          
+          if (ImGui::Button("Fix Parameters Automatically", ImVec2(220, 0))) {
+            // Auto-fix the parameters
+            
+            // Fix diameters
+            if (bellows->baseConvolutionDiameter <= 0.0f) bellows->baseConvolutionDiameter = 60.0f;
+            if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter)
+              bellows->peakConvolutionDiameter = bellows->baseConvolutionDiameter + 20.0f;
+              
+            // Fix cuff diameters
+            if (bellows->cuffAInnerDiameter <= 0.0f) bellows->cuffAInnerDiameter = 50.0f;
+            if (bellows->cuffBInnerDiameter <= 0.0f) bellows->cuffBInnerDiameter = 50.0f;
+            
+            if (bellows->cuffAInnerDiameter > bellows->baseConvolutionDiameter)
+              bellows->cuffAInnerDiameter = bellows->baseConvolutionDiameter;
+            if (bellows->cuffBInnerDiameter > bellows->baseConvolutionDiameter)
+              bellows->cuffBInnerDiameter = bellows->baseConvolutionDiameter;
+              
+            // Fix lengths
+            if (bellows->cuffALength <= 0.0f) bellows->cuffALength = 20.0f;
+            if (bellows->cuffBLength <= 0.0f) bellows->cuffBLength = 20.0f;
+            if (bellows->convolutedSectionLength <= 0.0f) bellows->convolutedSectionLength = 100.0f;
+            
+            // Fix wall thickness
+            float maxWallThickness = std::min(bellows->baseConvolutionDiameter / 4.0f, 
+                                           (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f);
+            if (bellows->wallThickness <= 0.0f || bellows->wallThickness > maxWallThickness)
+              bellows->wallThickness = std::min(2.0f, maxWallThickness);
+              
+            // Fix number of convolutions
+            if (bellows->numConvolutions <= 0) bellows->numConvolutions = 6;
+              
+            ImGui::CloseCurrentPopup();
+          }
+          
+          ImGui::SameLine();
+          
+          if (ImGui::Button("Close", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+          }
+          ImGui::EndPopup();
+        }
+      }
+    }
     
     ImGui::Unindent(10);
   }
   
   ImGui::PopStyleColor(); // Header color
+  
+  // Bellows section
+  if (selectedShape && selectedShape->type == Drawing::ShapeType::BELLOWS) {
+    ImGui::Separator();
+    ImGui::Text("Bellows Properties:");
+    ImGui::PushStyleColor(ImGuiCol_Header, UIColors::HEADER);
+    
+    // Cast to Bellows - we need to remove const and then cast
+    const Drawing::Bellows* const_bellows = static_cast<const Drawing::Bellows*>(selectedShape);
+    Drawing::Bellows* bellows = const_cast<Drawing::Bellows*>(const_bellows);
+    
+    if (bellows) {
+      ImGui::Indent(10);
+      
+      // Position and angle
+      float position[2] = {bellows->position.x, bellows->position.y};
+      if (ImGui::DragFloat2("Position", position, 1.0f)) {
+        bellows->position.x = position[0];
+        bellows->position.y = position[1];
+      }
+      
+      float angle = bellows->angle * 180.0f / M_PI; // Convert to degrees for display
+      if (ImGui::SliderFloat("Rotation", &angle, 0.0f, 360.0f, "%.1f°")) {
+        bellows->angle = angle * M_PI / 180.0f; // Convert back to radians
+      }
+      
+      ImGui::Separator();
+      
+      // Dimension parameters
+      if (ImGui::CollapsingHeader("Dimensions", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Indent(10);
+        
+        // Overall length calculation
+        float overallLength = bellows->calculateOverallLength();
+        ImGui::Text("Overall Length: %.1f mm", overallLength);
+        
+        // Draw 3D View button
+        ImGui::Separator();
+        if (ImGui::Button("3D View", ImVec2(-1, 30))) {
+          UIState::show3DView = true;
+          UIState::bellows3DViewInitialized = false;
+        }
+        
+        // Show dimensions toggle
+        ImGui::Checkbox("Show Dimensions", &bellows->showDimensions);
+        
+        ImGui::Separator();
+        
+        // Cuffs
+        ImGui::Text("Cuffs:");
+        ImGui::DragFloat("Cuff A Inner Diameter", &bellows->cuffAInnerDiameter, 0.5f, 10.0f, 100.0f, "%.1f mm");
+        ImGui::DragFloat("Cuff B Inner Diameter", &bellows->cuffBInnerDiameter, 0.5f, 10.0f, 100.0f, "%.1f mm");
+        ImGui::DragFloat("Cuff A Length", &bellows->cuffALength, 0.5f, 5.0f, 50.0f, "%.1f mm");
+        ImGui::DragFloat("Cuff B Length", &bellows->cuffBLength, 0.5f, 5.0f, 50.0f, "%.1f mm");
+        
+        ImGui::Separator();
+        
+        // Convolutions
+        ImGui::Text("Convolutions:");
+        ImGui::DragFloat("Base Diameter", &bellows->baseConvolutionDiameter, 0.5f, bellows->cuffAInnerDiameter, bellows->peakConvolutionDiameter, "%.1f mm");
+        ImGui::DragFloat("Peak Diameter", &bellows->peakConvolutionDiameter, 0.5f, bellows->baseConvolutionDiameter, 150.0f, "%.1f mm");
+        ImGui::DragFloat("Convoluted Section Length", &bellows->convolutedSectionLength, 1.0f, 10.0f, 300.0f, "%.1f mm");
+        
+        int numConvs = bellows->numConvolutions;
+        if (ImGui::InputInt("Number of Convolutions", &numConvs, 1, 2)) {
+          bellows->numConvolutions = std::max(1, numConvs);
+        }
+        
+        ImGui::DragFloat("Wall Thickness", &bellows->wallThickness, 0.1f, 0.5f, 5.0f, "%.1f mm");
+        
+        ImGui::Unindent(10);
+      }
+      
+      // ... rest of the bellows properties section ...
+    }
+    
+    // Ensure we pop the style color for header
+    ImGui::PopStyleColor();
+  }
   
   ImGui::End();
 }
@@ -907,16 +1277,16 @@ void RenderCanvas(Drawing::Canvas &canvas) {
       char coordinates[64];
       std::string unitSuffix;
       switch (UIState::units) {
-        case UIState::UnitSystem::Pixels:
+        case Drawing::UnitSystem::Pixels:
           unitSuffix = "px";
           break;
-        case UIState::UnitSystem::Millimeters:
+        case Drawing::UnitSystem::Millimeters:
           unitSuffix = "mm";
           break;
-        case UIState::UnitSystem::Centimeters:
+        case Drawing::UnitSystem::Centimeters:
           unitSuffix = "cm";
           break;
-        case UIState::UnitSystem::Inches:
+        case Drawing::UnitSystem::Inches:
           unitSuffix = "in";
           break;
       }
@@ -1074,35 +1444,31 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
   }
 }
 
-int main(int argc, char *argv[]) {
-  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-    std::cerr << "Error: " << SDL_GetError() << std::endl;
+int main(int, char **) {
+  // Initialize SDL
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+    std::cerr << "Error initializing SDL: " << SDL_GetError() << std::endl;
     return -1;
   }
 
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+  // Setup SDL window
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-
-  // Create window with AutoCAD-like title
+  SDL_WindowFlags window_flags =
+      (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
+                        SDL_WINDOW_ALLOW_HIGHDPI);
   SDL_Window *window = SDL_CreateWindow(
-      "Drawing Application", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-      WINDOW_WIDTH, WINDOW_HEIGHT,
-      SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-
-  if (!window) {
-    std::cerr << "Error: " << SDL_GetError() << std::endl;
-    return -1;
-  }
-
+      "CAD Drawing Application", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+      WINDOW_WIDTH, WINDOW_HEIGHT, window_flags);
   SDL_GLContext gl_context = SDL_GL_CreateContext(window);
   SDL_GL_MakeCurrent(window, gl_context);
-  SDL_GL_SetSwapInterval(1);
+  SDL_GL_SetSwapInterval(1); // Enable vsync
 
+  // Initialize GLAD
   if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
     std::cerr << "Failed to initialize GLAD" << std::endl;
     return -1;
@@ -1135,6 +1501,11 @@ int main(int argc, char *argv[]) {
           event.window.event == SDL_WINDOWEVENT_CLOSE &&
           event.window.windowID == SDL_GetWindowID(window))
         running = false;
+      
+      // Handle 3D viewer input
+      if (UIState::show3DView) {
+        Handle3DViewerInput(event);
+      }
       
       // Handle mouse wheel for zoom (AutoCAD-like)
       if (event.type == SDL_MOUSEWHEEL) {
@@ -1174,6 +1545,9 @@ int main(int argc, char *argv[]) {
     RenderCanvas(canvas);
     RenderPropertyPanel(canvas);
     RenderStatusBar(canvas);
+    
+    // Render 3D view window if active
+    Render3DViewWindow(canvas);
 
     ImGui::Render();
     glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
@@ -1193,4 +1567,80 @@ int main(int argc, char *argv[]) {
   SDL_Quit();
 
   return 0;
+}
+
+// Add after the RenderPropertyPanel function
+
+// Helper function to get the static 3D viewer instance
+BellowsViewer3D& GetBellowsViewer() {
+  static BellowsViewer3D viewer;
+  static bool initialized = false;
+  
+  if (!initialized) {
+    viewer.initialize();
+    initialized = true;
+  }
+  
+  return viewer;
+}
+
+void Render3DViewWindow(Drawing::Canvas &canvas) {
+  // Only show if enabled
+  if (!UIState::show3DView) return;
+  
+  // Get selected bellows shape
+  const Drawing::Shape* selectedShape = canvas.getSelectedShape();
+  if (!selectedShape || selectedShape->type != Drawing::ShapeType::BELLOWS) {
+    UIState::show3DView = false;
+    return;
+  }
+  
+  // First static_cast to const Drawing::Bellows*, then const_cast to remove const
+  const Drawing::Bellows* const_bellows = static_cast<const Drawing::Bellows*>(selectedShape);
+  Drawing::Bellows* bellows = const_cast<Drawing::Bellows*>(const_bellows);
+  
+  // Create a centered window that's 80% of the screen size
+  ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+  ImVec2 windowSize(screenSize.x * 0.8f, screenSize.y * 0.8f);
+  ImVec2 windowPos((screenSize.x - windowSize.x) * 0.5f, (screenSize.y - windowSize.y) * 0.5f);
+  
+  ImGui::SetNextWindowPos(windowPos, ImGuiCond_Appearing);
+  ImGui::SetNextWindowSize(windowSize, ImGuiCond_Appearing);
+  
+  // Get the static viewer instance
+  BellowsViewer3D& viewer = GetBellowsViewer();
+  
+  // Ensure the viewer is initialized
+  if (!UIState::bellows3DViewInitialized) {
+    UIState::bellows3DViewInitialized = true;
+  }
+  
+  // Render the 3D view window
+  if (ImGui::Begin("3D Bellows View", &UIState::show3DView, 
+                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+    
+    // Split window into two parts: viewer and settings
+    ImVec2 availSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewerSize(availSize.x * 0.75f, availSize.y);
+    
+    // Render the 3D model
+    viewer.render(bellows, viewerSize);
+    
+    // Settings panel on the right
+    ImGui::SameLine();
+    viewer.showSettingsPanel();
+    
+    ImGui::End();
+  }
+}
+
+// Helper function to handle 3D viewer input
+void Handle3DViewerInput(const SDL_Event& event) {
+  if (!UIState::show3DView) return;
+  
+  // Get the static viewer instance
+  BellowsViewer3D& viewer = GetBellowsViewer();
+  
+  // Pass the event to the viewer
+  viewer.handleInput(event);
 }

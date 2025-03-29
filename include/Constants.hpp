@@ -36,4 +36,11 @@ namespace Constants {
     const int CIRCLE_SEGMENTS = 64;            // Number of segments for circle rendering
 }
 
+enum class UnitSystem {
+    Pixels,
+    Millimeters,
+    Centimeters,
+    Inches
+};
+
 } // namespace Drawing 

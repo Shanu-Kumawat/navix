@@ -5,9 +5,14 @@
 #include <cmath>  // for std::abs and other math functions
 #include <memory> // for std::unique_ptr
 #include <algorithm> // for std::minmax_element
+#include <string>    // for std::string and std::to_string
+#include <vector>    // for std::vector
 #include "Constants.hpp"
 
 namespace Drawing {
+
+// Forward declaration
+class Canvas;
 
 enum class ShapeType {
     POINT,
@@ -17,7 +22,9 @@ enum class ShapeType {
     SQUARE,
     RECTANGLE,
     SPLINE,
-    BEZIER
+    BEZIER,
+    DIMENSION,
+    BELLOWS
 };
 
 struct Shape {
@@ -339,6 +346,57 @@ struct Rectangle : public Shape {
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Rectangle>(*this);
     }
+};
+
+// Dimension type enum
+enum class DimensionType {
+    Linear,
+    Diameter,
+    Radius,
+    Angular
+};
+
+// Dimension shape for technical drawings
+struct Dimension : public Shape {
+    ImVec2 start;
+    ImVec2 end;
+    ImVec2 textPosition;
+    std::string dimensionText;
+    DimensionType dimType;
+    float lengthInPixels;
+
+    Dimension(const ImVec2& s, const ImVec2& e, 
+              ImU32 color = Colors::LINE, 
+              float thickness = Constants::DEFAULT_LINE_THICKNESS,
+              DimensionType type = DimensionType::Linear)
+        : Shape(ShapeType::DIMENSION, color, thickness), 
+          start(s), end(e), 
+          dimType(type)
+    {
+        // Calculate mid-point for text position by default
+        textPosition = ImVec2((start.x + end.x) / 2.0f, (start.y + end.y) / 2.0f - 10.0f);
+        
+        // Calculate dimension length
+        float dx = end.x - start.x;
+        float dy = end.y - start.y;
+        lengthInPixels = std::sqrt(dx * dx + dy * dy);
+        
+        // Set default dimension text (can be overridden)
+        dimensionText = std::to_string(lengthInPixels);
+    }
+
+    bool isValid() const override;
+    bool isPointNear(const ImVec2& point, float threshold) const override;
+    std::unique_ptr<Shape> clone() const override;
+
+    // Draw the dimension with text
+    void draw(ImDrawList* drawList, Canvas* canvas) const;
+    
+    // Utility methods
+    ImVec2 getCenter() const;
+    void move(const ImVec2& delta);
+    void scale(float factor);
+    void rotate(float angle, const ImVec2& center);
 };
 
 } // namespace Drawing 

@@ -4,6 +4,8 @@
 #include <iostream>
 #include <memory>
 #include <cmath>
+#include <sstream>
+#include <iomanip>
 
 namespace Drawing {
 
@@ -94,11 +96,37 @@ void Canvas::handleInput() {
 void Canvas::handleSelection(const ImVec2& mousePos) {
     // Handle selection of shapes
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        selectedShape = nullptr;
-        for (auto& shape : shapes) {
-            if (shape->isPointNear(mousePos, Constants::SNAP_THRESHOLD / zoomLevel)) {
-                selectedShape = shape.get();
-                break;
+        clearSelection(); // Use our new method to properly clear selection
+        
+        // First check specifically for bellows shapes as they can be harder to select
+        bool bellowsSelected = false;
+        for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
+            auto& shape = *it;
+            if (shape->type == ShapeType::BELLOWS) {
+                if (shape->isPointNear(mousePos, Constants::SNAP_THRESHOLD / zoomLevel)) {
+                    selectedShape = shape.get();
+                    static_cast<Bellows*>(selectedShape)->isSelected = true;
+                    bellowsSelected = true;
+                    break;
+                }
+            }
+        }
+        
+        // If no bellows was selected, try other shapes
+        if (!bellowsSelected) {
+            // Check all shapes for selection
+            for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
+                auto& shape = *it;
+                if (shape->isPointNear(mousePos, Constants::SNAP_THRESHOLD / zoomLevel)) {
+                    selectedShape = shape.get();
+                    
+                    // Set specific selection state for bellows
+                    if (selectedShape->type == ShapeType::BELLOWS) {
+                        static_cast<Bellows*>(selectedShape)->isSelected = true;
+                    }
+                    
+                    break;
+                }
             }
         }
         
@@ -176,6 +204,21 @@ void Canvas::render(ImDrawList* drawList) {
                 drawList->AddCircleFilled(transformedEnd, 5.0f * zoomLevel, selectionColor);
                         break;
                     }
+            case ShapeType::BELLOWS: {
+                // For bellows, highlight the profile with selection color
+                const auto* bellows = static_cast<const Bellows*>(selectedShape);
+                
+                // Generate profile points
+                std::vector<ImVec2> profilePoints = bellows->generateProfile();
+                
+                // Draw selection outline around the bellows
+                for (size_t i = 0; i < profilePoints.size() - 1; ++i) {
+                    ImVec2 p1 = transformCoordinates(profilePoints[i]);
+                    ImVec2 p2 = transformCoordinates(profilePoints[i + 1]);
+                    drawList->AddLine(p1, p2, selectionColor, bellows->thickness + 2.0f);
+                }
+                break;
+            }
             // Handle other shape types for selection highlight
                     default:
                         break;
@@ -215,6 +258,9 @@ void Canvas::handleDrawing(const ImVec2& mousePos) {
             break;
         case DrawingMode::BezierCurve:
             handleBezierDrawing(drawList, mousePos);
+            break;
+        case DrawingMode::Bellows:
+            handleBellowsDrawing(drawList, mousePos);
             break;
         default:
             break;
@@ -265,7 +311,7 @@ void Canvas::deleteSelectedShape() {
         // First remove the shape
         shapes.erase(it);
         std::cout << "Shape deleted, remaining shapes: " << shapes.size() << "\n";
-        selectedShape = nullptr;
+        clearSelection(); // Use our new method
         
         // Then save the new state to history
         saveToHistory();
@@ -294,6 +340,28 @@ void Canvas::duplicateSelectedShape() {
             newShape = std::make_unique<Line>(newStart, newEnd, line.color, line.thickness);
             break;
         }
+        case ShapeType::BELLOWS: {
+            const auto& bellows = static_cast<const Bellows&>(*selectedShape);
+            auto newBellows = std::make_unique<Bellows>(bellows.color, bellows.thickness);
+            
+            // Copy all parameters
+            newBellows->cuffAInnerDiameter = bellows.cuffAInnerDiameter;
+            newBellows->cuffBInnerDiameter = bellows.cuffBInnerDiameter;
+            newBellows->cuffALength = bellows.cuffALength;
+            newBellows->cuffBLength = bellows.cuffBLength;
+            newBellows->baseConvolutionDiameter = bellows.baseConvolutionDiameter;
+            newBellows->peakConvolutionDiameter = bellows.peakConvolutionDiameter;
+            newBellows->convolutedSectionLength = bellows.convolutedSectionLength;
+            newBellows->numConvolutions = bellows.numConvolutions;
+            newBellows->wallThickness = bellows.wallThickness;
+            newBellows->showDimensions = bellows.showDimensions;
+            
+            // Position the duplicate slightly offset from the original
+            // We'll need to implement translation for bellows later
+            
+            newShape = std::move(newBellows);
+            break;
+        }
         // ... similar cases for other shape types ...
     }
     
@@ -317,6 +385,13 @@ void Canvas::moveSelectedShape(const ImVec2& delta) {
         case ShapeType::BEZIER: {
             auto& bezier = static_cast<BezierCurve&>(*selectedShape);
             bezier.moveEntireCurve(delta);
+            break;
+        }
+        case ShapeType::BELLOWS: {
+            // For bellows, we would need to implement movement
+            // by translating all profile points
+            // This will be implemented later, as bellows don't have a 
+            // direct translation method yet
             break;
         }
         // ... handle other shape types ...
@@ -518,6 +593,7 @@ void Canvas::renderGrid(ImDrawList* drawList) {
 }
 
 void Canvas::renderShapes(ImDrawList* drawList) const {
+    // Render all types of shapes
     renderPoints(drawList);
     renderLines(drawList);
     renderCircles(drawList);
@@ -526,17 +602,21 @@ void Canvas::renderShapes(ImDrawList* drawList) const {
     renderRectangles(drawList);
     renderSplines(drawList);
     renderBezierCurves(drawList);
+    renderBellows(drawList);
 }
 
 void Canvas::renderPreview(ImDrawList* drawList, const ImVec2& currentPos) {
     if (!isDrawing) return;
     
     switch (currentMode) {
+        case DrawingMode::Point:
+            previewPoint(drawList, currentPos);
+            break;
         case DrawingMode::Line:
             previewLine(drawList, startPoint, currentPos);
             break;
         case DrawingMode::Circle:
-            previewCircle(drawList, startPoint, calculateDistance(startPoint, currentPos));
+            previewCircle(drawList, startPoint, Math::calculateDistance(startPoint, currentPos));
             break;
         case DrawingMode::Triangle:
             previewTriangle(drawList, trianglePoints, clickCount);
@@ -552,6 +632,9 @@ void Canvas::renderPreview(ImDrawList* drawList, const ImVec2& currentPos) {
             break;
         case DrawingMode::BezierCurve:
             previewBezier(drawList, currentCurvePoints);
+            break;
+        case DrawingMode::Bellows:
+            previewBellows(drawList, startPoint, currentPos);
             break;
         default:
             break;
@@ -1150,6 +1233,97 @@ void Canvas::handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos)
             isDrawing = false;
             currentCurvePoints.clear();
         }
+    }
+}
+
+void Canvas::handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
+    // Only handle click events, not mouse movement
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (isFirstClick) {
+            // First click sets the starting position of the bellows
+            startPoint = getSnappedPoint(currentPos);
+            isFirstClick = false;
+            isDrawing = true;
+        } else {
+            // Second click completes the bellows
+            endPoint = getSnappedPoint(currentPos);
+            
+            // Calculate length and orientation
+            float dx = endPoint.x - startPoint.x;
+            float dy = endPoint.y - startPoint.y;
+            float length = std::sqrt(dx * dx + dy * dy);
+            float angle = std::atan2(dy, dx);
+            
+            if (length > 1.0f) {
+                // Create bellows with length determined by distance
+                auto bellows = std::make_unique<Bellows>();
+                
+                // Position and scale the bellows
+                bellows->convolutedSectionLength = length - bellows->cuffALength - bellows->cuffBLength;
+                if (bellows->convolutedSectionLength < 0.0f) bellows->convolutedSectionLength = 0.0f;
+                
+                // Store the starting position and angle for rendering
+                bellows->position = startPoint;
+                bellows->angle = angle;
+                
+                // Add to shapes collection
+                shapes.push_back(std::move(bellows));
+                
+                // Save to history
+                saveToHistory();
+            }
+            
+            // Reset drawing state
+            isFirstClick = true;
+            isDrawing = false;
+        }
+    }
+}
+
+void Canvas::previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const {
+    // Calculate length and orientation for preview
+    float dx = end.x - start.x;
+    float dy = end.y - start.y;
+    float length = std::sqrt(dx * dx + dy * dy);
+    float angle = std::atan2(dy, dx);
+    
+    if (length < 1.0f) return;
+    
+    // Create temporary bellows for preview
+    Bellows previewBellows;
+    previewBellows.convolutedSectionLength = length - previewBellows.cuffALength - previewBellows.cuffBLength;
+    if (previewBellows.convolutedSectionLength < 0.0f) previewBellows.convolutedSectionLength = 0.0f;
+    
+    // Calculate sin and cos for rotation
+    float s = sin(angle);
+    float c = cos(angle);
+    
+    // Get profile points
+    std::vector<ImVec2> profilePoints = previewBellows.generateProfile();
+    
+    // Draw profile with preview color
+    for (size_t i = 0; i < profilePoints.size() - 1; ++i) {
+        // Rotate and translate the points
+        float rotatedX1 = profilePoints[i].x * c - profilePoints[i].y * s;
+        float rotatedY1 = profilePoints[i].x * s + profilePoints[i].y * c;
+        
+        float rotatedX2 = profilePoints[i+1].x * c - profilePoints[i+1].y * s;
+        float rotatedY2 = profilePoints[i+1].x * s + profilePoints[i+1].y * c;
+        
+        ImVec2 p1 = ImVec2(
+            start.x + rotatedX1,
+            start.y + rotatedY1
+        );
+        ImVec2 p2 = ImVec2(
+            start.x + rotatedX2,
+            start.y + rotatedY2
+        );
+        
+        // Convert to screen coordinates
+        p1 = transformCoordinates(p1);
+        p2 = transformCoordinates(p2);
+        
+        drawList->AddLine(p1, p2, Colors::PREVIEW, 1.0f);
     }
 }
 
@@ -2453,6 +2627,237 @@ ImVec2 Canvas::findNearestSnapPoint(const ImVec2& pos) const {
     }
     
     return result;
+}
+
+void Canvas::renderBellows(ImDrawList* drawList) const {
+    for (const auto& shape : shapes) {
+        if (shape->type == ShapeType::BELLOWS) {
+            const Bellows* bellows = static_cast<const Bellows*>(shape.get());
+            
+            // Skip if not valid
+            if (!bellows->isValid()) continue;
+            
+            // Generate profile points
+            std::vector<ImVec2> profilePoints = bellows->generateProfile();
+            
+            // Transform points based on position and angle
+            std::vector<ImVec2> transformedPoints;
+            transformedPoints.reserve(profilePoints.size());
+            
+            float s = sin(bellows->angle);
+            float c = cos(bellows->angle);
+            
+            for (const auto& point : profilePoints) {
+                // Rotate
+                float rotatedX = point.x * c - point.y * s;
+                float rotatedY = point.x * s + point.y * c;
+                
+                // Translate
+                ImVec2 translatedPoint(
+                    bellows->position.x + rotatedX,
+                    bellows->position.y + rotatedY
+                );
+                
+                transformedPoints.push_back(translatedPoint);
+            }
+            
+            // Draw the profile with enhanced styling
+            ImU32 profileColor = bellows->isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(0, 0, 0, 255); // Black by default, yellow when selected
+            float profileThickness = bellows->thickness * 1.5f; // Make profile lines thicker
+            
+            for (size_t i = 0; i < transformedPoints.size() - 1; ++i) {
+                ImVec2 p1 = transformCoordinates(transformedPoints[i]);
+                ImVec2 p2 = transformCoordinates(transformedPoints[i + 1]);
+                drawList->AddLine(p1, p2, profileColor, profileThickness);
+            }
+            
+            // Draw dimension lines if needed
+            if (bellows->showDimensions) {
+                std::vector<std::pair<ImVec2, ImVec2>> dimensions = bellows->generateDimensionLines();
+                
+                // Dimension line style
+                ImU32 dimensionColor = IM_COL32(0, 120, 215, 200); // Blue for dimension lines
+                ImU32 textColor = IM_COL32(255, 255, 255, 255);    // White for text
+                
+                for (auto& dim : dimensions) {
+                    // Rotate and translate dimension lines
+                    ImVec2 p1, p2;
+                    
+                    // Rotate and translate first point
+                    p1.x = dim.first.x * c - dim.first.y * s + bellows->position.x;
+                    p1.y = dim.first.x * s + dim.first.y * c + bellows->position.y;
+                    
+                    // Rotate and translate second point
+                    p2.x = dim.second.x * c - dim.second.y * s + bellows->position.x;
+                    p2.y = dim.second.x * s + dim.second.y * c + bellows->position.y;
+                    
+                    // Transform to screen coordinates
+                    p1 = transformCoordinates(p1);
+                    p2 = transformCoordinates(p2);
+                    
+                    // Draw dimension line
+                    drawDashedLine(drawList, p1, p2, dimensionColor, 1.0f, 5.0f);
+                    
+                    // Draw small perpendicular end ticks (arrows)
+                    ImVec2 direction = ImVec2(p2.x - p1.x, p2.y - p1.y);
+                    float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+                    
+                    if (length > 0.1f) {
+                        direction.x /= length;
+                        direction.y /= length;
+                        
+                        // Perpendicular vector
+                        ImVec2 perp = ImVec2(-direction.y, direction.x);
+                        
+                        // Draw ticks at both ends
+                        float tickLength = 6.0f;
+                        
+                        // Start point tick
+                        ImVec2 tickStart1 = ImVec2(p1.x + perp.x * tickLength, p1.y + perp.y * tickLength);
+                        ImVec2 tickEnd1 = ImVec2(p1.x - perp.x * tickLength, p1.y - perp.y * tickLength);
+                        drawList->AddLine(tickStart1, tickEnd1, dimensionColor, 1.0f);
+                        
+                        // End point tick
+                        ImVec2 tickStart2 = ImVec2(p2.x + perp.x * tickLength, p2.y + perp.y * tickLength);
+                        ImVec2 tickEnd2 = ImVec2(p2.x - perp.x * tickLength, p2.y - perp.y * tickLength);
+                        drawList->AddLine(tickStart2, tickEnd2, dimensionColor, 1.0f);
+                    }
+                    
+                    // Calculate dimension value
+                    float dx = dim.second.x - dim.first.x;
+                    float dy = dim.second.y - dim.first.y;
+                    float value = std::sqrt(dx * dx + dy * dy);
+                    
+                    // Format value as string with units 
+                    std::ostringstream ss;
+                    ss << std::fixed << std::setprecision(1);
+                    
+                    // Add unit based on current unit system
+                    if (hasUnitSystem() && getCurrentUnit() != UnitSystem::Pixels) {
+                        float scaledValue = value;
+                        
+                        // Scale based on unit system
+                        if (getCurrentUnit() == UnitSystem::Millimeters) {
+                            ss << scaledValue << " mm";
+                        } else if (getCurrentUnit() == UnitSystem::Centimeters) {
+                            scaledValue /= 10.0f;
+                            ss << scaledValue << " cm";
+                        } else if (getCurrentUnit() == UnitSystem::Inches) {
+                            scaledValue /= 25.4f;
+                            ss << scaledValue << " in";
+                        }
+                    } else {
+                        ss << value << " mm";
+                    }
+                    
+                    // Draw text background for better readability
+                    ImVec2 textPos = ImVec2((p1.x + p2.x) / 2.0f, (p1.y + p2.y) / 2.0f - 15);
+                    std::string text = ss.str();
+                    ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
+                    
+                    drawList->AddRectFilled(
+                        ImVec2(textPos.x - 2, textPos.y - 2),
+                        ImVec2(textPos.x + textSize.x + 2, textPos.y + textSize.y + 2),
+                        IM_COL32(30, 30, 30, 180)
+                    );
+                    
+                    // Draw dimension text
+                    drawList->AddText(textPos, textColor, text.c_str());
+                }
+            }
+        }
+    }
+}
+
+void Canvas::clearSelection() {
+    // Clear selection state for special shape types
+    if (selectedShape) {
+        if (selectedShape->type == ShapeType::SPLINE) {
+            auto* spline = static_cast<Spline*>(selectedShape);
+            spline->selectedPoint = -1;
+            spline->isSelected = false;
+        } else if (selectedShape->type == ShapeType::BEZIER) {
+            auto* bezier = static_cast<BezierCurve*>(selectedShape);
+            bezier->selectedPoint = -1;
+            bezier->isSelected = false;
+        } else if (selectedShape->type == ShapeType::BELLOWS) {
+            auto* bellows = static_cast<Bellows*>(selectedShape);
+            bellows->isSelected = false;
+        }
+        
+        // Clear the main selection pointer
+        selectedShape = nullptr;
+    }
+}
+
+void Canvas::fitBellowsToView() {
+    // Find the selected bellows
+    for (const auto& shape : shapes) {
+        if (shape->type == ShapeType::BELLOWS && shape.get() == selectedShape) {
+            const Bellows* bellows = static_cast<const Bellows*>(shape.get());
+            
+            // Calculate the bounding box
+            ImVec4 bbox = bellows->calculateBoundingBox();
+            
+            // Transform to account for position and rotation
+            float s = sin(bellows->angle);
+            float c = cos(bellows->angle);
+            
+            // Calculate transformed corners
+            std::vector<ImVec2> corners = {
+                ImVec2(bbox.x, bbox.y),
+                ImVec2(bbox.x, bbox.w),
+                ImVec2(bbox.z, bbox.y),
+                ImVec2(bbox.z, bbox.w)
+            };
+            
+            // Transform corners
+            float minX = FLT_MAX, minY = FLT_MAX;
+            float maxX = -FLT_MAX, maxY = -FLT_MAX;
+            
+            for (auto& corner : corners) {
+                // Rotate
+                float rotatedX = corner.x * c - corner.y * s;
+                float rotatedY = corner.x * s + corner.y * c;
+                
+                // Translate
+                rotatedX += bellows->position.x;
+                rotatedY += bellows->position.y;
+                
+                // Update bounds
+                minX = std::min(minX, rotatedX);
+                minY = std::min(minY, rotatedY);
+                maxX = std::max(maxX, rotatedX);
+                maxY = std::max(maxY, rotatedY);
+            }
+            
+            // Add padding
+            float padding = 50.0f;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+            
+            // Calculate required zoom level
+            float viewWidth = ImGui::GetWindowWidth() - 20.0f;
+            float viewHeight = ImGui::GetWindowHeight() - 20.0f;
+            
+            float xScale = viewWidth / (maxX - minX);
+            float yScale = viewHeight / (maxY - minY);
+            
+            // Use the smaller of the two scales to ensure everything fits
+            float newZoom = std::min(xScale, yScale) * 0.9f;
+            
+            // Set the zoom and pan position
+            zoomLevel = newZoom;
+            panOffset = ImVec2(
+                -minX * zoomLevel + viewWidth / 2.0f - (maxX - minX) * zoomLevel / 2.0f,
+                -minY * zoomLevel + viewHeight / 2.0f - (maxY - minY) * zoomLevel / 2.0f
+            );
+            
+            return;
+        }
+    }
 }
 
 } // namespace Drawing 
