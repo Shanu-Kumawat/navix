@@ -12,7 +12,7 @@
 #define ICON_CIRCLE "Circle"
 #define ICON_RECTANGLE "Rect"
 #define ICON_POINT "Point"
-#define ICON_TRIANGLE "Triangle"
+#define ICON_TRIANGLE "Tri"
 #define ICON_SQUARE "Square"
 #define ICON_SPLINE "Spline"
 #define ICON_BEZIER "Bezier"
@@ -28,28 +28,28 @@
 const int WINDOW_WIDTH = 1280;
 const int WINDOW_HEIGHT = 720;
 
-// UI Colors - Enhanced AutoCAD-inspired color scheme
+// UI Colors - Professional Light Theme
 namespace UIColors {
-// AutoCAD-like modern theme (2023 version)
-const ImVec4 BACKGROUND = ImVec4(0.15f, 0.16f, 0.17f, 1.0f);                // Original dark gray background
-const ImVec4 PANEL = ImVec4(0.94f, 0.94f, 0.94f, 1.0f);                  // Very light gray panels
-const ImVec4 DARK_PANEL = ImVec4(0.87f, 0.87f, 0.87f, 1.0f);             // Subtle darker gray for headers
-const ImVec4 HEADER = ImVec4(0.0f, 0.47f, 0.84f, 1.0f);                  // AutoCAD 2023 blue
-const ImVec4 BORDER = ImVec4(0.75f, 0.75f, 0.75f, 1.0f);                 // Subtle gray borders
-const ImVec4 TEXT = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);                      // Pure black text for clarity
-const ImVec4 TEXT_DIM = ImVec4(0.45f, 0.45f, 0.45f, 1.0f);               // Medium gray dimmed text
-const ImVec4 BUTTON = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);                    // Very light gray buttons
-const ImVec4 BUTTON_HOVERED = ImVec4(0.78f, 0.78f, 0.78f, 1.0f);         // Darker when hovered
-const ImVec4 BUTTON_ACTIVE = ImVec4(0.0f, 0.47f, 0.84f, 1.0f);           // Blue when active
-const ImVec4 BUTTON_TEXT = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);               // Dark button text
-const ImVec4 ACCENT = ImVec4(0.0f, 0.47f, 0.84f, 1.0f);                  // Accent color - AutoCAD blue
+// Professional light theme with teal/blue-green accents
+const ImVec4 BACKGROUND = ImVec4(0.98f, 0.98f, 0.98f, 1.0f);             // Almost white background
+const ImVec4 PANEL = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);                  // Very light gray panels
+const ImVec4 DARK_PANEL = ImVec4(0.92f, 0.92f, 0.92f, 1.0f);             // Subtle darker gray for contrast
+const ImVec4 HEADER = ImVec4(0.18f, 0.69f, 0.69f, 1.0f);                 // Teal header
+const ImVec4 BORDER = ImVec4(0.82f, 0.82f, 0.82f, 1.0f);                 // Light gray borders
+const ImVec4 TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);                   // Near-black text for contrast
+const ImVec4 TEXT_DIM = ImVec4(0.50f, 0.50f, 0.50f, 1.0f);               // Medium gray dimmed text
+const ImVec4 BUTTON = ImVec4(0.94f, 0.94f, 0.94f, 1.0f);                 // Light gray buttons
+const ImVec4 BUTTON_HOVERED = ImVec4(0.90f, 0.90f, 0.90f, 1.0f);         // Slightly darker when hovered
+const ImVec4 BUTTON_ACTIVE = ImVec4(0.18f, 0.69f, 0.69f, 1.0f);          // Teal when active
+const ImVec4 BUTTON_TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);            // Dark button text
+const ImVec4 ACCENT = ImVec4(0.18f, 0.69f, 0.69f, 1.0f);                 // Teal accent color
 const ImVec4 TAB_ACTIVE = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);                // White active tab background
-const ImVec4 GRID_BACKGROUND = ImVec4(0.15f, 0.15f, 0.18f, 1.0f);        // Dark background for grid area
-const ImVec4 COMMAND_BG = ImVec4(0.20f, 0.20f, 0.20f, 1.0f);             // Dark command line background
-const ImVec4 COMMAND_TEXT = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);              // White command line text
-const ImVec4 SUCCESS = ImVec4(0.0f, 0.7f, 0.2f, 1.0f);                   // Green for success/confirmation
-const ImVec4 WARNING = ImVec4(0.9f, 0.6f, 0.0f, 1.0f);                   // Orange for warnings
-const ImVec4 ERROR = ImVec4(0.8f, 0.0f, 0.0f, 1.0f);                     // Red for errors
+const ImVec4 GRID_BACKGROUND = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);        // Very light background for grid area
+const ImVec4 COMMAND_BG = ImVec4(0.90f, 0.90f, 0.90f, 1.0f);             // Light gray command line background
+const ImVec4 COMMAND_TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);           // Dark command line text
+const ImVec4 SUCCESS = ImVec4(0.20f, 0.70f, 0.50f, 1.0f);                // Green-teal for success/confirmation
+const ImVec4 WARNING = ImVec4(0.90f, 0.65f, 0.20f, 1.0f);                // Orange for warnings
+const ImVec4 ERROR = ImVec4(0.85f, 0.25f, 0.20f, 1.0f);                  // Red for errors
 } // namespace UIColors
 
 // Global state for active tool and settings
@@ -124,7 +124,7 @@ void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas,
 void SetupImGuiStyle() {
   ImGuiStyle &style = ImGui::GetStyle();
 
-  // Colors - AutoCAD-like
+  // Colors - Professional Light Theme
   ImVec4 *colors = style.Colors;
   colors[ImGuiCol_Text] = UIColors::TEXT;
   colors[ImGuiCol_TextDisabled] = UIColors::TEXT_DIM;
@@ -171,38 +171,50 @@ void SetupImGuiStyle() {
   colors[ImGuiCol_TableRowBg] = UIColors::PANEL;
   colors[ImGuiCol_TableRowBgAlt] = UIColors::DARK_PANEL;
 
-  // Styles - AutoCAD-like
-  style.WindowPadding = ImVec2(8, 8);
-  style.FramePadding = ImVec2(6, 4);
-  style.CellPadding = ImVec2(4, 2);
-  style.ItemSpacing = ImVec2(8, 6);
-  style.ItemInnerSpacing = ImVec2(4, 4);
-  style.TouchExtraPadding = ImVec2(0, 0);
-  style.IndentSpacing = 21;
-  style.ScrollbarSize = 12;
-  style.GrabMinSize = 12;
+  // Styles - Modern Light Theme
+  style.WindowPadding = ImVec2(10, 10);
+  // Increase frame padding for button text to have more space around it
+  style.FramePadding = ImVec2(10, 8);
+  style.CellPadding = ImVec2(6, 4);
+  style.ItemSpacing = ImVec2(10, 8);
+  style.ItemInnerSpacing = ImVec2(8, 6);
+  style.TouchExtraPadding = ImVec2(2, 2);
+  style.IndentSpacing = 22;
+  style.ScrollbarSize = 14;
+  style.GrabMinSize = 14;
 
+  // Borders and rounding
   style.WindowBorderSize = 1;
   style.ChildBorderSize = 1;
   style.PopupBorderSize = 1;
   style.FrameBorderSize = 1;
   style.TabBorderSize = 0;
 
-  style.WindowRounding = 0;
-  style.ChildRounding = 0;
-  style.FrameRounding = 2;
-  style.PopupRounding = 0;
-  style.ScrollbarRounding = 2;
-  style.GrabRounding = 2;
-  style.TabRounding = 2;
+  style.WindowRounding = 6;
+  style.ChildRounding = 4;
+  style.FrameRounding = 4;
+  style.PopupRounding = 4;
+  style.ScrollbarRounding = 4;
+  style.GrabRounding = 4;
+  style.TabRounding = 4;
+  
+  // Window title alignment
+  style.WindowTitleAlign = ImVec2(0.5f, 0.5f); // Center window titles
+  
+  // Extra style tweaks
+  style.DisplaySafeAreaPadding = ImVec2(8, 8);
+  style.DisplayWindowPadding = ImVec2(8, 8);
+  
+  // More button-specific style adjustments
+  style.ButtonTextAlign = ImVec2(0.5f, 0.5f); // Center text in buttons
 }
 
 void RenderTopRibbon(Drawing::Canvas &canvas) {
-  // AutoCAD-style ribbon at the top
+  // Professional style ribbon at the top
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 110));
 
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(2, 2));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
   ImGui::Begin("Ribbon", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
@@ -210,175 +222,254 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Brand/filename section on the left
   ImGui::BeginGroup();
   ImGui::PushStyleColor(ImGuiCol_Text, UIColors::ACCENT);
-  ImGui::Text("CAD");
+  ImGui::Text("NAVIX");
   ImGui::PopStyleColor();
   ImGui::SameLine();
+  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
   ImGui::Text("Drawing");
+  ImGui::PopStyleColor();
   ImGui::EndGroup();
   
   ImGui::SameLine();
-  ImGui::Dummy(ImVec2(20, 0)); // Reduced spacing from 40 to 20
+  ImGui::Dummy(ImVec2(15, 0)); 
   
-  // Consolidated ribbon with all tools in a single row
-  // No tabs, just direct panel display for a cleaner interface
-  const float panelHeight = 85.0f; // Reduced height for a more compact UI
-  const float buttonSize = 56.0f;  // Slightly smaller buttons
-  const float smallBtnSize = 38.0f;
-  const float buttonSpacing = 6.0f; // Tighter spacing
-  const float panelSpacing = 8.0f;  // Reduced panel spacing
-  ImVec4 groupColor = ImVec4(0.97f, 0.97f, 0.97f, 1.0f); // Lighter background for better contrast
+  // Calculate adaptive panel and button widths based on screen size
+  const float availWidth = ImGui::GetContentRegionAvail().x;
+  const float panelSpacing = 8.0f;
+  
+  // Total width minus space for 3D button (120px) divided by 3 panels
+  const float panelWidth = (availWidth - 130 - panelSpacing*2) / 3;
+  
+  // Calculate button sizes based on panel width and content
+  const float panelHeight = 82.0f;
+  
+  // Measure standard text size for a button
+  const float textWidth = ImGui::CalcTextSize("Rectangle").x;
+  // Ensure button width is at least text + padding
+  const float minButtonWidth = textWidth + 16.0f; 
+  // Calculate how many buttons per row based on available width
+  const int buttonsPerRow = std::max(2, static_cast<int>(panelWidth / (minButtonWidth + 8.0f)));
+  // Calculate button width based on available space and buttons per row
+  const float buttonWidth = (panelWidth - (buttonsPerRow-1)*8.0f - 16.0f) / buttonsPerRow;
+  // Fixed button height
+  const float buttonHeight = 30.0f;
+  const float buttonSpacing = 8.0f;
   
   // Draw Panel
   ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, groupColor);
-  ImGui::BeginChild("DrawPanel", ImVec2(280, panelHeight), true);
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
+  ImGui::BeginChild("DrawPanel", ImVec2(panelWidth, panelHeight), true);
   
   ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::HEADER);
+  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
   ImGui::Text("Draw");
   ImGui::PopStyleColor();
   ImGui::PopFont();
-  ImGui::Separator();
   
-  // Drawing tools in a single row
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Line ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_LINE, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Line, canvas, "Line Tool: Click to set start point, second click sets direction");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Line (L)");
-  ImGui::PopStyleColor();
+  ImGui::Dummy(ImVec2(0, 2));
   
-  ImGui::SameLine(0, buttonSpacing);
+  // Row 1: Basic drawing tools - use buttonWidth instead of smallBtnSize
+  float y = ImGui::GetCursorPosY();
+  bool selected;
   
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Circle ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_CIRCLE, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Circle, canvas, "Circle Tool: Click to set center and direction (radius in properties)");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Circle (C)");
-  ImGui::PopStyleColor();
-  
-  ImGui::SameLine(0, buttonSpacing);
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Rectangle ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_RECTANGLE, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Rectangle, canvas, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Rectangle (R)");
-  ImGui::PopStyleColor();
-  
-  ImGui::SameLine(0, buttonSpacing);
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Point ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_POINT, ImVec2(buttonSize, buttonSize)))
+  selected = UIState::activeMode == Drawing::DrawingMode::Point;
+  if (ImGui::Button(ICON_POINT, ImVec2(buttonWidth, buttonHeight))) {
     SelectTool(Drawing::DrawingMode::Point, canvas, "Point Tool: Click to place points");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Point (P)");
-  ImGui::PopStyleColor();
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor(); // Child bg
-  ImGui::EndGroup();
-  
-  ImGui::SameLine(0, panelSpacing);
-  
-  // More Shapes Panel
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, groupColor);
-  ImGui::BeginChild("MoreShapesPanel", ImVec2(155, panelHeight), true);
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::HEADER);
-  ImGui::Text("More Shapes");
-  ImGui::PopStyleColor();
-  ImGui::PopFont();
-  ImGui::Separator();
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Triangle ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_TRIANGLE, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Triangle, canvas, "Triangle Tool: Click to set point and direction (dimensions in properties)");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Triangle (T)");
-  ImGui::PopStyleColor();
-  
-  ImGui::SameLine(0, buttonSpacing);
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Square ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_SQUARE, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Square, canvas, "Square Tool: Click to set corner and direction (side length in properties)");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Square (S)");
-  ImGui::PopStyleColor();
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor(); // Child bg
-  ImGui::EndGroup();
-  
-  ImGui::SameLine(0, panelSpacing);
-  
-  // Curves Panel
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, groupColor);
-  ImGui::BeginChild("CurvesPanel", ImVec2(225, panelHeight), true);  // Increased width to fit 3 buttons
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::HEADER);
-  ImGui::Text("Curves");
-  ImGui::PopStyleColor();
-  ImGui::PopFont();
-  ImGui::Separator();
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Spline ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_SPLINE, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Spline, canvas, "Spline Tool: Click to add control points, right-click to finish");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Spline");
-  ImGui::PopStyleColor();
-  
-  ImGui::SameLine(0, buttonSpacing);
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::BezierCurve ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_BEZIER, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::BezierCurve, canvas, "Bezier Curve Tool: Click to place 4 control points");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Bezier");
-  ImGui::PopStyleColor();
-  
-  ImGui::SameLine(0, buttonSpacing);
-  
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Bellows ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button("Bellows", ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Bellows, canvas, "Bellows Tool: Click to set start, second click sets length");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Parametric Bellows");
-  ImGui::PopStyleColor();
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor(); // Child bg
-  ImGui::EndGroup();
-  
-  ImGui::SameLine(0, panelSpacing);
-  
-  // Modify Panel
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, groupColor);
-  ImGui::BeginChild("ModifyPanel", ImVec2(220, panelHeight), true);
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::HEADER);
-  ImGui::Text("Modify");
-  ImGui::PopStyleColor();
-  ImGui::PopFont();
-  ImGui::Separator();
-  
-  // Selection tools with improved layout
-  ImGui::PushStyleColor(ImGuiCol_Button, UIState::activeMode == Drawing::DrawingMode::Select ? UIColors::BUTTON_ACTIVE : UIColors::BUTTON);
-  if (ImGui::Button(ICON_SELECT, ImVec2(buttonSize, buttonSize)))
-    SelectTool(Drawing::DrawingMode::Select, canvas, "Select Tool: Click to select objects");
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Select");
-  ImGui::PopStyleColor();
-  
-  ImGui::SameLine(0, buttonSpacing);
-  
-  if (ImGui::Button("Clear", ImVec2(buttonSize, buttonSize))) {
-    canvas.clearAll();
-    UIState::consoleMessage = "All shapes cleared";
   }
-  if (ImGui::IsItemHovered()) ImGui::SetTooltip("Clear All");
+  
+  ImGui::SameLine(0, buttonSpacing);
+  selected = UIState::activeMode == Drawing::DrawingMode::Line;
+  if (ImGui::Button(ICON_LINE, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Line, canvas, "Line Tool: Click to set start and end points");
+  }
+  
+  if (buttonsPerRow > 2) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  selected = UIState::activeMode == Drawing::DrawingMode::Circle;
+  if (ImGui::Button(ICON_CIRCLE, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Circle, canvas, "Circle Tool: Click to set center and radius");
+  }
+
+  if (buttonsPerRow > 3) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  selected = UIState::activeMode == Drawing::DrawingMode::Triangle;
+  if (ImGui::Button(ICON_TRIANGLE, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Triangle, canvas, "Triangle Tool: Click to set point and direction (dimensions in properties)");
+  }
+
+  if (buttonsPerRow > 4) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  selected = UIState::activeMode == Drawing::DrawingMode::Square;
+  if (ImGui::Button(ICON_SQUARE, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Square, canvas, "Square Tool: Click to set corner and direction (side length in properties)");
+  }
+
+  if (buttonsPerRow > 5) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  selected = UIState::activeMode == Drawing::DrawingMode::Rectangle;
+  if (ImGui::Button(ICON_RECTANGLE, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Rectangle, canvas, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
+  }
+
+  // Start new row for additional tools
+  ImGui::Dummy(ImVec2(0, 2));
+  
+  // Row 2: Additional drawing tools
+  selected = UIState::activeMode == Drawing::DrawingMode::Spline;
+  if (ImGui::Button(ICON_SPLINE, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Spline, canvas, "Spline Tool: Click to add control points, double-click to finish");
+  }
+  
+  ImGui::SameLine(0, buttonSpacing);
+  selected = UIState::activeMode == Drawing::DrawingMode::BezierCurve;
+  if (ImGui::Button(ICON_BEZIER, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::BezierCurve, canvas, "Bezier Tool: Click to add control points, double-click to finish");
+  }
+
+  if (buttonsPerRow > 2) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  selected = UIState::activeMode == Drawing::DrawingMode::Bellows;
+  if (ImGui::Button("Bellows", ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Bellows, canvas, "Bellows Tool: Click to create a parametric bellows");
+  }
   
   ImGui::EndChild();
-  ImGui::PopStyleColor(); // Child bg
+  ImGui::PopStyleColor();
   ImGui::EndGroup();
+  
+  // Edit Panel
+  ImGui::SameLine(0, panelSpacing);
+  ImGui::BeginGroup();
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
+  ImGui::BeginChild("EditPanel", ImVec2(panelWidth, panelHeight), true);
+  
+  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
+  ImGui::Text("Edit");
+  ImGui::PopStyleColor();
+  ImGui::PopFont();
+  
+  ImGui::Dummy(ImVec2(0, 2));
+  
+  // Edit tools - use buttonWidth for consistency
+  selected = UIState::activeMode == Drawing::DrawingMode::Select;
+  if (ImGui::Button(ICON_SELECT, ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Select, canvas, "Select Tool: Click to select objects");
+  }
+  
+  ImGui::SameLine(0, buttonSpacing);
+  if (ImGui::Button(ICON_UNDO, ImVec2(buttonWidth, buttonHeight))) {
+    canvas.undo();
+    UIState::consoleMessage = "Undo";
+  }
+  
+  if (buttonsPerRow > 2) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  if (ImGui::Button(ICON_REDO, ImVec2(buttonWidth, buttonHeight))) {
+    canvas.redo();
+    UIState::consoleMessage = "Redo";
+  }
+  
+  ImGui::Dummy(ImVec2(0, 3));
+  
+  // View control tools
+  if (ImGui::Button(ICON_PAN, ImVec2(buttonWidth, buttonHeight))) {
+    // Toggle panning mode
+    UIState::consoleMessage = "Pan Mode: Use middle mouse button to pan";
+  }
+  
+  ImGui::SameLine(0, buttonSpacing);
+  if (ImGui::Button(ICON_ZOOM, ImVec2(buttonWidth, buttonHeight))) {
+    // Reset zoom and pan
+    UIState::zoomLevel = 1.0f;
+    UIState::panOffset = ImVec2(0.0f, 0.0f);
+    UIState::consoleMessage = "View Reset";
+  }
+  
+  ImGui::EndChild();
+  ImGui::PopStyleColor();
+  ImGui::EndGroup();
+  
+  // View Panel
+  ImGui::SameLine(0, panelSpacing);
+  ImGui::BeginGroup();
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
+  ImGui::BeginChild("ViewPanel", ImVec2(panelWidth, panelHeight), true);
+  
+  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
+  ImGui::Text("View");
+  ImGui::PopStyleColor();
+  ImGui::PopFont();
+  
+  ImGui::Dummy(ImVec2(0, 2));
+  
+  // Grid and snap toggles with reduced width elements
+  bool showGrid = canvas.isGridVisible();
+  ImGui::PushItemWidth(panelWidth * 0.7f);
+  if (ImGui::Checkbox("Grid", &showGrid)) {
+    canvas.setShowGrid(showGrid);
+    UIState::consoleMessage = showGrid ? "Grid: ON" : "Grid: OFF";
+  }
+  
+  bool snapToGrid = canvas.isSnapToGridEnabled();
+  if (ImGui::Checkbox("Snap", &snapToGrid)) {
+    canvas.setSnapToGrid(snapToGrid);
+    UIState::snapEnabled = snapToGrid;
+    UIState::consoleMessage = snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF";
+  }
+  
+  // Grid size slider
+  float gridSize = UIState::gridSize;
+  if (ImGui::SliderFloat("Size", &gridSize, 5.0f, 50.0f, "%.0f")) {
+    UIState::gridSize = gridSize;
+    canvas.setGridSpacing(gridSize);
+    UIState::consoleMessage = "Grid Size Updated";
+  }
+  ImGui::PopItemWidth();
+  
+  ImGui::EndChild();
+  ImGui::PopStyleColor();
+  ImGui::EndGroup();
+  
+  // Right-aligned section for 3D view button
+  ImGui::SameLine();
+  ImGui::PushStyleColor(ImGuiCol_Button, UIColors::ACCENT);
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.73f, 0.73f, 1.0f));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+  
+  // Increase 3D View button width
+  if (ImGui::Button("3D View", ImVec2(100, 30))) {
+    UIState::show3DView = true;
+    UIState::bellows3DViewInitialized = false;
+    UIState::consoleMessage = "Opening 3D View";
+  }
+  
+  ImGui::PopStyleColor(3);
   
   ImGui::End();
   ImGui::PopStyleVar();
@@ -390,9 +481,12 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
   const float statusBarHeight = 28.0f;
   const float totalHeight = commandLineHeight + statusBarHeight;
   
+  // Get screen width for better scaling
+  const float screenWidth = ImGui::GetIO().DisplaySize.x;
+  
   // Command line (dark background with light text)
   ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetIO().DisplaySize.y - totalHeight));
-  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, commandLineHeight));
+  ImGui::SetNextWindowSize(ImVec2(screenWidth, commandLineHeight));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, UIColors::COMMAND_BG);
   ImGui::PushStyleColor(ImGuiCol_Text, UIColors::COMMAND_TEXT);
   ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
@@ -400,11 +494,14 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
 
-  // Command prompt
-  ImGui::Text("Command: ");
+  // Command prompt (keep it compact)
+  ImGui::Text("Command:");
   ImGui::SameLine();
   
-  ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 50.0f);
+  // Calculate available width for command input
+  const float cmdLabelWidth = ImGui::CalcTextSize("Command:").x + 10;
+  ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 5.0f);
+  
   if (UIState::focusCommandLine) {
     ImGui::SetKeyboardFocusHere();
     UIState::focusCommandLine = false;
@@ -455,21 +552,24 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
   
   // Status bar (below command line) - full width
   ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetIO().DisplaySize.y - statusBarHeight));
-  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, statusBarHeight));
+  ImGui::SetNextWindowSize(ImVec2(screenWidth, statusBarHeight));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, UIColors::DARK_PANEL);
   ImGui::Begin("StatusBar", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
 
-  // Status sections with separators - evenly spaced across the full width
+  // Status sections with separators - calculate based on available width
   ImVec2 mousePos = ImGui::GetMousePos();
   float windowWidth = ImGui::GetWindowWidth();
   
-  // Calculate section widths for even distribution
-  float section1Width = windowWidth * 0.22f; // Coordinates
-  float section2Width = windowWidth * 0.35f; // Status message
-  float section3Width = windowWidth * 0.22f; // Zoom level
-  float section4Width = windowWidth * 0.21f; // Grid size
+  // Calculate section widths proportionally based on window width
+  const float sectionPadding = 10.0f;
+  
+  // Calculate widths that better accommodate text (min 150px for coord section)
+  float coordSectionWidth = std::max(150.0f, windowWidth * 0.20f);
+  float statusSectionWidth = std::max(150.0f, windowWidth * 0.45f);
+  float zoomSectionWidth = std::max(100.0f, windowWidth * 0.15f);
+  float gridSectionWidth = std::max(100.0f, windowWidth * 0.15f);
   
   // Units-aware coordinate display
   std::string unitSuffix;
@@ -492,25 +592,47 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
   float scaledY = mousePos.y / UIState::unitScale;
   
   // Section 1: Coordinates
-  ImGui::Text("X: %.2f%s  Y: %.2f%s", scaledX, unitSuffix.c_str(), scaledY, unitSuffix.c_str());
+  ImGui::Text("X: %.1f%s  Y: %.1f%s", scaledX, unitSuffix.c_str(), scaledY, unitSuffix.c_str());
   
-  ImGui::SameLine(section1Width);
+  ImGui::SameLine(coordSectionWidth);
   ImGui::Text("|");
-  ImGui::SameLine(section1Width + 10);
+  ImGui::SameLine(coordSectionWidth + sectionPadding);
   
-  // Section 2: Status message
-  ImGui::Text("%s", UIState::consoleMessage.c_str());
+  // Section 2: Status message - clipped if too long
+  // Calculate how much space we have for the status message
+  float statusMsgWidth = statusSectionWidth - sectionPadding*2;
+  std::string statusMsg = UIState::consoleMessage;
+  ImVec2 textSize = ImGui::CalcTextSize(statusMsg.c_str());
   
-  ImGui::SameLine(section1Width + section2Width);
+  // If the text is too long, add ellipsis
+  if (textSize.x > statusMsgWidth) {
+    // Find index to truncate
+    float ellipsisWidth = ImGui::CalcTextSize("...").x;
+    int maxChars = 0;
+    float accWidth = 0;
+    for (int i = 0; i < statusMsg.size(); i++) {
+      char tmp[2] = {statusMsg[i], '\0'};
+      float charWidth = ImGui::CalcTextSize(tmp).x;
+      if (accWidth + charWidth + ellipsisWidth > statusMsgWidth)
+        break;
+      accWidth += charWidth;
+      maxChars = i + 1;
+    }
+    statusMsg = statusMsg.substr(0, maxChars) + "...";
+  }
+  
+  ImGui::Text("%s", statusMsg.c_str());
+  
+  ImGui::SameLine(coordSectionWidth + statusSectionWidth);
   ImGui::Text("|");
-  ImGui::SameLine(section1Width + section2Width + 10);
+  ImGui::SameLine(coordSectionWidth + statusSectionWidth + sectionPadding);
   
   // Section 3: Zoom level
   ImGui::Text("Zoom: %.0f%%", UIState::zoomLevel * 100.0f);
   
-  ImGui::SameLine(section1Width + section2Width + section3Width);
+  ImGui::SameLine(coordSectionWidth + statusSectionWidth + zoomSectionWidth);
   ImGui::Text("|");
-  ImGui::SameLine(section1Width + section2Width + section3Width + 10);
+  ImGui::SameLine(coordSectionWidth + statusSectionWidth + zoomSectionWidth + sectionPadding);
   
   // Section 4: Grid size indicator
   ImGui::Text("Grid: %d%s", (int)UIState::gridSize, unitSuffix.c_str());
@@ -520,9 +642,15 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
 }
 
 void RenderPropertyPanel(Drawing::Canvas &canvas) {
+  // Calculate property panel width - make it responsive
+  const float screenWidth = ImGui::GetIO().DisplaySize.x;
+  const float propertyPanelWidth = std::min(300.0f, screenWidth * 0.2f);
+  const float propertyPanelMinWidth = 220.0f;
+  const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
+  
   // AutoCAD-style properties panel on the right
-  ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 250, 95));
-  ImGui::SetNextWindowSize(ImVec2(250, ImGui::GetIO().DisplaySize.y - 150));
+  ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - actualPanelWidth, 95));
+  ImGui::SetNextWindowSize(ImVec2(actualPanelWidth, ImGui::GetIO().DisplaySize.y - 150));
 
   ImGui::Begin("Properties", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -537,35 +665,38 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     ImGui::Indent(10);
     ImGui::AlignTextToFramePadding();
     
+    // Calculate label and value alignment position
+    const float labelWidth = 70.0f;
+    
     ImGui::Text("Workspace:");
-    ImGui::SameLine(120);
+    ImGui::SameLine(labelWidth);
     ImGui::Text("%s", UIState::currentWorkspace.c_str());
     
     ImGui::Text("Units:");
-    ImGui::SameLine(120);
+    ImGui::SameLine(labelWidth);
     const char* unitNames[] = { "Pixels", "Millimeters", "Centimeters", "Inches" };
     ImGui::Text("%s", unitNames[static_cast<int>(UIState::units)]);
     
     ImGui::Text("Grid Size:");
-    ImGui::SameLine(120);
+    ImGui::SameLine(labelWidth);
     ImGui::Text("%.0f", UIState::gridSize);
     
-    ImGui::Text("Snap to Grid:");
-    ImGui::SameLine(120);
+    ImGui::Text("Snap Grid:");
+    ImGui::SameLine(labelWidth);
     bool snapValue = UIState::snapEnabled;
     if (ImGui::Checkbox("##SnapToGrid", &snapValue)) {
         UIState::snapEnabled = snapValue;
         canvas.setSnapToGrid(UIState::snapEnabled);
         UIState::consoleMessage = UIState::snapEnabled ? "Snap to Grid: ON" : "Snap to Grid: OFF";
     }
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("When enabled, points will snap to the\ngrid and existing geometry points");
-    }
     
     ImGui::Unindent(10);
   }
   
-  // Tool-specific properties
+  // Tool-specific properties - use the available width effectively
+  const float availableWidth = ImGui::GetContentRegionAvail().x;
+  const float inputWidth = availableWidth * 0.65f;
+  
   if (UIState::activeMode == Drawing::DrawingMode::Line) {
     if (ImGui::CollapsingHeader("Line Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
@@ -583,17 +714,18 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         static float lineLength = canvas.getLineLength();
         
         // Input field for line length
-        ImGui::Text("Line Length:");
-        ImGui::SameLine(120);
+        ImGui::Text("Length:");
+        ImGui::SameLine(70);
+        ImGui::PushItemWidth(inputWidth);
         if (ImGui::InputFloat("##LineLength", &lineLength, 1.0f, 10.0f, "%.1f")) {
           // Ensure length is positive
           if (lineLength < 0.1f) lineLength = 0.1f;
           // Update canvas with new line length
           canvas.setLineLength(lineLength);
         }
+        ImGui::PopItemWidth();
       } else {
-        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click and drag to draw line");
-        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Release to complete");
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click and drag to draw");
       }
       
       ImGui::Unindent(10);
@@ -617,13 +749,15 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         // Input field for circle radius
         ImGui::Text("Radius:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(70);
+        ImGui::PushItemWidth(inputWidth);
         if (ImGui::InputFloat("##CircleRadius", &circleRadius, 1.0f, 10.0f, "%.1f")) {
           // Ensure radius is positive
           if (circleRadius < 0.1f) circleRadius = 0.1f;
           // Update canvas with new radius
           canvas.setCircleRadius(circleRadius);
         }
+        ImGui::PopItemWidth();
       } else {
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click and drag to draw circle");
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Release to complete");
@@ -650,13 +784,15 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         // Input field for square size
         ImGui::Text("Side Length:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(70);
+        ImGui::PushItemWidth(inputWidth);
         if (ImGui::InputFloat("##SquareSize", &squareSize, 1.0f, 10.0f, "%.1f")) {
           // Ensure size is positive
           if (squareSize < 0.1f) squareSize = 0.1f;
           // Update canvas with new size
           canvas.setSquareSize(squareSize);
         }
+        ImGui::PopItemWidth();
       } else {
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click and drag to draw square");
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Release to complete");
@@ -684,23 +820,27 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         // Input field for rectangle width
         ImGui::Text("Width:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(70);
+        ImGui::PushItemWidth(inputWidth);
         if (ImGui::InputFloat("##RectWidth", &rectangleWidth, 1.0f, 10.0f, "%.1f")) {
           // Ensure width is positive
           if (rectangleWidth < 0.1f) rectangleWidth = 0.1f;
           // Update canvas with new width
           canvas.setRectangleWidth(rectangleWidth);
         }
+        ImGui::PopItemWidth();
         
         // Input field for rectangle height
         ImGui::Text("Height:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(70);
+        ImGui::PushItemWidth(inputWidth);
         if (ImGui::InputFloat("##RectHeight", &rectangleHeight, 1.0f, 10.0f, "%.1f")) {
           // Ensure height is positive
           if (rectangleHeight < 0.1f) rectangleHeight = 0.1f;
           // Update canvas with new height
           canvas.setRectangleHeight(rectangleHeight);
         }
+        ImGui::PopItemWidth();
       } else {
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click and drag to draw rectangle");
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Release to complete");
@@ -727,13 +867,15 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         // Input field for triangle side length
         ImGui::Text("Side Length:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(70);
+        ImGui::PushItemWidth(inputWidth);
         if (ImGui::InputFloat("##TriangleSide", &triangleSide, 1.0f, 10.0f, "%.1f")) {
           // Ensure side length is positive
           if (triangleSide < 0.1f) triangleSide = 0.1f;
           // Update canvas with new side length
           canvas.setTriangleSide(triangleSide);
         }
+        ImGui::PopItemWidth();
       } else {
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click and drag to draw triangle");
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Release to complete");
@@ -765,8 +907,6 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     Drawing::Shape *selectedShape = canvas.getSelectedShape();
 
     if (selectedShape) {
-      // ... existing shape type handling ...
-      
       // Add Bellows shape properties
       if (selectedShape->type == Drawing::ShapeType::BELLOWS) {
         Drawing::Bellows* bellows = static_cast<Drawing::Bellows*>(selectedShape);
@@ -778,38 +918,44 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         // Overall dimensions with validation
         float overallLength = bellows->calculateOverallLength();
+        
+        // Calculate available width for each control
+        const float availWidth = ImGui::GetContentRegionAvail().x * 0.85f;
+        ImGui::PushItemWidth(availWidth);
+        
         if (ImGui::DragFloat("Overall Length (mm)", &overallLength, 1.0f, 20.0f, 1000.0f, "%.1f")) {
           bellows->updateFromOverallLength(overallLength);
         }
+        ImGui::PopItemWidth();
         
         ImGui::Separator();
         
         // Cuff parameters section with validation feedback
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.2f, 0.3f, 0.7f));
         if (ImGui::CollapsingHeader("Cuff Dimensions", ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::PushItemWidth(150.0f);
+          ImGui::PushItemWidth(availWidth);
           
           bool validCuffDiameters = bellows->cuffAInnerDiameter <= bellows->baseConvolutionDiameter &&
                                    bellows->cuffBInnerDiameter <= bellows->baseConvolutionDiameter;
           
           if (!validCuffDiameters) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-            ImGui::TextWrapped("Warning: Cuff diameters should be less than or equal to Base Diameter");
+            ImGui::TextWrapped("Warning: Cuff diameters should be less than Base Diameter");
             ImGui::PopStyleColor();
           }
           
           // Ensure min/max limits are enforced
-          if (ImGui::DragFloat("Cuff A Inner Diameter (mm)", &bellows->cuffAInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
+          if (ImGui::DragFloat("Cuff A Inner Diam", &bellows->cuffAInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
             // Validate input - ensure it's positive
             if (bellows->cuffAInnerDiameter < 5.0f) bellows->cuffAInnerDiameter = 5.0f;
           }
           
-          if (ImGui::DragFloat("Cuff B Inner Diameter (mm)", &bellows->cuffBInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
+          if (ImGui::DragFloat("Cuff B Inner Diam", &bellows->cuffBInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
             // Validate input - ensure it's positive
             if (bellows->cuffBInnerDiameter < 5.0f) bellows->cuffBInnerDiameter = 5.0f;
           }
           
-          if (ImGui::DragFloat("Cuff A Length (mm)", &bellows->cuffALength, 0.5f, 5.0f, 100.0f, "%.1f")) {
+          if (ImGui::DragFloat("Cuff A Length", &bellows->cuffALength, 0.5f, 5.0f, 100.0f, "%.1f")) {
             // Validate input - ensure it's positive
             if (bellows->cuffALength < 5.0f) bellows->cuffALength = 5.0f;
             
@@ -817,7 +963,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
             overallLength = bellows->calculateOverallLength();
           }
           
-          if (ImGui::DragFloat("Cuff B Length (mm)", &bellows->cuffBLength, 0.5f, 5.0f, 100.0f, "%.1f")) {
+          if (ImGui::DragFloat("Cuff B Length", &bellows->cuffBLength, 0.5f, 5.0f, 100.0f, "%.1f")) {
             // Validate input - ensure it's positive
             if (bellows->cuffBLength < 5.0f) bellows->cuffBLength = 5.0f;
             
@@ -832,7 +978,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         // Convolution parameters section
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.2f, 0.3f, 0.7f));
         if (ImGui::CollapsingHeader("Convolution Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::PushItemWidth(150.0f);
+          ImGui::PushItemWidth(availWidth);
           
           bool validDiameters = bellows->baseConvolutionDiameter < bellows->peakConvolutionDiameter;
           if (!validDiameters) {
@@ -845,7 +991,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           float minBaseDiameter = std::max(bellows->cuffAInnerDiameter, bellows->cuffBInnerDiameter);
           if (minBaseDiameter < 10.0f) minBaseDiameter = 10.0f;
           
-          if (ImGui::DragFloat("Base Diameter (mm)", &bellows->baseConvolutionDiameter, 0.5f, 
+          if (ImGui::DragFloat("Base Diameter", &bellows->baseConvolutionDiameter, 0.5f, 
                            minBaseDiameter, 300.0f, "%.1f")) {
             // Ensure peak diameter is always greater than base
             if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter) {
@@ -853,7 +999,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
             }
           }
           
-          if (ImGui::DragFloat("Peak Diameter (mm)", &bellows->peakConvolutionDiameter, 0.5f, 
+          if (ImGui::DragFloat("Peak Diameter", &bellows->peakConvolutionDiameter, 0.5f, 
                            bellows->baseConvolutionDiameter + 0.1f, 350.0f, "%.1f")) {
             // Enforce the constraint directly in the UI
             if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter) {
@@ -862,7 +1008,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           }
           
           // Prevent negative or zero convolution section length
-          if (ImGui::DragFloat("Convoluted Section Length (mm)", &bellows->convolutedSectionLength, 1.0f, 10.0f, 500.0f, "%.1f")) {
+          if (ImGui::DragFloat("Section Length", &bellows->convolutedSectionLength, 1.0f, 10.0f, 500.0f, "%.1f")) {
             if (bellows->convolutedSectionLength < 10.0f) {
               bellows->convolutedSectionLength = 10.0f;
             }
@@ -872,7 +1018,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           }
           
           // Enforce reasonable limits for number of convolutions
-          if (ImGui::DragInt("Number of Convolutions", &bellows->numConvolutions, 1, 1, 30)) {
+          if (ImGui::DragInt("Convolutions", &bellows->numConvolutions, 1, 1, 30)) {
             // Keep numConvolutions at least 1
             bellows->numConvolutions = std::max(1, bellows->numConvolutions);
             
@@ -888,21 +1034,21 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           
           // Calculate and display convolution spacing
           float convolutionSpacing = bellows->convolutedSectionLength / bellows->numConvolutions;
-          ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Convolution Spacing: %.1f mm", convolutionSpacing);
+          ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Spacing: %.1f mm", convolutionSpacing);
           
           ImGui::PopItemWidth();
         }
         ImGui::PopStyleColor();
         
         // Wall thickness with validation
-        ImGui::PushItemWidth(150.0f);
+        ImGui::PushItemWidth(availWidth);
         
         // Calculate reasonable limits for wall thickness
         float maxWallThickness = std::min(bellows->baseConvolutionDiameter / 4.0f, 
                                        (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f);
         if (maxWallThickness < 0.5f) maxWallThickness = 0.5f;
         
-        if (ImGui::DragFloat("Wall Thickness (mm)", &bellows->wallThickness, 0.1f, 0.5f, maxWallThickness, "%.1f")) {
+        if (ImGui::DragFloat("Wall Thickness", &bellows->wallThickness, 0.1f, 0.5f, maxWallThickness, "%.1f")) {
           // Ensure wall thickness stays within reasonable limits
           if (bellows->wallThickness < 0.5f) bellows->wallThickness = 0.5f;
           if (bellows->wallThickness > maxWallThickness) bellows->wallThickness = maxWallThickness;
@@ -913,7 +1059,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         if (!validWallThickness) {
           ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-          ImGui::TextWrapped("Warning: Wall thickness too large for current dimensions");
+          ImGui::TextWrapped("Warning: Wall thickness too large");
           ImGui::PopStyleColor();
         }
         
@@ -924,12 +1070,14 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         ImGui::Separator();
         
-        // Action buttons
+        // Action buttons - arrange in two rows if panel is narrow
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.7f, 1.0f));
         
+        const float btnWidth = availWidth / 2 - 4;
+        
         // Generate profile button
-        if (ImGui::Button("Generate Profile", ImVec2(150, 30))) {
+        if (ImGui::Button("Generate Profile", ImVec2(btnWidth, 30))) {
           // Validate parameters
           if (!bellows->validateParameters()) {
             ImGui::OpenPopup("Invalid Parameters");
@@ -942,85 +1090,25 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         ImGui::SameLine();
         
         // Reset parameters button
-        if (ImGui::Button("Reset Parameters", ImVec2(150, 30))) {
+        if (ImGui::Button("Reset Parameters", ImVec2(btnWidth, 30))) {
           bellows->resetParameters();
         }
         
         // Fit to view button
-        if (ImGui::Button("Fit to View", ImVec2(150, 30))) {
+        if (ImGui::Button("Fit to View", ImVec2(btnWidth, 30))) {
           canvas.fitBellowsToView();
         }
         
-        ImGui::PopStyleColor(2);
+        ImGui::SameLine();
         
-        // Validation popup
-        if (ImGui::BeginPopupModal("Invalid Parameters", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-          ImGui::Text("Please check the following parameters:");
-          
-          if (bellows->cuffAInnerDiameter <= 0.0f || bellows->cuffBInnerDiameter <= 0.0f)
-            ImGui::BulletText("Cuff inner diameters must be positive");
-            
-          if (bellows->cuffALength <= 0.0f || bellows->cuffBLength <= 0.0f)
-            ImGui::BulletText("Cuff lengths must be positive");
-            
-          if (bellows->baseConvolutionDiameter <= 0.0f || bellows->peakConvolutionDiameter <= 0.0f)
-            ImGui::BulletText("Convolution diameters must be positive");
-            
-          if (bellows->wallThickness <= 0.0f)
-            ImGui::BulletText("Wall thickness must be positive");
-            
-          if (bellows->cuffAInnerDiameter > bellows->baseConvolutionDiameter ||
-              bellows->cuffBInnerDiameter > bellows->baseConvolutionDiameter)
-            ImGui::BulletText("Cuff diameters must be ≤ Base Diameter");
-            
-          if (bellows->baseConvolutionDiameter >= bellows->peakConvolutionDiameter)
-            ImGui::BulletText("Base Diameter must be < Peak Diameter");
-            
-          if (bellows->wallThickness > bellows->baseConvolutionDiameter / 4.0f ||
-              bellows->wallThickness > (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f)
-            ImGui::BulletText("Wall thickness is too large for current dimensions");
-          
-          if (ImGui::Button("Fix Parameters Automatically", ImVec2(220, 0))) {
-            // Auto-fix the parameters
-            
-            // Fix diameters
-            if (bellows->baseConvolutionDiameter <= 0.0f) bellows->baseConvolutionDiameter = 60.0f;
-            if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter)
-              bellows->peakConvolutionDiameter = bellows->baseConvolutionDiameter + 20.0f;
-              
-            // Fix cuff diameters
-            if (bellows->cuffAInnerDiameter <= 0.0f) bellows->cuffAInnerDiameter = 50.0f;
-            if (bellows->cuffBInnerDiameter <= 0.0f) bellows->cuffBInnerDiameter = 50.0f;
-            
-            if (bellows->cuffAInnerDiameter > bellows->baseConvolutionDiameter)
-              bellows->cuffAInnerDiameter = bellows->baseConvolutionDiameter;
-            if (bellows->cuffBInnerDiameter > bellows->baseConvolutionDiameter)
-              bellows->cuffBInnerDiameter = bellows->baseConvolutionDiameter;
-              
-            // Fix lengths
-            if (bellows->cuffALength <= 0.0f) bellows->cuffALength = 20.0f;
-            if (bellows->cuffBLength <= 0.0f) bellows->cuffBLength = 20.0f;
-            if (bellows->convolutedSectionLength <= 0.0f) bellows->convolutedSectionLength = 100.0f;
-            
-            // Fix wall thickness
-            float maxWallThickness = std::min(bellows->baseConvolutionDiameter / 4.0f, 
-                                           (bellows->peakConvolutionDiameter - bellows->baseConvolutionDiameter) / 2.0f);
-            if (bellows->wallThickness <= 0.0f || bellows->wallThickness > maxWallThickness)
-              bellows->wallThickness = std::min(2.0f, maxWallThickness);
-              
-            // Fix number of convolutions
-            if (bellows->numConvolutions <= 0) bellows->numConvolutions = 6;
-              
-            ImGui::CloseCurrentPopup();
-          }
-          
-          ImGui::SameLine();
-          
-          if (ImGui::Button("Close", ImVec2(120, 0))) {
-            ImGui::CloseCurrentPopup();
-          }
-          ImGui::EndPopup();
+        // 3D View button
+        if (ImGui::Button("Open 3D View", ImVec2(btnWidth, 30))) {
+          UIState::show3DView = true;
+          UIState::bellows3DViewInitialized = false;
+          UIState::consoleMessage = "Opening 3D View";
         }
+        
+        ImGui::PopStyleColor(2);
       }
     }
     
@@ -1116,17 +1204,22 @@ void RenderCanvas(Drawing::Canvas &canvas) {
   // Using simplified UI layout (no tabs, single row of tools)
   const float ribbonHeight = 95.0f; // Updated height for our more compact ribbon
   const float commandAndStatusHeight = 53.0f; // Command line (25) + status bar (28)
-  const float propertiesPanelWidth = 250.0f;
+  
+  // Calculate property panel width - make it responsive
+  const float screenWidth = ImGui::GetIO().DisplaySize.x;
+  const float propertyPanelWidth = std::min(300.0f, screenWidth * 0.2f);
+  const float propertyPanelMinWidth = 220.0f;
+  const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
   
   float canvasX = 0.0f;
   float canvasY = ribbonHeight;
-  float canvasWidth = ImGui::GetIO().DisplaySize.x - propertiesPanelWidth;
+  float canvasWidth = ImGui::GetIO().DisplaySize.x - actualPanelWidth;
   float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - commandAndStatusHeight;
 
   ImGui::SetNextWindowPos(ImVec2(canvasX, canvasY));
   ImGui::SetNextWindowSize(ImVec2(canvasWidth, canvasHeight));
 
-  // Set canvas background to a slightly off-white color for better grid visibility
+  // Set canvas background color for the light theme
   ImGui::PushStyleColor(ImGuiCol_WindowBg, UIColors::GRID_BACKGROUND);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
   
