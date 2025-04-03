@@ -20,6 +20,9 @@ public:
     void handleInput(const SDL_Event& event);
     void showSettingsPanel();
     
+    // Public getter for the camera
+    Camera* getCamera(); 
+
 private:
     // OpenGL objects
     unsigned int framebuffer;
@@ -62,4 +65,4 @@ private:
     void resizeFramebuffer(int width, int height);
 };
 
-#endif 
+#endif

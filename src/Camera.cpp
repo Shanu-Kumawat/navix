@@ -64,9 +64,11 @@ void Camera::ProcessMouseScroll(float yoffset) {
 }
 
 void Camera::Reset() {
-    Position = glm::vec3(0.0f, 0.0f, 3.0f);
-    Yaw = YAW;
-    Pitch = PITCH;
+    // Reset to the new default angled view
+    Position = glm::vec3(2.0f, 1.5f, 3.0f); 
+    Yaw = -110.0f; 
+    Pitch = -15.0f;
+    Zoom = ZOOM; // Reset zoom as well
     updateCameraVectors();
 }
 
@@ -81,4 +83,4 @@ void Camera::updateCameraVectors() {
     // Also re-calculate the Right and Up vector
     Right = glm::normalize(glm::cross(Front, WorldUp));  // Normalize the vectors
     Up = glm::normalize(glm::cross(Right, Front));
-} 
+}

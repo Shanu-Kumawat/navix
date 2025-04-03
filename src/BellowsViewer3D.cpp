@@ -32,18 +32,26 @@ BellowsViewer3D::~BellowsViewer3D() {
 }
 
 void BellowsViewer3D::initialize() {
-    // Initialize camera
-    camera = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
+    // Initialize camera with a slightly angled view by passing Yaw and Pitch to the constructor
+    // Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH);
+    camera = std::make_unique<Camera>(glm::vec3(2.0f, 1.5f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -110.0f, -15.0f); 
     
     // Create shader
     shader = std::make_unique<Shader>("shaders/bellows.vs", "shaders/bellows.fs");
     
-    // Create 3D model
+    // Create 3D model (This line was missing in the previous file content shown, adding it back)
     bellowsModel = std::make_unique<BellowsModel3D>();
     bellowsModel->setShader(shader.get());
     
-    // Setup initial framebuffer
+    // Setup initial framebuffer (This line was missing in the previous file content shown, adding it back)
     setupFramebuffer(viewportWidth, viewportHeight);
+
+    // Removed erroneous ImGui::End() call that was here
+}
+
+// Add the implementation for the getter function
+Camera* BellowsViewer3D::getCamera() {
+    return camera.get();
 }
 
 void BellowsViewer3D::setupFramebuffer(int width, int height) {
@@ -163,33 +171,39 @@ void BellowsViewer3D::handleInput(const SDL_Event& event) {
             mousePressed = false;
             bellowsModel->processMousePress(false, 0.0f, 0.0f);
         }
+    // Removed SDL_MOUSEMOTION handling here, as it's now managed in main.cpp using ImGui::IsMouseDragging
     } else if (event.type == SDL_MOUSEWHEEL) {
+        // Process scroll only if the viewport window is hovered (check in main.cpp or pass hover state)
+        // For simplicity, we process it here for now, but ideally check hover status.
         camera->ProcessMouseScroll(static_cast<float>(event.wheel.y));
-        bellowsModel->processMouseScroll(static_cast<float>(event.wheel.y));
     } else if (event.type == SDL_KEYDOWN) {
+        // TODO: Replace 0.1f with actual deltaTime calculated from frame time for smoother movement
+        float deltaTime = 0.1f; 
         switch (event.key.keysym.sym) {
             case SDLK_w:
-                camera->ProcessKeyboard(FORWARD, 0.1f);
+                camera->ProcessKeyboard(FORWARD, deltaTime);
                 break;
             case SDLK_s:
-                camera->ProcessKeyboard(BACKWARD, 0.1f);
+                camera->ProcessKeyboard(BACKWARD, deltaTime);
                 break;
             case SDLK_a:
-                camera->ProcessKeyboard(LEFT, 0.1f);
+                camera->ProcessKeyboard(LEFT, deltaTime);
                 break;
             case SDLK_d:
-                camera->ProcessKeyboard(RIGHT, 0.1f);
+                camera->ProcessKeyboard(RIGHT, deltaTime);
                 break;
             case SDLK_r:
-                bellowsModel->resetView();
-                camera->Reset();
+                // Reset both camera and model view
+                camera->Reset(); 
+                bellowsModel->resetView(); 
                 break;
         }
     }
 }
 
 void BellowsViewer3D::showSettingsPanel() {
-    ImGui::Begin("3D View Settings");
+    // Window Begin/End is now handled in main.cpp's Render3DViewWindow
+    // This function just renders the *content* of the settings panel.
     
     // View presets
     if (ImGui::Button("Front View")) bellowsModel->setFrontView();
@@ -229,5 +243,5 @@ void BellowsViewer3D::showSettingsPanel() {
         ImGui::SliderFloat("Section Position", &crossSectionPos, -1.0f, 1.0f);
     }
     
-    ImGui::End();
-} 
+    // ImGui::End(); // Removed, as Begin/End is handled in main.cpp
+}

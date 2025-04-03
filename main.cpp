@@ -1478,6 +1478,7 @@ int main(int, char **) {
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Reverted: Docking not available/enabled
 
   ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
   ImGui_ImplOpenGL3_Init("#version 130");
@@ -1540,14 +1541,14 @@ int main(int, char **) {
     // Handle keyboard shortcuts
     HandleKeyboardShortcuts(canvas);
 
-    // Render the AutoCAD-like UI
+    // Render the AutoCAD-like UI elements
     RenderTopRibbon(canvas);
     RenderCanvas(canvas);
     RenderPropertyPanel(canvas);
     RenderStatusBar(canvas);
     
-    // Render 3D view window if active
-    Render3DViewWindow(canvas);
+    // Render 3D view window if active (will now create separate windows)
+    Render3DViewWindow(canvas); // Use original function name
 
     ImGui::Render();
     glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
@@ -1569,8 +1570,6 @@ int main(int, char **) {
   return 0;
 }
 
-// Add after the RenderPropertyPanel function
-
 // Helper function to get the static 3D viewer instance
 BellowsViewer3D& GetBellowsViewer() {
   static BellowsViewer3D viewer;
@@ -1584,6 +1583,7 @@ BellowsViewer3D& GetBellowsViewer() {
   return viewer;
 }
 
+// Modified function to render separate standard windows
 void Render3DViewWindow(Drawing::Canvas &canvas) {
   // Only show if enabled
   if (!UIState::show3DView) return;
@@ -1591,7 +1591,8 @@ void Render3DViewWindow(Drawing::Canvas &canvas) {
   // Get selected bellows shape
   const Drawing::Shape* selectedShape = canvas.getSelectedShape();
   if (!selectedShape || selectedShape->type != Drawing::ShapeType::BELLOWS) {
-    UIState::show3DView = false;
+    // If no valid bellows is selected, hide the windows
+    UIState::show3DView = false; 
     return;
   }
   
@@ -1599,38 +1600,71 @@ void Render3DViewWindow(Drawing::Canvas &canvas) {
   const Drawing::Bellows* const_bellows = static_cast<const Drawing::Bellows*>(selectedShape);
   Drawing::Bellows* bellows = const_cast<Drawing::Bellows*>(const_bellows);
   
-  // Create a centered window that's 80% of the screen size
-  ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-  ImVec2 windowSize(screenSize.x * 0.8f, screenSize.y * 0.8f);
-  ImVec2 windowPos((screenSize.x - windowSize.x) * 0.5f, (screenSize.y - windowSize.y) * 0.5f);
-  
-  ImGui::SetNextWindowPos(windowPos, ImGuiCond_Appearing);
-  ImGui::SetNextWindowSize(windowSize, ImGuiCond_Appearing);
-  
   // Get the static viewer instance
   BellowsViewer3D& viewer = GetBellowsViewer();
   
-  // Ensure the viewer is initialized
+  // Ensure the viewer is initialized 
   if (!UIState::bellows3DViewInitialized) {
-    UIState::bellows3DViewInitialized = true;
+     UIState::bellows3DViewInitialized = true;
   }
+
+  // --- Render the 3D Viewport Window ---
+  // Set initial size and position for the viewport window
+  ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+  ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.6f, screenSize.y * 0.7f), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.1f, screenSize.y * 0.15f), ImGuiCond_FirstUseEver);
   
-  // Render the 3D view window
-  if (ImGui::Begin("3D Bellows View", &UIState::show3DView, 
-                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0)); // No padding for the viewport
+  // Pass the boolean directly to Begin to allow closing the window
+  // Add ImGuiWindowFlags_NoMove to prevent moving the window by dragging its content area
+  if (ImGui::Begin("3D Bellows Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
+    ImVec2 viewportSize = ImGui::GetContentRegionAvail();
     
-    // Split window into two parts: viewer and settings
-    ImVec2 availSize = ImGui::GetContentRegionAvail();
-    ImVec2 viewerSize(availSize.x * 0.75f, availSize.y);
+    // Render the 3D model into the viewport window
+    viewer.render(bellows, viewportSize); 
     
-    // Render the 3D model
-    viewer.render(bellows, viewerSize);
-    
-    // Settings panel on the right
-    ImGui::SameLine();
-    viewer.showSettingsPanel();
-    
-    ImGui::End();
+    // --- Handle Mouse Rotation Input Directly Here ---
+    ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsWindowHovered()) {
+        // Set focus for keyboard input (WASD) when hovered
+        ImGui::SetWindowFocus(); 
+
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            // Reset delta after getting it to avoid accumulation over frames
+            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left); 
+            
+            // Check if delta is significant to avoid tiny movements
+            if (std::abs(delta.x) > 0.1f || std::abs(delta.y) > 0.1f) {
+                 // Pass delta to camera processing (adjust sensitivity if needed)
+                 // Note: ImGui's Y delta might be inverted compared to SDL event Y
+                 viewer.getCamera()->ProcessMouseMovement(delta.x, delta.y, true); 
+            }
+        }
+    }
+  }
+  ImGui::End();
+  ImGui::PopStyleVar(); // WindowPadding
+
+  // --- Render the 3D Settings Window ---
+  // Set initial size and position for the settings window (e.g., to the right of the viewport)
+  ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.25f, screenSize.y * 0.7f), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.71f, screenSize.y * 0.15f), ImGuiCond_FirstUseEver);
+
+  // Use a separate boolean for the settings window visibility if needed, 
+  // but linking it to show3DView means closing one closes both.
+  if (UIState::show3DView) { // Only attempt to begin if the main flag is true
+      if (ImGui::Begin("3D View Settings", &UIState::show3DView)) {
+         viewer.showSettingsPanel(); // Render the settings panel content
+      }
+      ImGui::End();
+  }
+
+  // If the main show3DView flag becomes false (e.g., user closed one of the windows), 
+  // ensure we stop showing both.
+  if (!UIState::show3DView) {
+      // Perform any cleanup if needed when the 3D view is closed
+      UIState::bellows3DViewInitialized = false; // Reset initialization flag if needed
   }
 }
 
@@ -1641,6 +1675,13 @@ void Handle3DViewerInput(const SDL_Event& event) {
   // Get the static viewer instance
   BellowsViewer3D& viewer = GetBellowsViewer();
   
-  // Pass the event to the viewer
-  viewer.handleInput(event);
+  // Pass only relevant events (keyboard, wheel) to the viewer's handler
+  // Mouse motion is now handled within Render3DViewWindow
+  if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP || event.type == SDL_MOUSEWHEEL) {
+      viewer.handleInput(event);
+  }
+  // We might still need mouse button down/up for the viewer's internal state if it uses it
+  else if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+       viewer.handleInput(event); // Keep passing button events for now
+  }
 }
