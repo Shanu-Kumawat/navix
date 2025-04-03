@@ -1585,37 +1585,38 @@ BellowsViewer3D& GetBellowsViewer() {
 
 // Modified function to render separate standard windows
 void Render3DViewWindow(Drawing::Canvas &canvas) {
-  // Only show if enabled
-  if (!UIState::show3DView) return;
-  
-  // Get selected bellows shape
-  const Drawing::Shape* selectedShape = canvas.getSelectedShape();
-  if (!selectedShape || selectedShape->type != Drawing::ShapeType::BELLOWS) {
-    // If no valid bellows is selected, hide the windows
-    UIState::show3DView = false; 
+  // Exit immediately if 3D view is not enabled
+  if (!UIState::show3DView) {
     return;
   }
   
-  // First static_cast to const Drawing::Bellows*, then const_cast to remove const
-  const Drawing::Bellows* const_bellows = static_cast<const Drawing::Bellows*>(selectedShape);
-  Drawing::Bellows* bellows = const_cast<Drawing::Bellows*>(const_bellows);
+  const Drawing::Bellows* bellows = canvas.findOrCreateBellows();
   
-  // Get the static viewer instance
-  BellowsViewer3D& viewer = GetBellowsViewer();
-  
-  // Ensure the viewer is initialized 
-  if (!UIState::bellows3DViewInitialized) {
-     UIState::bellows3DViewInitialized = true;
+  // If no bellows exists, don't show the 3D view
+  if (!bellows) {
+    UIState::show3DView = false;
+    return;
   }
 
-  // --- Render the 3D Viewport Window ---
-  // Set initial size and position for the viewport window
-  ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-  ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.6f, screenSize.y * 0.7f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.1f, screenSize.y * 0.15f), ImGuiCond_FirstUseEver);
+  // Get a reference to the static viewer instance
+  BellowsViewer3D& viewer = GetBellowsViewer();
   
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0)); // No padding for the viewport
-  // Pass the boolean directly to Begin to allow closing the window
+  // Initialize viewer once only
+  if (!UIState::bellows3DViewInitialized) {
+    viewer.initialize();
+    UIState::bellows3DViewInitialized = true;
+  }
+  
+  // Get the current window size
+  ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+  
+  // Set the 3D viewport size - now making it larger since we removed the settings panel
+  ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+  
+  // Add no padding to ensure viewport uses full window size
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+  
   // Add ImGuiWindowFlags_NoMove to prevent moving the window by dragging its content area
   if (ImGui::Begin("3D Bellows Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
     ImVec2 viewportSize = ImGui::GetContentRegionAvail();
@@ -1646,25 +1647,9 @@ void Render3DViewWindow(Drawing::Canvas &canvas) {
   ImGui::End();
   ImGui::PopStyleVar(); // WindowPadding
 
-  // --- Render the 3D Settings Window ---
-  // Set initial size and position for the settings window (e.g., to the right of the viewport)
-  ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.25f, screenSize.y * 0.7f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.71f, screenSize.y * 0.15f), ImGuiCond_FirstUseEver);
-
-  // Use a separate boolean for the settings window visibility if needed, 
-  // but linking it to show3DView means closing one closes both.
-  if (UIState::show3DView) { // Only attempt to begin if the main flag is true
-      if (ImGui::Begin("3D View Settings", &UIState::show3DView)) {
-         viewer.showSettingsPanel(); // Render the settings panel content
-      }
-      ImGui::End();
-  }
-
-  // If the main show3DView flag becomes false (e.g., user closed one of the windows), 
-  // ensure we stop showing both.
+  // If the main show3DView flag becomes false, ensure we reset initialization
   if (!UIState::show3DView) {
-      // Perform any cleanup if needed when the 3D view is closed
-      UIState::bellows3DViewInitialized = false; // Reset initialization flag if needed
+      UIState::bellows3DViewInitialized = false; // Reset initialization flag when view is closed
   }
 }
 

@@ -176,6 +176,7 @@ public:
     
     // Bellows-specific methods
     void fitBellowsToView();
+    const Bellows* findOrCreateBellows() const;
 
 private:
     // Drawing state

@@ -9,11 +9,11 @@ BellowsViewer3D::BellowsViewer3D()
       textureColorBuffer(0), 
       rbo(0),
       renderMode(0),
-      objectColor(0.7f, 0.7f, 0.7f),
+      objectColor(0.8f, 0.8f, 0.8f),
       lightColor(1.0f, 1.0f, 1.0f),
-      ambientStrength(0.3f),
+      ambientStrength(0.4f),
       diffuseStrength(0.7f),
-      specularStrength(0.5f),
+      specularStrength(0.7f),
       shininess(32.0f),
       showCrossSection(false),
       crossSectionAxis(0),
@@ -105,19 +105,13 @@ void BellowsViewer3D::render(const Drawing::Bellows* bellows, ImVec2 windowSize)
     // Generate/update 3D mesh if needed
     bellowsModel->generateMesh(bellows);
     
-    // Set material and lighting properties
+    // Set material and lighting properties with brighter values
     bellowsModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);
-    bellowsModel->setLight(glm::vec3(2.0f, 2.0f, 2.0f), lightColor);
+    bellowsModel->setLight(glm::vec3(2.0f, 3.0f, 2.0f), lightColor);
     bellowsModel->setRenderMode(renderMode);
     
-    // Set cross-section
-    if (showCrossSection) {
-        bellowsModel->enableCrossSection(true);
-        bellowsModel->setCrossSectionAxis(crossSectionAxis);
-        bellowsModel->setCrossSectionPosition(crossSectionPos);
-    } else {
-        bellowsModel->enableCrossSection(false);
-    }
+    // Always disable cross-section
+    bellowsModel->enableCrossSection(false);
     
     // Bind framebuffer and render to it
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
@@ -199,49 +193,4 @@ void BellowsViewer3D::handleInput(const SDL_Event& event) {
                 break;
         }
     }
-}
-
-void BellowsViewer3D::showSettingsPanel() {
-    // Window Begin/End is now handled in main.cpp's Render3DViewWindow
-    // This function just renders the *content* of the settings panel.
-    
-    // View presets
-    if (ImGui::Button("Front View")) bellowsModel->setFrontView();
-    ImGui::SameLine();
-    if (ImGui::Button("Side View")) bellowsModel->setSideView();
-    ImGui::SameLine();
-    if (ImGui::Button("Top View")) bellowsModel->setTopView();
-    ImGui::SameLine();
-    if (ImGui::Button("Isometric")) bellowsModel->setIsometricView();
-    
-    ImGui::Separator();
-    
-    // Rendering options
-    const char* renderModes[] = { "Solid", "Wireframe", "Textured" };
-    ImGui::Combo("Render Mode", &renderMode, renderModes, IM_ARRAYSIZE(renderModes));
-    
-    // Material properties
-    ImGui::Text("Material Properties:");
-    ImGui::ColorEdit3("Object Color", &objectColor.x);
-    ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0.0f, 1.0f);
-    ImGui::SliderFloat("Diffuse Strength", &diffuseStrength, 0.0f, 1.0f);
-    ImGui::SliderFloat("Specular Strength", &specularStrength, 0.0f, 1.0f);
-    ImGui::SliderFloat("Shininess", &shininess, 1.0f, 128.0f);
-    
-    // Light properties
-    ImGui::Text("Light Properties:");
-    ImGui::ColorEdit3("Light Color", &lightColor.x);
-    
-    // Cross-section settings
-    ImGui::Separator();
-    ImGui::Text("Cross-Section View:");
-    ImGui::Checkbox("Show Cross-Section", &showCrossSection);
-    
-    if (showCrossSection) {
-        const char* axes[] = { "X-Axis", "Y-Axis", "Z-Axis" };
-        ImGui::Combo("Section Axis", &crossSectionAxis, axes, IM_ARRAYSIZE(axes));
-        ImGui::SliderFloat("Section Position", &crossSectionPos, -1.0f, 1.0f);
-    }
-    
-    // ImGui::End(); // Removed, as Begin/End is handled in main.cpp
 }

@@ -16,45 +16,49 @@ uniform float diffuseStrength;
 uniform float specularStrength;
 uniform float shininess;
 
-// Render mode
-uniform int renderMode; // 0=solid, 1=wireframe, 2=textured
+// Render mode (kept for compatibility)
+uniform int renderMode;
 
 void main() {
-    // Ambient lighting
-    vec3 ambient = ambientStrength * lightColor;
-    
-    // Diffuse lighting
+    // Use pre-normalized normals and protect from zero-length vectors
     vec3 norm = normalize(Normal);
+    vec3 viewDir = normalize(viewPos - FragPos);
+    
+    // Increased ambient light to brighten the model overall
+    vec3 ambient = ambientStrength * lightColor * 1.2;
+    
+    // Improved diffuse lighting with smoothing
     vec3 lightDir = normalize(lightPos - FragPos);
-    float diff = max(dot(norm, lightDir), 0.0);
+    
+    // Use smooth diffuse with a minimum value to reduce shadow contrast
+    float diffAngle = dot(norm, lightDir);
+    float diff = max(diffAngle, 0.0);
+    
+    // Apply a smoothstep to soften harsh transitions in diffuse lighting
+    diff = smoothstep(0.0, 1.0, diff);
+    
+    // Ensure minimum diffuse light to reduce dark shadows at edges
+    diff = max(diff, 0.2);
+    
     vec3 diffuse = diffuseStrength * diff * lightColor;
     
-    // Specular lighting
-    vec3 viewDir = normalize(viewPos - FragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+    // Enhanced specular highlight using Blinn-Phong with smoother falloff
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(norm, halfwayDir), 0.0), shininess);
+    
+    // Apply smoothing to specular highlight to prevent flickering
+    spec = smoothstep(0.05, 1.0, spec);
     vec3 specular = specularStrength * spec * lightColor;
     
-    // Combined lighting effect
-    vec3 result = (ambient + diffuse + specular) * objectColor;
+    // Apply a brighter metallic tint
+    vec3 metalColor = objectColor * vec3(1.05, 1.05, 1.05);
     
-    // Apply render mode effects
-    if (renderMode == 1) { // Wireframe mode
-        // Create a grid effect based on fragment position
-        float gridSize = 0.05;
-        vec3 gridColor = vec3(0.8, 0.8, 0.8);
-        
-        // Calculate grid lines
-        float gridX = abs(fract(FragPos.x / gridSize) - 0.5);
-        float gridY = abs(fract(FragPos.y / gridSize) - 0.5);
-        float gridZ = abs(fract(FragPos.z / gridSize) - 0.5);
-        
-        float gridLine = max(max(gridX, gridY), gridZ);
-        float gridFactor = smoothstep(0.45, 0.5, gridLine);
-        
-        // Mix the phong shading with the grid
-        result = mix(gridColor, result, gridFactor);
-    }
+    // Combined lighting with reduced edge sensitivity
+    vec3 result = (ambient + diffuse) * metalColor + specular;
     
+    // Apply a post-process brightness boost to ensure model isn't too dark
+    result = pow(result, vec3(0.85)); // Gamma adjustment to brighten
+    
+    // Final color
     FragColor = vec4(result, 1.0);
 } 

@@ -18,7 +18,6 @@ public:
     void initialize();
     void render(const Drawing::Bellows* bellows, ImVec2 windowSize);
     void handleInput(const SDL_Event& event);
-    void showSettingsPanel();
     
     // Public getter for the camera
     Camera* getCamera(); 

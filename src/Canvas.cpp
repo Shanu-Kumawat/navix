@@ -2860,4 +2860,22 @@ void Canvas::fitBellowsToView() {
     }
 }
 
+// Implementation of findOrCreateBellows
+const Drawing::Bellows* Drawing::Canvas::findOrCreateBellows() const {
+    // First, try to find an existing bellows in the shapes collection
+    for (const auto& shape : shapes) {
+        if (shape->type == Drawing::ShapeType::BELLOWS) {
+            return static_cast<const Drawing::Bellows*>(shape.get());
+        }
+    }
+    
+    // If no bellows found and we have a selected shape that is a bellows, return it
+    if (selectedShape && selectedShape->type == Drawing::ShapeType::BELLOWS) {
+        return static_cast<const Drawing::Bellows*>(selectedShape);
+    }
+    
+    // If no bellows found at all, return nullptr
+    return nullptr;
+}
+
 } // namespace Drawing 

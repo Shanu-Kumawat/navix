@@ -294,14 +294,19 @@ void BellowsModel3D::processMouseMovement(float xpos, float ypos) {
     lastX = xpos;
     lastY = ypos;
     
-    const float sensitivity = 0.1f;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
+    // Adjust sensitivity based on model scale for more consistent feel
+    const float baseSensitivity = 0.1f;
+    float scaledSensitivity = baseSensitivity / std::max(0.5f, modelScale);
     
+    // Apply smoothed sensitivity 
+    xoffset *= scaledSensitivity;
+    yoffset *= scaledSensitivity;
+    
+    // Only update rotation values - no translation
     modelRotationY += xoffset;
     modelRotationX += yoffset;
     
-    // Limit pitch to avoid flipping
+    // Limit pitch to avoid flipping issues
     if (modelRotationX > 89.0f) modelRotationX = 89.0f;
     if (modelRotationX < -89.0f) modelRotationX = -89.0f;
     
@@ -319,9 +324,20 @@ void BellowsModel3D::processMousePress(bool pressed, float xpos, float ypos) {
 }
 
 void BellowsModel3D::processMouseScroll(float yoffset) {
-    modelScale += yoffset * 0.1f;
-    if (modelScale < 0.1f) modelScale = 0.1f;
-    if (modelScale > 3.0f) modelScale = 3.0f;
+    // More responsive and smoother zoom
+    float zoomFactor = yoffset * 0.08f;
+    
+    // Apply non-linear scaling for better zoom control
+    if (yoffset > 0) {
+        // Zooming in - slower at higher zoom levels
+        modelScale *= (1.0f + zoomFactor);
+    } else {
+        // Zooming out - faster at higher zoom levels
+        modelScale /= (1.0f - zoomFactor);
+    }
+    
+    // Clamp scale to reasonable limits
+    modelScale = std::max(0.1f, std::min(modelScale, 5.0f));
     
     updateModelMatrix();
 }
@@ -364,9 +380,15 @@ void BellowsModel3D::updateModelMatrix() {
     // First apply scale
     model = glm::scale(model, glm::vec3(modelScale));
     
-    // Then apply rotations
-    model = glm::rotate(model, glm::radians(modelRotationX), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(modelRotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+    // Apply rotations around the center of the model
+    // Use a stabilized rotation approach
+    glm::mat4 rotationMatrix = glm::mat4(1.0f);
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(modelRotationX), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(modelRotationY), glm::vec3(0.0f, 1.0f, 0.0f));
+    
+    model = model * rotationMatrix;
+    
+    // No translation is applied, ensuring model stays centered
 }
 
 void BellowsModel3D::enableCrossSection(bool enable) {
