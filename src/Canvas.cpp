@@ -204,21 +204,10 @@ void Canvas::render(ImDrawList* drawList) {
                 drawList->AddCircleFilled(transformedEnd, 5.0f * zoomLevel, selectionColor);
                         break;
                     }
-            case ShapeType::BELLOWS: {
-                // For bellows, highlight the profile with selection color
-                const auto* bellows = static_cast<const Bellows*>(selectedShape);
-                
-                // Generate profile points
-                std::vector<ImVec2> profilePoints = bellows->generateProfile();
-                
-                // Draw selection outline around the bellows
-                for (size_t i = 0; i < profilePoints.size() - 1; ++i) {
-                    ImVec2 p1 = transformCoordinates(profilePoints[i]);
-                    ImVec2 p2 = transformCoordinates(profilePoints[i + 1]);
-                    drawList->AddLine(p1, p2, selectionColor, bellows->thickness + 2.0f);
-                }
+            case ShapeType::BELLOWS:
+                // Skip drawing the selection highlight for bellows shapes
+                // since the renderBellows method already handles highlighting
                 break;
-            }
             // Handle other shape types for selection highlight
                     default:
                         break;
