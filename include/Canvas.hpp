@@ -136,6 +136,7 @@ public:
         std::vector<std::unique_ptr<Shape>> shapes;
         ImVec2 panOffset;
         float zoomLevel;
+        bool showGrid;
     };
 
     void setUnitSystem(Drawing::UnitSystem system) {
