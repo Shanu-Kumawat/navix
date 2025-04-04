@@ -37,7 +37,12 @@ Canvas::Canvas() :
     isDraggingCanvas(false),
     showGrid(true)
 {
-    history.push_back(HistoryState{}); // Initial empty state
+    // Add initial state with current view settings
+    HistoryState initialState;
+    initialState.panOffset = panOffset;
+    initialState.zoomLevel = zoomLevel;
+    initialState.showGrid = showGrid;
+    history.push_back(std::move(initialState)); // Initial empty state
 }
 
 void Canvas::setDrawingMode(DrawingMode mode) {
@@ -428,6 +433,11 @@ void Canvas::saveToHistory() {
         state.shapes.push_back(shape->clone());
     }
     
+    // Add view state to history
+    state.panOffset = panOffset;
+    state.zoomLevel = zoomLevel;
+    state.showGrid = showGrid;
+    
     // Add to history
     history.push_back(std::move(state));
     if (history.size() > MAX_HISTORY_SIZE) {
@@ -460,9 +470,10 @@ void Canvas::restoreHistoryState(const HistoryState& state) {
     }
     selectedShape = nullptr;
     
-    // Restore pan offset and zoom level
+    // Restore view settings
     panOffset = state.panOffset;
     zoomLevel = state.zoomLevel;
+    showGrid = state.showGrid;
 }
 
 void Canvas::updateZoom(float delta) {

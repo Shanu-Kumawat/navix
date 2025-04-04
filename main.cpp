@@ -101,7 +101,6 @@ static bool darkMode = false;
 
 // Function declaration prototypes
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas, const std::string &message);
-void ProcessCommand(const std::string &command, Drawing::Canvas &canvas);
 void SetupImGuiStyle();
 void RenderTopRibbon(Drawing::Canvas &canvas);
 void RenderPropertyPanel(Drawing::Canvas &canvas);
@@ -219,20 +218,6 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
 
-  // Brand/filename section on the left
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::ACCENT);
-  ImGui::Text("NAVIX");
-  ImGui::PopStyleColor();
-  ImGui::SameLine();
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
-  ImGui::Text("Drawing");
-  ImGui::PopStyleColor();
-  ImGui::EndGroup();
-  
-  ImGui::SameLine();
-  ImGui::Dummy(ImVec2(15, 0)); 
-  
   // Calculate adaptive panel and button widths based on screen size
   const float availWidth = ImGui::GetContentRegionAvail().x;
   const float panelSpacing = 8.0f;
@@ -394,20 +379,16 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     UIState::consoleMessage = "Redo";
   }
   
-  ImGui::Dummy(ImVec2(0, 3));
-  
-  // View control tools
-  if (ImGui::Button(ICON_PAN, ImVec2(buttonWidth, buttonHeight))) {
-    // Toggle panning mode
-    UIState::consoleMessage = "Pan Mode: Use middle mouse button to pan";
+  if (buttonsPerRow > 2) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
   }
   
-  ImGui::SameLine(0, buttonSpacing);
-  if (ImGui::Button(ICON_ZOOM, ImVec2(buttonWidth, buttonHeight))) {
-    // Reset zoom and pan
-    UIState::zoomLevel = 1.0f;
-    UIState::panOffset = ImVec2(0.0f, 0.0f);
-    UIState::consoleMessage = "View Reset";
+  // Add Clear All button without custom styling
+  if (ImGui::Button("Clear All", ImVec2(buttonWidth, buttonHeight))) {
+    canvas.clearAll();
+    UIState::consoleMessage = "All shapes cleared";
   }
   
   ImGui::EndChild();
@@ -476,81 +457,13 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
 }
 
 void RenderStatusBar(Drawing::Canvas &canvas) {
-  // AutoCAD-style status bar with command line at the bottom
-  const float commandLineHeight = 25.0f;
+  // AutoCAD-style status bar at the bottom (without command line)
   const float statusBarHeight = 28.0f;
-  const float totalHeight = commandLineHeight + statusBarHeight;
   
   // Get screen width for better scaling
   const float screenWidth = ImGui::GetIO().DisplaySize.x;
   
-  // Command line (dark background with light text)
-  ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetIO().DisplaySize.y - totalHeight));
-  ImGui::SetNextWindowSize(ImVec2(screenWidth, commandLineHeight));
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, UIColors::COMMAND_BG);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::COMMAND_TEXT);
-  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
-  ImGui::Begin("CommandLine", nullptr,
-               ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
-
-  // Command prompt (keep it compact)
-  ImGui::Text("Command:");
-  ImGui::SameLine();
-  
-  // Calculate available width for command input
-  const float cmdLabelWidth = ImGui::CalcTextSize("Command:").x + 10;
-  ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 5.0f);
-  
-  if (UIState::focusCommandLine) {
-    ImGui::SetKeyboardFocusHere();
-    UIState::focusCommandLine = false;
-  }
-  
-  if (ImGui::InputText("##commandInput", UIState::commandBuffer, IM_ARRAYSIZE(UIState::commandBuffer), 
-                      ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) {
-    // Process command when Enter is pressed
-    std::string command = UIState::commandBuffer;
-    if (!command.empty()) {
-      // Process the command
-      ProcessCommand(command, canvas);
-      
-      // Clear the command buffer
-      UIState::commandBuffer[0] = '\0';
-    }
-  }
-  ImGui::PopItemWidth();
-  
-  // Command history navigation using up/down keys
-  if (ImGui::IsKeyPressed(ImGuiKey_UpArrow) && !UIState::commandHistory.empty()) {
-    if (UIState::commandHistoryPos < 0)
-      UIState::commandHistoryPos = UIState::commandHistory.size() - 1;
-    else if (UIState::commandHistoryPos > 0)
-      UIState::commandHistoryPos--;
-      
-    if (UIState::commandHistoryPos >= 0 && UIState::commandHistoryPos < UIState::commandHistory.size()) {
-      strncpy(UIState::commandBuffer, UIState::commandHistory[UIState::commandHistoryPos].c_str(), 
-              IM_ARRAYSIZE(UIState::commandBuffer) - 1);
-      UIState::focusCommandLine = true;
-    }
-  }
-  
-  if (ImGui::IsKeyPressed(ImGuiKey_DownArrow) && !UIState::commandHistory.empty()) {
-    if (UIState::commandHistoryPos < UIState::commandHistory.size() - 1) {
-      UIState::commandHistoryPos++;
-      strncpy(UIState::commandBuffer, UIState::commandHistory[UIState::commandHistoryPos].c_str(), 
-              IM_ARRAYSIZE(UIState::commandBuffer) - 1);
-    } else {
-      UIState::commandHistoryPos = -1;
-      UIState::commandBuffer[0] = '\0';
-    }
-    UIState::focusCommandLine = true;
-  }
-  
-  ImGui::End();
-  ImGui::PopStyleColor(3);
-  
-  // Status bar (below command line) - full width
+  // Status bar - full width
   ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetIO().DisplaySize.y - statusBarHeight));
   ImGui::SetNextWindowSize(ImVec2(screenWidth, statusBarHeight));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, UIColors::DARK_PANEL);
@@ -644,8 +557,8 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
 void RenderPropertyPanel(Drawing::Canvas &canvas) {
   // Calculate property panel width - make it responsive
   const float screenWidth = ImGui::GetIO().DisplaySize.x;
-  const float propertyPanelWidth = std::min(300.0f, screenWidth * 0.2f);
-  const float propertyPanelMinWidth = 220.0f;
+  const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f); // Increased from 300.0f and 0.2f for wider panel
+  const float propertyPanelMinWidth = 300.0f; // Increased from 250.0f for better text accommodation
   const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
   
   // AutoCAD-style properties panel on the right
@@ -660,38 +573,6 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   const Drawing::Shape* selectedShape = canvas.getSelectedShape();
 
   ImGui::PushStyleColor(ImGuiCol_Header, UIColors::HEADER);
-  
-  if (ImGui::CollapsingHeader("General", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Indent(10);
-    ImGui::AlignTextToFramePadding();
-    
-    // Calculate label and value alignment position
-    const float labelWidth = 70.0f;
-    
-    ImGui::Text("Workspace:");
-    ImGui::SameLine(labelWidth);
-    ImGui::Text("%s", UIState::currentWorkspace.c_str());
-    
-    ImGui::Text("Units:");
-    ImGui::SameLine(labelWidth);
-    const char* unitNames[] = { "Pixels", "Millimeters", "Centimeters", "Inches" };
-    ImGui::Text("%s", unitNames[static_cast<int>(UIState::units)]);
-    
-    ImGui::Text("Grid Size:");
-    ImGui::SameLine(labelWidth);
-    ImGui::Text("%.0f", UIState::gridSize);
-    
-    ImGui::Text("Snap Grid:");
-    ImGui::SameLine(labelWidth);
-    bool snapValue = UIState::snapEnabled;
-    if (ImGui::Checkbox("##SnapToGrid", &snapValue)) {
-        UIState::snapEnabled = snapValue;
-        canvas.setSnapToGrid(UIState::snapEnabled);
-        UIState::consoleMessage = UIState::snapEnabled ? "Snap to Grid: ON" : "Snap to Grid: OFF";
-    }
-    
-    ImGui::Unindent(10);
-  }
   
   // Tool-specific properties - use the available width effectively
   const float availableWidth = ImGui::GetContentRegionAvail().x;
@@ -1076,19 +957,6 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         const float btnWidth = availWidth / 2 - 4;
         
-        // Generate profile button
-        if (ImGui::Button("Generate Profile", ImVec2(btnWidth, 30))) {
-          // Validate parameters
-          if (!bellows->validateParameters()) {
-            ImGui::OpenPopup("Invalid Parameters");
-          } else {
-            // Force a refresh of the profile
-            bellows->isSelected = true;
-          }
-        }
-        
-        ImGui::SameLine();
-        
         // Reset parameters button
         if (ImGui::Button("Reset Parameters", ImVec2(btnWidth, 30))) {
           bellows->resetParameters();
@@ -1097,15 +965,6 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         // Fit to view button
         if (ImGui::Button("Fit to View", ImVec2(btnWidth, 30))) {
           canvas.fitBellowsToView();
-        }
-        
-        ImGui::SameLine();
-        
-        // 3D View button
-        if (ImGui::Button("Open 3D View", ImVec2(btnWidth, 30))) {
-          UIState::show3DView = true;
-          UIState::bellows3DViewInitialized = false;
-          UIState::consoleMessage = "Opening 3D View";
         }
         
         ImGui::PopStyleColor(2);
@@ -1128,7 +987,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     Drawing::Bellows* bellows = const_cast<Drawing::Bellows*>(const_bellows);
     
     if (bellows) {
-      ImGui::Indent(10);
+      ImGui::Indent(15); // Changed from 10 to 15 to move the content a bit to the left
       
       // Position and angle
       float position[2] = {bellows->position.x, bellows->position.y};
@@ -1151,13 +1010,6 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         // Overall length calculation
         float overallLength = bellows->calculateOverallLength();
         ImGui::Text("Overall Length: %.1f mm", overallLength);
-        
-        // Draw 3D View button
-        ImGui::Separator();
-        if (ImGui::Button("3D View", ImVec2(-1, 30))) {
-          UIState::show3DView = true;
-          UIState::bellows3DViewInitialized = false;
-        }
         
         // Show dimensions toggle
         ImGui::Checkbox("Show Dimensions", &bellows->showDimensions);
@@ -1203,18 +1055,18 @@ void RenderCanvas(Drawing::Canvas &canvas) {
   // Adjust canvas position and size to account for the ribbon and status bar
   // Using simplified UI layout (no tabs, single row of tools)
   const float ribbonHeight = 95.0f; // Updated height for our more compact ribbon
-  const float commandAndStatusHeight = 53.0f; // Command line (25) + status bar (28)
+  const float statusBarHeight = 28.0f; // Just status bar now, no command line
   
   // Calculate property panel width - make it responsive
   const float screenWidth = ImGui::GetIO().DisplaySize.x;
-  const float propertyPanelWidth = std::min(300.0f, screenWidth * 0.2f);
-  const float propertyPanelMinWidth = 220.0f;
+  const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f); // Increased from 300.0f and 0.2f for wider panel
+  const float propertyPanelMinWidth = 300.0f; // Increased from 250.0f for better text accommodation
   const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
   
   float canvasX = 0.0f;
   float canvasY = ribbonHeight;
   float canvasWidth = ImGui::GetIO().DisplaySize.x - actualPanelWidth;
-  float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - commandAndStatusHeight;
+  float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight;
 
   ImGui::SetNextWindowPos(ImVec2(canvasX, canvasY));
   ImGui::SetNextWindowSize(ImVec2(canvasWidth, canvasHeight));
@@ -1418,34 +1270,6 @@ void RenderCanvas(Drawing::Canvas &canvas) {
   ImGui::PopStyleColor();
 }
 
-// Process command line input
-void ProcessCommand(const std::string &command, Drawing::Canvas &canvas) {
-  if (command.empty()) return;
-
-  // Add to command history
-  UIState::commandHistory.push_back(command);
-  UIState::commandHistoryPos = UIState::commandHistory.size();
-
-  // Process command
-  if (command == "line" || command == "l") {
-    UIState::consoleMessage = "Line command activated";
-    // Would call SelectTool here
-  } else if (command == "circle" || command == "c") {
-    UIState::consoleMessage = "Circle command activated";
-    // Would call SelectTool here
-  } else if (command == "rect" || command == "rectangle") {
-    UIState::consoleMessage = "Rectangle command activated";
-    // Would call SelectTool here
-  } else if (command == "grid") {
-    bool currentGridState = canvas.isGridVisible();
-    canvas.setShowGrid(!currentGridState);
-    UIState::consoleMessage = !currentGridState ? "Grid turned ON" : "Grid turned OFF";
-  } else if (command == "help") {
-    UIState::consoleMessage = "Available commands: line, circle, rect, grid, help";
-  } else {
-    UIState::consoleMessage = "Unknown command: " + command;
-  }
-}
 
 // Handle keyboard shortcuts
 void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
@@ -1479,9 +1303,6 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_S)) {
       SelectTool(Drawing::DrawingMode::Square, canvas, "Square Tool: Click to set corner and direction (side length in properties)");
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_Space)) {
-      UIState::focusCommandLine = true;
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_G)) {
       bool currentGridState = canvas.isGridVisible();
@@ -1555,7 +1376,7 @@ int main(int, char **) {
       (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
                         SDL_WINDOW_ALLOW_HIGHDPI);
   SDL_Window *window = SDL_CreateWindow(
-      "CAD Drawing Application", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+      "NAVIX", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
       WINDOW_WIDTH, WINDOW_HEIGHT, window_flags);
   SDL_GLContext gl_context = SDL_GL_CreateContext(window);
   SDL_GL_MakeCurrent(window, gl_context);
@@ -1603,27 +1424,73 @@ int main(int, char **) {
       
       // Handle mouse wheel for zoom (AutoCAD-like)
       if (event.type == SDL_MOUSEWHEEL) {
-        if (io.KeyCtrl) {
-          // Zoom in/out with Ctrl+Wheel
-          float zoom_delta = event.wheel.y > 0 ? 1.1f : 0.9f;
-          UIState::zoomLevel = std::clamp(UIState::zoomLevel * zoom_delta, 0.2f, 5.0f);
-          UIState::consoleMessage = event.wheel.y > 0 ? "Zoom In" : "Zoom Out";
-        } else if (io.KeyShift) {
-          // Pan horizontally with Shift+Wheel
-          UIState::panOffset.x += event.wheel.y * 10.0f;
-          UIState::consoleMessage = "Pan Horizontally";
-        } else {
-          // Pan vertically with just Wheel
-          UIState::panOffset.y += event.wheel.y * 10.0f;
-          UIState::consoleMessage = "Pan Vertically";
+        // Only process wheel events for the canvas if mouse is over the canvas
+        ImVec2 mousePos = ImGui::GetMousePos();
+        bool isOverCanvas = false;
+        
+        // Calculate dimensions matching those in RenderCanvas
+        const float ribbonHeight = 95.0f;
+        const float statusBarHeight = 28.0f; // Just status bar height
+        const float screenWidth = ImGui::GetIO().DisplaySize.x;
+        const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f);
+        const float propertyPanelMinWidth = 300.0f;
+        const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
+        
+        float canvasX = 0.0f;
+        float canvasY = ribbonHeight;
+        float canvasWidth = screenWidth - actualPanelWidth;
+        float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight;
+        
+        // Check if mouse is over the canvas area
+        if (mousePos.x >= canvasX && mousePos.x <= canvasX + canvasWidth &&
+            mousePos.y >= canvasY && mousePos.y <= canvasY + canvasHeight) {
+          isOverCanvas = true;
+        }
+        
+        // Only apply zoom/pan if over canvas or if in 3D view mode
+        if (isOverCanvas || UIState::show3DView) {
+          if (io.KeyCtrl) {
+            // Zoom in/out with Ctrl+Wheel
+            float zoom_delta = event.wheel.y > 0 ? 1.1f : 0.9f;
+            UIState::zoomLevel = std::clamp(UIState::zoomLevel * zoom_delta, 0.2f, 5.0f);
+            UIState::consoleMessage = event.wheel.y > 0 ? "Zoom In" : "Zoom Out";
+          } else if (io.KeyShift) {
+            // Pan horizontally with Shift+Wheel
+            UIState::panOffset.x += event.wheel.y * 10.0f;
+            UIState::consoleMessage = "Pan Horizontally";
+          } else {
+            // Pan vertically with just Wheel
+            UIState::panOffset.y += event.wheel.y * 10.0f;
+            UIState::consoleMessage = "Pan Vertically";
+          }
         }
       }
       
       // Handle middle mouse button panning (AutoCAD-like)
       if (event.type == SDL_MOUSEMOTION && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(SDL_BUTTON_MIDDLE))) {
-        UIState::panOffset.x += event.motion.xrel / UIState::zoomLevel;
-        UIState::panOffset.y += event.motion.yrel / UIState::zoomLevel;
-        UIState::consoleMessage = "Pan View";
+        // Calculate dimensions matching those in RenderCanvas
+        const float ribbonHeight = 95.0f;
+        const float statusBarHeight = 28.0f; // Just status bar height
+        const float screenWidth = ImGui::GetIO().DisplaySize.x;
+        const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f);
+        const float propertyPanelMinWidth = 300.0f;
+        const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
+        
+        float canvasX = 0.0f;
+        float canvasY = ribbonHeight;
+        float canvasWidth = screenWidth - actualPanelWidth;
+        float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight;
+        
+        // Get mouse position
+        ImVec2 mousePos = ImGui::GetMousePos();
+        
+        // Only apply panning if the mouse is over the canvas
+        if (mousePos.x >= canvasX && mousePos.x <= canvasX + canvasWidth &&
+            mousePos.y >= canvasY && mousePos.y <= canvasY + canvasHeight) {
+          UIState::panOffset.x += event.motion.xrel / UIState::zoomLevel;
+          UIState::panOffset.y += event.motion.yrel / UIState::zoomLevel;
+          UIState::consoleMessage = "Pan View";
+        }
       }
     }
 
