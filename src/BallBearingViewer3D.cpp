@@ -9,12 +9,12 @@ BallBearingViewer3D::BallBearingViewer3D()
       textureColorBuffer(0), 
       rbo(0),
       renderMode(0),
-      objectColor(0.8f, 0.8f, 0.8f),
+      objectColor(0.9f, 0.9f, 0.95f),  // Better metallic color
       lightColor(1.0f, 1.0f, 1.0f),
-      ambientStrength(0.4f),
-      diffuseStrength(0.7f),
-      specularStrength(0.7f),
-      shininess(32.0f),
+      ambientStrength(0.25f),           // Enhanced lighting
+      diffuseStrength(0.8f),
+      specularStrength(0.9f),
+      shininess(128.0f),                // Higher shininess
       showCrossSection(false),
       crossSectionAxis(0),
       crossSectionPos(0.0f),
@@ -105,9 +105,9 @@ void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, ImVec2
     // Generate/update 3D mesh if needed
     ballBearingModel->generateMesh(ballBearing);
     
-    // Set material and lighting properties with brighter values
+    // Set material and lighting properties for high-quality rendering
     ballBearingModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);
-    ballBearingModel->setLight(glm::vec3(2.0f, 3.0f, 2.0f), lightColor);
+    ballBearingModel->setLight(glm::vec3(3.0f, 4.0f, 3.0f), lightColor); // Better light position
     ballBearingModel->setRenderMode(renderMode);
     
     // Always disable cross-section for now
@@ -116,9 +116,12 @@ void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, ImVec2
     // Bind framebuffer and render to it
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);           // Better depth testing
+    glEnable(GL_CULL_FACE);         // Enable face culling for performance
+    glCullFace(GL_BACK);            // Cull back faces
     
-    // Clear the framebuffer
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    // Clear the framebuffer with darker background for better contrast
+    glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // Set viewport to match window size

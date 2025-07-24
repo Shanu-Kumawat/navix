@@ -10,11 +10,11 @@ BallBearingModel3D::BallBearingModel3D()
       modelScale(1.0f), 
       modelRotationX(0.0f), 
       modelRotationY(0.0f),
-      objectColor(0.8f, 0.8f, 0.8f), // Metallic gray color
-      ambientStrength(0.3f),
-      diffuseStrength(0.7f),
-      specularStrength(0.5f),
-      shininess(32.0f),
+      objectColor(0.9f, 0.9f, 0.95f), // High-quality metallic appearance
+      ambientStrength(0.2f),           // Reduced ambient for better contrast
+      diffuseStrength(0.8f),           // Increased diffuse for sharper features
+      specularStrength(0.9f),          // High specularity for metallic look
+      shininess(128.0f),               // Higher shininess for sharp reflections
       lightPos(1.0f, 1.0f, 2.0f),
       lightColor(1.0f, 1.0f, 1.0f),
       renderMode(0),
@@ -51,19 +51,13 @@ void BallBearingModel3D::generateMesh(const Drawing::BallBearing* ballBearing) {
     float maxDimension = std::max(outerRadius, width);
     float scale = 1.0f / maxDimension;
     
-    // Generate race geometry using profile revolution like bellows
-    generateRaceProfile(innerRadius * scale, outerRadius * scale, width * scale, 36);
+    // Generate race geometry using profile revolution like bellows (higher quality)
+    generateRaceProfile(innerRadius * scale, outerRadius * scale, width * scale, 72); // Increased from 36 to 72 segments
     
     // Generate ball geometry if enabled
     if (ballBearing->showBalls) {
         std::vector<ImVec2> ballPositions = ballBearing->generateBallPositions();
         float ballRadius = ballBearing->ballDiameter / 2.0f * scale * 1.5f; // Make balls 50% larger for visibility
-        
-        // Debug output
-        std::cout << "Ball generation: numBalls=" << ballBearing->numBalls 
-                  << ", ballRadius=" << ballRadius 
-                  << ", positions.size()=" << ballPositions.size() 
-                  << ", scale=" << scale << std::endl;
         
         generateBallGeometry(ballPositions, ballRadius, width * scale, scale);
     }
@@ -74,50 +68,70 @@ void BallBearingModel3D::generateMesh(const Drawing::BallBearing* ballBearing) {
     // Setup OpenGL buffers
     setupMesh();
     
-    // Debug output
-    std::cout << "Final mesh: vertices=" << vertices.size()/6 
-              << ", indices=" << indices.size() << std::endl;
-    
     // Reset view
     resetView();
 }
 
 void BallBearingModel3D::generateRaceProfile(float innerRadius, float outerRadius, float width, int segments) {
-    // Create a 2D profile for the bearing cross-section
-    std::vector<ImVec2> profile;
+    // Use the new separate races approach to avoid filled space between races
+    generateSeparateRaces(innerRadius, outerRadius, width, segments);
+}
+
+void BallBearingModel3D::generateSeparateRaces(float innerRadius, float outerRadius, float width, int segments) {
     float halfWidth = width / 2.0f;
     
     // Calculate race dimensions
-    float raceWidth = (outerRadius - innerRadius) * 0.2f;  // 20% of gap for race thickness
+    float raceWidth = (outerRadius - innerRadius) * 0.18f;  // 18% of gap for race thickness
     float innerRaceOuter = innerRadius + raceWidth;
     float outerRaceInner = outerRadius - raceWidth;
     
-    // Reduce race height to leave space for balls
-    float raceHeight = halfWidth * 0.6f;  // Race height is 60% of total width
+    // Race height and groove details
+    float raceHeight = halfWidth * 0.7f;  // Race height is 70% of total width
+    float grooveDepth = raceWidth * 0.15f; // Groove depth for ball contact
     
-    // Build profile points for cross-section (from inside to outside)
-    // Inner race profile
-    profile.push_back(ImVec2(innerRadius, -raceHeight));      // Inner bottom
-    profile.push_back(ImVec2(innerRaceOuter, -raceHeight));   // Inner race bottom
-    profile.push_back(ImVec2(innerRaceOuter, raceHeight));    // Inner race top
-    profile.push_back(ImVec2(innerRadius, raceHeight));       // Inner top
+    // Generate INNER RACE ONLY (hollow design)
+    std::vector<ImVec2> innerRaceProfile;
     
-    // Gap between races (where balls go)
-    profile.push_back(ImVec2(innerRadius, raceHeight * 0.5f));
-    profile.push_back(ImVec2(outerRaceInner, raceHeight * 0.5f));
+    // Inner race with ball groove - create a proper ring shape (clockwise from bottom)
+    innerRaceProfile.push_back(ImVec2(innerRadius, -raceHeight));      // Start: inner bottom
+    innerRaceProfile.push_back(ImVec2(innerRadius, raceHeight));       // Inner top
+    innerRaceProfile.push_back(ImVec2(innerRaceOuter - grooveDepth, raceHeight)); // Race top start
     
-    // Outer race profile  
-    profile.push_back(ImVec2(outerRaceInner, raceHeight));    // Outer race top
-    profile.push_back(ImVec2(outerRadius, raceHeight));       // Outer top
-    profile.push_back(ImVec2(outerRadius, -raceHeight));      // Outer bottom
-    profile.push_back(ImVec2(outerRaceInner, -raceHeight));   // Outer race bottom
+    // Inner race ball groove (curved top to bottom)
+    float innerGrooveMidRadius = (innerRadius + innerRaceOuter) / 2.0f;
+    innerRaceProfile.push_back(ImVec2(innerGrooveMidRadius, raceHeight * 0.8f));  // Groove top
+    innerRaceProfile.push_back(ImVec2(innerGrooveMidRadius, 0.0f));               // Groove center
+    innerRaceProfile.push_back(ImVec2(innerGrooveMidRadius, -raceHeight * 0.8f)); // Groove bottom
     
-    // Gap closure
-    profile.push_back(ImVec2(outerRaceInner, -raceHeight * 0.5f));
-    profile.push_back(ImVec2(innerRadius, -raceHeight * 0.5f));
+    innerRaceProfile.push_back(ImVec2(innerRaceOuter - grooveDepth, -raceHeight)); // Race bottom start
     
-    // Revolve profile around Y-axis like bellows
-    revolveProfile(profile, segments);
+    // Close the loop back to start
+    innerRaceProfile.push_back(ImVec2(innerRadius, -raceHeight));      // Back to start
+    
+    // Generate inner race geometry
+    revolveProfile(innerRaceProfile, segments);
+    
+    // Generate OUTER RACE ONLY (separate from inner race - hollow space between)
+    std::vector<ImVec2> outerRaceProfile;
+    
+    // Outer race with ball groove - create a proper ring shape (clockwise from bottom)
+    outerRaceProfile.push_back(ImVec2(outerRaceInner + grooveDepth, -raceHeight)); // Start: inner edge bottom
+    
+    // Outer race ball groove (curved bottom to top)
+    float outerGrooveMidRadius = (outerRaceInner + outerRadius) / 2.0f;
+    outerRaceProfile.push_back(ImVec2(outerGrooveMidRadius, -raceHeight * 0.8f)); // Groove bottom
+    outerRaceProfile.push_back(ImVec2(outerGrooveMidRadius, 0.0f));               // Groove center
+    outerRaceProfile.push_back(ImVec2(outerGrooveMidRadius, raceHeight * 0.8f));  // Groove top
+    
+    outerRaceProfile.push_back(ImVec2(outerRaceInner + grooveDepth, raceHeight)); // Inner edge top
+    outerRaceProfile.push_back(ImVec2(outerRadius, raceHeight));       // Outer top
+    outerRaceProfile.push_back(ImVec2(outerRadius, -raceHeight));      // Outer bottom
+    
+    // Close the loop back to start
+    outerRaceProfile.push_back(ImVec2(outerRaceInner + grooveDepth, -raceHeight)); // Back to start
+    
+    // Generate outer race geometry  
+    revolveProfile(outerRaceProfile, segments);
 }
 
 void BallBearingModel3D::revolveProfile(const std::vector<ImVec2>& profile, int segments) {
@@ -125,6 +139,9 @@ void BallBearingModel3D::revolveProfile(const std::vector<ImVec2>& profile, int 
     
     const float PI = 3.14159265359f;
     const float angleStep = 2.0f * PI / segments;
+    
+    // Store the starting vertex index for this profile
+    unsigned int baseVertexIndex = vertices.size() / 6; // 6 floats per vertex (pos + normal)
     
     // Generate vertices by revolving profile around Y-axis
     for (const auto& point : profile) {
@@ -152,14 +169,14 @@ void BallBearingModel3D::revolveProfile(const std::vector<ImVec2>& profile, int 
         }
     }
     
-    // Generate indices for triangles (same as bellows)
+    // Generate indices for triangles (accounting for existing vertices)
     for (size_t i = 0; i < profile.size() - 1; ++i) {
         for (int j = 0; j < segments; ++j) {
-            // Calculate vertex indices
-            unsigned int current = i * segments + j;
-            unsigned int next = i * segments + (j + 1) % segments;
-            unsigned int currentNext = (i + 1) * segments + j;
-            unsigned int nextNext = (i + 1) * segments + (j + 1) % segments;
+            // Calculate vertex indices relative to this profile's base
+            unsigned int current = baseVertexIndex + i * segments + j;
+            unsigned int next = baseVertexIndex + i * segments + (j + 1) % segments;
+            unsigned int currentNext = baseVertexIndex + (i + 1) * segments + j;
+            unsigned int nextNext = baseVertexIndex + (i + 1) * segments + (j + 1) % segments;
             
             // First triangle (current, next, currentNext)
             indices.push_back(current);
@@ -177,30 +194,23 @@ void BallBearingModel3D::revolveProfile(const std::vector<ImVec2>& profile, int 
 void BallBearingModel3D::generateBallGeometry(const std::vector<ImVec2>& ballPositions, float ballRadius, float width, float scale) {
     unsigned int baseIndex = vertices.size() / 6; // 6 floats per vertex (pos + normal)
     
-    int ballSegments = 12; // Increase for better visibility
+    int ballSegments = 20; // Increase for much better sphere quality
     
     for (const auto& ballPos : ballPositions) {
         // Ball positions are already in world coordinates, so scale them to match the race scaling
         float ballX = ballPos.x * scale;
         float ballZ = ballPos.y * scale;
         
-        // Debug output for first ball
-        if (baseIndex == vertices.size() / 6) {
-            std::cout << "First ball: pos=(" << ballPos.x << "," << ballPos.y 
-                      << ") scaled=(" << ballX << "," << ballZ 
-                      << ") radius=" << ballRadius << std::endl;
-        }
-        
-        // Generate a sphere for each ball
+        // Generate a high-quality sphere for each ball
         for (int i = 0; i <= ballSegments; ++i) {
             float phi = (float)i / ballSegments * M_PI; // 0 to PI (latitude)
             
             for (int j = 0; j <= ballSegments; ++j) {
                 float theta = (float)j / ballSegments * 2.0f * M_PI; // 0 to 2*PI (longitude)
                 
-                // Spherical coordinates to Cartesian
+                // Spherical coordinates to Cartesian with better positioning
                 float x = ballX + ballRadius * sin(phi) * cos(theta);
-                float y = ballRadius * cos(phi) * 0.8f; // Slightly flatten to stay within bearing width
+                float y = ballRadius * cos(phi) * 0.9f; // Slightly compressed to fit in groove
                 float z = ballZ + ballRadius * sin(phi) * sin(theta);
                 
                 // Add vertex (position + placeholder for normal)

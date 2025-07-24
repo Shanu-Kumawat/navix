@@ -93,6 +93,7 @@ private:
     
     // Helper methods
     void generateRaceProfile(float innerRadius, float outerRadius, float width, int segments);
+    void generateSeparateRaces(float innerRadius, float outerRadius, float width, int segments);
     void revolveProfile(const std::vector<ImVec2>& profile, int segments);
     void generateBallGeometry(const std::vector<ImVec2>& ballPositions, float ballRadius, float width, float scale);
     void generateNormals();
