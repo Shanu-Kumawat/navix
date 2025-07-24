@@ -213,6 +213,10 @@ void Canvas::render(ImDrawList* drawList) {
                 // Skip drawing the selection highlight for bellows shapes
                 // since the renderBellows method already handles highlighting
                 break;
+            case ShapeType::BALL_BEARING:
+                // Skip drawing the selection highlight for ball bearing shapes
+                // since the renderBallBearings method already handles highlighting
+                break;
             // Handle other shape types for selection highlight
                     default:
                         break;
@@ -255,6 +259,9 @@ void Canvas::handleDrawing(const ImVec2& mousePos) {
             break;
         case DrawingMode::Bellows:
             handleBellowsDrawing(drawList, mousePos);
+            break;
+        case DrawingMode::BallBearing:
+            handleBallBearingDrawing(drawList, mousePos);
             break;
         default:
             break;
@@ -356,6 +363,29 @@ void Canvas::duplicateSelectedShape() {
             newShape = std::move(newBellows);
             break;
         }
+        case ShapeType::BALL_BEARING: {
+            const auto& ballBearing = static_cast<const BallBearing&>(*selectedShape);
+            auto newBallBearing = std::make_unique<BallBearing>(ballBearing.color, ballBearing.thickness);
+            
+            // Copy all parameters
+            newBallBearing->outerDiameter = ballBearing.outerDiameter;
+            newBallBearing->innerDiameter = ballBearing.innerDiameter;
+            newBallBearing->width = ballBearing.width;
+            newBallBearing->ballDiameter = ballBearing.ballDiameter;
+            newBallBearing->numBalls = ballBearing.numBalls;
+            newBallBearing->raceRadius = ballBearing.raceRadius;
+            newBallBearing->contactAngle = ballBearing.contactAngle;
+            newBallBearing->showBalls = ballBearing.showBalls;
+            newBallBearing->showCage = ballBearing.showCage;
+            newBallBearing->showDimensions = ballBearing.showDimensions;
+            
+            // Position the duplicate slightly offset from the original
+            newBallBearing->position = ImVec2(ballBearing.position.x + 50.0f, ballBearing.position.y + 50.0f);
+            newBallBearing->angle = ballBearing.angle;
+            
+            newShape = std::move(newBallBearing);
+            break;
+        }
         // ... similar cases for other shape types ...
     }
     
@@ -386,6 +416,12 @@ void Canvas::moveSelectedShape(const ImVec2& delta) {
             // by translating all profile points
             // This will be implemented later, as bellows don't have a 
             // direct translation method yet
+            break;
+        }
+        case ShapeType::BALL_BEARING: {
+            auto& ballBearing = static_cast<BallBearing&>(*selectedShape);
+            ballBearing.position.x += delta.x;
+            ballBearing.position.y += delta.y;
             break;
         }
         // ... handle other shape types ...
@@ -603,6 +639,7 @@ void Canvas::renderShapes(ImDrawList* drawList) const {
     renderSplines(drawList);
     renderBezierCurves(drawList);
     renderBellows(drawList);
+    renderBallBearings(drawList);
 }
 
 void Canvas::renderPreview(ImDrawList* drawList, const ImVec2& currentPos) {
@@ -635,6 +672,14 @@ void Canvas::renderPreview(ImDrawList* drawList, const ImVec2& currentPos) {
             break;
         case DrawingMode::Bellows:
             previewBellows(drawList, startPoint, currentPos);
+            break;
+        case DrawingMode::BallBearing:
+            if (isDrawing) {
+                float dx = currentPos.x - startPoint.x;
+                float dy = currentPos.y - startPoint.y;
+                float radius = std::sqrt(dx * dx + dy * dy);
+                previewBallBearing(drawList, startPoint, radius);
+            }
             break;
         default:
             break;
@@ -2876,6 +2921,202 @@ const Drawing::Bellows* Drawing::Canvas::findOrCreateBellows() const {
     
     // If no bellows found at all, return nullptr
     return nullptr;
+}
+
+// Implementation of findOrCreateBallBearing
+const Drawing::BallBearing* Drawing::Canvas::findOrCreateBallBearing() const {
+    // First, try to find an existing ball bearing in the shapes collection
+    for (const auto& shape : shapes) {
+        if (shape->type == Drawing::ShapeType::BALL_BEARING) {
+            return static_cast<const Drawing::BallBearing*>(shape.get());
+        }
+    }
+    
+    // If no ball bearing found and we have a selected shape that is a ball bearing, return it
+    if (selectedShape && selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
+        return static_cast<const Drawing::BallBearing*>(selectedShape);
+    }
+    
+    // If no ball bearing found at all, return nullptr
+    return nullptr;
+}
+
+void Canvas::handleBallBearingDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
+    // Only handle click events, not mouse movement
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (isFirstClick) {
+            // First click sets the center position of the ball bearing
+            startPoint = getSnappedPoint(currentPos);
+            isFirstClick = false;
+            isDrawing = true;
+        } else {
+            // Second click determines the radius/size
+            endPoint = getSnappedPoint(currentPos);
+            
+            // Calculate radius from center to mouse position
+            float dx = endPoint.x - startPoint.x;
+            float dy = endPoint.y - startPoint.y;
+            float radius = std::sqrt(dx * dx + dy * dy);
+            
+            if (radius > 5.0f) {
+                // Create ball bearing with radius-based sizing
+                auto ballBearing = std::make_unique<BallBearing>();
+                
+                // Set position
+                ballBearing->position = startPoint;
+                
+                // Set size based on radius (outer diameter = 2 * radius)
+                ballBearing->outerDiameter = radius * 2.0f;
+                ballBearing->innerDiameter = radius * 1.2f; // 60% of outer diameter
+                ballBearing->width = radius * 0.4f; // 20% of outer diameter
+                ballBearing->ballDiameter = (ballBearing->outerDiameter - ballBearing->innerDiameter) / 4.0f;
+                
+                // Add to shapes collection
+                shapes.push_back(std::move(ballBearing));
+                
+                // Save to history
+                saveToHistory();
+            }
+            
+            // Reset drawing state
+            isFirstClick = true;
+            isDrawing = false;
+        }
+    }
+}
+
+void Canvas::previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius) const {
+    if (!isDrawing || radius <= 0.0f) return;
+    
+    ImVec2 transformedCenter = transformCoordinates(center);
+    float transformedRadius = radius * zoomLevel;
+    
+    // Draw preview of outer circle
+    drawList->AddCircle(transformedCenter, transformedRadius, Colors::PREVIEW, 32, 2.0f);
+    
+    // Draw preview of inner circle
+    float innerRadius = transformedRadius * 0.6f;
+    drawList->AddCircle(transformedCenter, innerRadius, Colors::PREVIEW, 32, 1.0f);
+    
+    // Draw preview balls
+    int numBalls = 8;
+    float pitchRadius = (transformedRadius + innerRadius) / 2.0f;
+    float ballRadius = (transformedRadius - innerRadius) / 8.0f;
+    
+    for (int i = 0; i < numBalls; ++i) {
+        float ballAngle = (float)i / numBalls * 2.0f * M_PI;
+        ImVec2 ballPos = ImVec2(
+            transformedCenter.x + pitchRadius * cos(ballAngle),
+            transformedCenter.y + pitchRadius * sin(ballAngle)
+        );
+        drawList->AddCircleFilled(ballPos, ballRadius, Colors::PREVIEW);
+    }
+}
+
+void Canvas::renderBallBearings(ImDrawList* drawList) const {
+    for (const auto& shape : shapes) {
+        if (shape->type == ShapeType::BALL_BEARING) {
+            const BallBearing* ballBearing = static_cast<const BallBearing*>(shape.get());
+            
+            // Skip if not valid
+            if (!ballBearing->isValid()) continue;
+            
+            // Transform center position
+            ImVec2 transformedCenter = transformCoordinates(ballBearing->position);
+            
+            float outerRadius = (ballBearing->outerDiameter / 2.0f) * zoomLevel;
+            float innerRadius = (ballBearing->innerDiameter / 2.0f) * zoomLevel;
+            
+            // Determine colors based on selection
+            ImU32 outerColor = ballBearing->isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(0, 0, 0, 255);
+            ImU32 innerColor = ballBearing->isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(100, 100, 100, 255);
+            
+            // Draw outer race
+            drawList->AddCircle(transformedCenter, outerRadius, outerColor, 64, ballBearing->thickness * 1.5f);
+            
+            // Draw inner race
+            drawList->AddCircle(transformedCenter, innerRadius, innerColor, 64, ballBearing->thickness);
+            
+            // Draw balls if enabled
+            if (ballBearing->showBalls) {
+                float pitchRadius = (outerRadius + innerRadius) / 2.0f;
+                float ballRadius = (ballBearing->ballDiameter / 2.0f) * zoomLevel;
+                
+                ImU32 ballColor = ballBearing->isSelected ? IM_COL32(255, 255, 150, 255) : IM_COL32(150, 150, 150, 255);
+                
+                for (int i = 0; i < ballBearing->numBalls; ++i) {
+                    float ballAngle = (float)i / ballBearing->numBalls * 2.0f * M_PI;
+                    ImVec2 ballPos = ImVec2(
+                        transformedCenter.x + pitchRadius * cos(ballAngle),
+                        transformedCenter.y + pitchRadius * sin(ballAngle)
+                    );
+                    drawList->AddCircleFilled(ballPos, ballRadius, ballColor);
+                }
+            }
+            
+            // Draw cage if enabled
+            if (ballBearing->showCage) {
+                float cageRadius = (outerRadius + innerRadius) / 2.0f;
+                ImU32 cageColor = ballBearing->isSelected ? IM_COL32(255, 255, 100, 180) : IM_COL32(200, 200, 200, 180);
+                drawList->AddCircle(transformedCenter, cageRadius, cageColor, 32, 1.0f);
+            }
+            
+            // Draw dimension lines if needed
+            if (ballBearing->showDimensions) {
+                std::vector<std::pair<ImVec2, ImVec2>> dimensions = ballBearing->generateDimensionLines();
+                
+                // Dimension line style
+                ImU32 dimensionColor = IM_COL32(0, 120, 215, 200); // Blue for dimension lines
+                
+                for (auto& dim : dimensions) {
+                    // Rotate and translate dimension lines
+                    ImVec2 p1, p2;
+                    
+                    // Rotate and translate first point
+                    float s = sin(ballBearing->angle);
+                    float c = cos(ballBearing->angle);
+                    p1.x = dim.first.x * c - dim.first.y * s + ballBearing->position.x;
+                    p1.y = dim.first.x * s + dim.first.y * c + ballBearing->position.y;
+                    
+                    // Rotate and translate second point
+                    p2.x = dim.second.x * c - dim.second.y * s + ballBearing->position.x;
+                    p2.y = dim.second.x * s + dim.second.y * c + ballBearing->position.y;
+                    
+                    // Transform to screen coordinates
+                    p1 = transformCoordinates(p1);
+                    p2 = transformCoordinates(p2);
+                    
+                    // Draw dimension line
+                    drawDashedLine(drawList, p1, p2, dimensionColor, 1.0f, 5.0f);
+                    
+                    // Draw small perpendicular end ticks
+                    ImVec2 direction = ImVec2(p2.x - p1.x, p2.y - p1.y);
+                    float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+                    
+                    if (length > 0.1f) {
+                        direction.x /= length;
+                        direction.y /= length;
+                        
+                        // Perpendicular vector
+                        ImVec2 perp = ImVec2(-direction.y, direction.x);
+                        float tickSize = 5.0f;
+                        
+                        // Draw end ticks
+                        drawList->AddLine(
+                            ImVec2(p1.x - perp.x * tickSize, p1.y - perp.y * tickSize),
+                            ImVec2(p1.x + perp.x * tickSize, p1.y + perp.y * tickSize),
+                            dimensionColor, 1.0f
+                        );
+                        drawList->AddLine(
+                            ImVec2(p2.x - perp.x * tickSize, p2.y - perp.y * tickSize),
+                            ImVec2(p2.x + perp.x * tickSize, p2.y + perp.y * tickSize),
+                            dimensionColor, 1.0f
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
 
 } // namespace Drawing 

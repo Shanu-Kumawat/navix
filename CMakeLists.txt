@@ -116,12 +116,15 @@ add_library(drawing STATIC
     src/Canvas.cpp
     src/shapes/ComplexShapes.cpp
     src/shapes/Bellows.cpp
+    src/shapes/BallBearing.cpp
     src/shapes/Dimension.cpp
     src/shapes/BasicShapes.cpp
     src/utils/MathUtils.cpp
     src/Shader.cpp
     src/BellowsModel3D.cpp
     src/BellowsViewer3D.cpp
+    src/BallBearingModel3D.cpp
+    src/BallBearingViewer3D.cpp
     src/Camera.cpp
 )
 

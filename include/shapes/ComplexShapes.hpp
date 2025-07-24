@@ -266,4 +266,114 @@ public:
     }
 };
 
+// Ball Bearing design class for generating parameterized ball bearing profiles
+class BallBearing : public Shape {
+public:
+    // Ball bearing parameters
+    float outerDiameter = 100.0f;        // Outer race diameter (mm)
+    float innerDiameter = 50.0f;         // Inner race diameter (mm) 
+    float width = 20.0f;                 // Bearing width (mm)
+    float ballDiameter = 12.0f;          // Ball diameter (mm)
+    int numBalls = 8;                    // Number of balls
+    float raceRadius = 2.0f;             // Race groove radius (mm)
+    float contactAngle = 0.0f;           // Contact angle (degrees)
+    bool showBalls = true;               // Show individual balls
+    bool showCage = true;                // Show ball cage/separator
+    bool showDimensions = true;          // Show dimension lines
+    bool isSelected = false;             // Selection state
+    
+    // Position and orientation
+    ImVec2 position = ImVec2(0, 0);      // Bearing origin position
+    float angle = 0.0f;                  // Bearing rotation angle
+
+    // Constructor
+    BallBearing(ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::BALL_BEARING, color, thickness) {}
+
+    // Shape interface implementation
+    bool isValid() const override {
+        return outerDiameter > innerDiameter && 
+               innerDiameter > 0.0f &&
+               width > 0.0f &&
+               ballDiameter > 0.0f &&
+               numBalls > 0 &&
+               ballDiameter < (outerDiameter - innerDiameter) / 2.0f;
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<BallBearing>(*this);
+    }
+
+    bool isPointNear(const ImVec2& point, float threshold) const override;
+    
+    // Generate ball bearing profile points
+    std::vector<ImVec2> generateProfile() const;
+    
+    // Generate ball positions for 3D rendering
+    std::vector<ImVec2> generateBallPositions() const;
+    
+    // Generate dimension lines and labels
+    std::vector<std::pair<ImVec2, ImVec2>> generateDimensionLines() const;
+    
+    // Calculate pitch circle diameter (center of balls)
+    float calculatePitchCircleDiameter() const {
+        return (outerDiameter + innerDiameter) / 2.0f;
+    }
+    
+    // Validate parameter constraints
+    bool validateParameters() const {
+        // Check for positive values
+        if (outerDiameter <= 0.0f || innerDiameter <= 0.0f ||
+            width <= 0.0f || ballDiameter <= 0.0f ||
+            raceRadius <= 0.0f || numBalls <= 0) {
+            return false;
+        }
+        
+        // Check diameter relationships
+        if (innerDiameter >= outerDiameter) {
+            return false;
+        }
+        
+        // Check ball size fits in race
+        float raceWidth = (outerDiameter - innerDiameter) / 2.0f;
+        if (ballDiameter >= raceWidth) {
+            return false;
+        }
+        
+        // Check reasonable contact angle (0-45 degrees)
+        if (contactAngle < 0.0f || contactAngle > 45.0f) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Calculate bounding box for fit-to-view functionality
+    ImVec4 calculateBoundingBox() const {
+        float radius = outerDiameter / 2.0f;
+        
+        // Add margin for dimensions
+        float minX = -radius - 20.0f;
+        float minY = -radius - 20.0f;
+        float maxX = radius + 20.0f;
+        float maxY = radius + 20.0f;
+        
+        return ImVec4(minX, minY, maxX, maxY);
+    }
+    
+    // Reset parameters to defaults
+    void resetParameters() {
+        outerDiameter = 100.0f;
+        innerDiameter = 50.0f;
+        width = 20.0f;
+        ballDiameter = 12.0f;
+        numBalls = 8;
+        raceRadius = 2.0f;
+        contactAngle = 0.0f;
+        showBalls = true;
+        showCage = true;
+        showDimensions = true;
+    }
+};
+
 } // namespace Drawing 

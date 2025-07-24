@@ -24,7 +24,8 @@ enum class ShapeType {
     SPLINE,
     BEZIER,
     DIMENSION,
-    BELLOWS
+    BELLOWS,
+    BALL_BEARING
 };
 
 struct Shape {

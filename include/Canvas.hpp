@@ -24,7 +24,8 @@ enum class DrawingMode {
     Rectangle,
     Spline,
     BezierCurve,
-    Bellows
+    Bellows,
+    BallBearing
 };
 
 class Canvas {
@@ -178,6 +179,7 @@ public:
     // Bellows-specific methods
     void fitBellowsToView();
     const Bellows* findOrCreateBellows() const;
+    const BallBearing* findOrCreateBallBearing() const;
 
 private:
     // Drawing state
@@ -284,6 +286,7 @@ private:
     void handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos);
+    void handleBallBearingDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     
     // Preview methods
     void previewPoint(ImDrawList* drawList, const ImVec2& pos) const;
@@ -295,6 +298,7 @@ private:
     void previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
+    void previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius) const;
     void drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
                        ImU32 color, float thickness, float dash_length) const;
 
@@ -310,6 +314,7 @@ private:
     void renderSplines(ImDrawList* drawList) const;
     void renderBezierCurves(ImDrawList* drawList) const;
     void renderBellows(ImDrawList* drawList) const;
+    void renderBallBearings(ImDrawList* drawList) const;
 
     // Curve calculation methods
     ImVec2 calculateBezierPoint(const std::vector<ImVec2>& points, float t) const;

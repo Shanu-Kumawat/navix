@@ -6,6 +6,7 @@
 #include <imgui_impl_sdl2.h>
 #include <iostream>
 #include "BellowsViewer3D.hpp"
+#include "BallBearingViewer3D.hpp"
 
 // Replace icon definitions with text labels
 #define ICON_LINE "Line"
@@ -68,6 +69,7 @@ static bool fixedRectangleSize = false;  // Set to false by default for dynamic 
 // 3D view settings
 static bool show3DView = false;
 static bool bellows3DViewInitialized = false;
+static bool ballBearing3DViewInitialized = false;
 
 // Command line
 static char commandBuffer[256] = "";
@@ -226,7 +228,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   const float panelWidth = (availWidth - 130 - panelSpacing*2) / 3;
   
   // Calculate button sizes based on panel width and content
-  const float panelHeight = 82.0f;
+  const float panelHeight = 120.0f;
   
   // Measure standard text size for a button
   const float textWidth = ImGui::CalcTextSize("Rectangle").x;
@@ -338,6 +340,17 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     SelectTool(Drawing::DrawingMode::Bellows, canvas, "Bellows Tool: Click to create a parametric bellows");
   }
   
+  if (buttonsPerRow > 2) {
+    ImGui::SameLine(0, buttonSpacing);
+  } else {
+    ImGui::Dummy(ImVec2(0, 3));
+  }
+  
+  selected = UIState::activeMode == Drawing::DrawingMode::BallBearing;
+  if (ImGui::Button("Ball Bearing", ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::BallBearing, canvas, "Ball Bearing Tool: Click to create a parametric ball bearing");
+  }
+  
   ImGui::EndChild();
   ImGui::PopStyleColor();
   ImGui::EndGroup();
@@ -447,6 +460,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   if (ImGui::Button("3D View", ImVec2(100, 30))) {
     UIState::show3DView = true;
     UIState::bellows3DViewInitialized = false;
+    UIState::ballBearing3DViewInitialized = false;
     UIState::consoleMessage = "Opening 3D View";
   }
   
@@ -779,6 +793,20 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
+  else if (UIState::activeMode == Drawing::DrawingMode::BallBearing) {
+    if (ImGui::CollapsingHeader("Ball Bearing Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Indent(10);
+      
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click to set center point");
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Click again to set size");
+      ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Adjust parameters in properties");
+      ImGui::Separator();
+      
+      ImGui::Text("Select an existing ball bearing to configure its parameters");
+      
+      ImGui::Unindent(10);
+    }
+  }
   
   // Selected object properties
   if (ImGui::CollapsingHeader("Object Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -965,6 +993,108 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         // Fit to view button
         if (ImGui::Button("Fit to View", ImVec2(btnWidth, 30))) {
           canvas.fitBellowsToView();
+        }
+        
+        ImGui::PopStyleColor(2);
+      }
+      // Add Ball Bearing shape properties
+      else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
+        Drawing::BallBearing* ballBearing = static_cast<Drawing::BallBearing*>(selectedShape);
+        
+        // Ensure the ball bearing is properly selected
+        ballBearing->isSelected = true;
+        
+        ImGui::SeparatorText("Ball Bearing Design Module");
+        
+        // Calculate available width for each control
+        const float availWidth = ImGui::GetContentRegionAvail().x * 0.85f;
+        ImGui::PushItemWidth(availWidth);
+        
+        // Overall dimensions with validation
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.2f, 0.3f, 0.7f));
+        if (ImGui::CollapsingHeader("Main Dimensions", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::PushItemWidth(availWidth);
+          
+          bool validDiameters = ballBearing->innerDiameter < ballBearing->outerDiameter &&
+                               ballBearing->ballDiameter < (ballBearing->outerDiameter - ballBearing->innerDiameter) / 2.0f;
+          
+          if (!validDiameters) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+            ImGui::TextWrapped("Warning: Check diameter relationships");
+            ImGui::PopStyleColor();
+          }
+          
+          if (ImGui::DragFloat("Outer Diameter (mm)", &ballBearing->outerDiameter, 1.0f, 10.0f, 500.0f, "%.1f")) {
+            if (ballBearing->outerDiameter <= ballBearing->innerDiameter) {
+              ballBearing->outerDiameter = ballBearing->innerDiameter + 10.0f;
+            }
+          }
+          
+          if (ImGui::DragFloat("Inner Diameter (mm)", &ballBearing->innerDiameter, 1.0f, 5.0f, ballBearing->outerDiameter - 5.0f, "%.1f")) {
+            if (ballBearing->innerDiameter >= ballBearing->outerDiameter) {
+              ballBearing->innerDiameter = ballBearing->outerDiameter - 5.0f;
+            }
+          }
+          
+          ImGui::DragFloat("Width (mm)", &ballBearing->width, 0.5f, 1.0f, 100.0f, "%.1f");
+          
+          ImGui::PopItemWidth();
+        }
+        ImGui::PopStyleColor();
+        
+        // Ball parameters
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.3f, 0.2f, 0.7f));
+        if (ImGui::CollapsingHeader("Ball Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::PushItemWidth(availWidth);
+          
+          float maxBallDiameter = (ballBearing->outerDiameter - ballBearing->innerDiameter) / 2.5f;
+          if (ImGui::DragFloat("Ball Diameter (mm)", &ballBearing->ballDiameter, 0.5f, 1.0f, maxBallDiameter, "%.1f")) {
+            if (ballBearing->ballDiameter > maxBallDiameter) {
+              ballBearing->ballDiameter = maxBallDiameter;
+            }
+          }
+          
+          int numBalls = ballBearing->numBalls;
+          if (ImGui::InputInt("Number of Balls", &numBalls, 1, 2)) {
+            ballBearing->numBalls = std::max(3, std::min(50, numBalls));
+          }
+          
+          ImGui::DragFloat("Race Radius (mm)", &ballBearing->raceRadius, 0.1f, 0.5f, 10.0f, "%.1f");
+          ImGui::DragFloat("Contact Angle (°)", &ballBearing->contactAngle, 1.0f, 0.0f, 45.0f, "%.1f");
+          
+          ImGui::PopItemWidth();
+        }
+        ImGui::PopStyleColor();
+        
+        // Display options
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.1f, 0.3f, 0.7f));
+        if (ImGui::CollapsingHeader("Display Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::Checkbox("Show Balls", &ballBearing->showBalls);
+          ImGui::Checkbox("Show Cage", &ballBearing->showCage);
+          ImGui::Checkbox("Show Dimensions", &ballBearing->showDimensions);
+        }
+        ImGui::PopStyleColor();
+        
+        ImGui::PopItemWidth();
+        
+        ImGui::Separator();
+        
+        // Action buttons
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.7f, 1.0f));
+        
+        const float btnWidth = availWidth / 2 - 4;
+        
+        // Reset parameters button
+        if (ImGui::Button("Reset Parameters", ImVec2(btnWidth, 30))) {
+          ballBearing->resetParameters();
+        }
+        
+        ImGui::SameLine();
+        
+        // Fit to view button
+        if (ImGui::Button("Fit to View", ImVec2(btnWidth, 30))) {
+          // TODO: Implement fitBallBearingToView similar to fitBellowsToView
         }
         
         ImGui::PopStyleColor(2);
@@ -1543,6 +1673,19 @@ BellowsViewer3D& GetBellowsViewer() {
   return viewer;
 }
 
+// Helper function to get the static ball bearing 3D viewer instance
+BallBearingViewer3D& GetBallBearingViewer() {
+  static BallBearingViewer3D viewer;
+  static bool initialized = false;
+  
+  if (!initialized) {
+    viewer.initialize();
+    initialized = true;
+  }
+  
+  return viewer;
+}
+
 // Modified function to render separate standard windows
 void Render3DViewWindow(Drawing::Canvas &canvas) {
   // Exit immediately if 3D view is not enabled
@@ -1550,66 +1693,114 @@ void Render3DViewWindow(Drawing::Canvas &canvas) {
     return;
   }
   
+  // Check what type of shape we're viewing
   const Drawing::Bellows* bellows = canvas.findOrCreateBellows();
+  const Drawing::BallBearing* ballBearing = canvas.findOrCreateBallBearing();
   
-  // If no bellows exists, don't show the 3D view
-  if (!bellows) {
+  // Determine which viewer to use
+  bool showBellows = (bellows != nullptr);
+  bool showBallBearing = (ballBearing != nullptr);
+  
+  // If no supported shape exists, don't show the 3D view
+  if (!showBellows && !showBallBearing) {
     UIState::show3DView = false;
     return;
   }
-
-  // Get a reference to the static viewer instance
-  BellowsViewer3D& viewer = GetBellowsViewer();
   
-  // Initialize viewer once only
-  if (!UIState::bellows3DViewInitialized) {
-    viewer.initialize();
-    UIState::bellows3DViewInitialized = true;
-  }
-  
-  // Get the current window size
-  ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-  
-  // Set the 3D viewport size - now making it larger since we removed the settings panel
-  ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-  
-  // Add no padding to ensure viewport uses full window size
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-  
-  // Add ImGuiWindowFlags_NoMove to prevent moving the window by dragging its content area
-  if (ImGui::Begin("3D Bellows Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
-    ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+  // Prefer ball bearing if both exist (most recently selected)
+  if (showBallBearing) {
+    // Get a reference to the static ball bearing viewer instance
+    BallBearingViewer3D& viewer = GetBallBearingViewer();
     
-    // Render the 3D model into the viewport window
-    viewer.render(bellows, viewportSize); 
-    
-    // --- Handle Mouse Rotation Input Directly Here ---
-    ImGuiIO& io = ImGui::GetIO();
-    if (ImGui::IsWindowHovered()) {
-        // Set focus for keyboard input (WASD) when hovered
-        ImGui::SetWindowFocus(); 
-
-        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-            // Reset delta after getting it to avoid accumulation over frames
-            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left); 
-            
-            // Check if delta is significant to avoid tiny movements
-            if (std::abs(delta.x) > 0.1f || std::abs(delta.y) > 0.1f) {
-                 // Pass delta to camera processing (adjust sensitivity if needed)
-                 // Note: ImGui's Y delta might be inverted compared to SDL event Y
-                 viewer.getCamera()->ProcessMouseMovement(delta.x, delta.y, true); 
-            }
-        }
+    // Initialize viewer once only
+    if (!UIState::ballBearing3DViewInitialized) {
+      viewer.initialize();
+      UIState::ballBearing3DViewInitialized = true;
     }
+    
+    // Get the current window size
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    
+    // Set the 3D viewport size
+    ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+    
+    // Add no padding to ensure viewport uses full window size
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    
+    if (ImGui::Begin("3D Ball Bearing Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
+      ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+      
+      // Render the 3D model into the viewport window
+      viewer.render(ballBearing, viewportSize); 
+      
+      // Handle Mouse Rotation Input
+      ImGuiIO& io = ImGui::GetIO();
+      if (ImGui::IsWindowHovered()) {
+          ImGui::SetWindowFocus(); 
+
+          if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+              ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+              ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left); 
+              
+              if (std::abs(delta.x) > 0.1f || std::abs(delta.y) > 0.1f) {
+                   viewer.getCamera()->ProcessMouseMovement(delta.x, delta.y, true); 
+              }
+          }
+      }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(); // WindowPadding
   }
-  ImGui::End();
-  ImGui::PopStyleVar(); // WindowPadding
+  else if (showBellows) {
+    // Get a reference to the static bellows viewer instance
+    BellowsViewer3D& viewer = GetBellowsViewer();
+    
+    // Initialize viewer once only
+    if (!UIState::bellows3DViewInitialized) {
+      viewer.initialize();
+      UIState::bellows3DViewInitialized = true;
+    }
+    
+    // Get the current window size
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    
+    // Set the 3D viewport size
+    ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+    
+    // Add no padding to ensure viewport uses full window size
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    
+    if (ImGui::Begin("3D Bellows Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
+      ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+      
+      // Render the 3D model into the viewport window
+      viewer.render(bellows, viewportSize); 
+      
+      // Handle Mouse Rotation Input
+      ImGuiIO& io = ImGui::GetIO();
+      if (ImGui::IsWindowHovered()) {
+          ImGui::SetWindowFocus(); 
+
+          if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+              ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+              ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left); 
+              
+              if (std::abs(delta.x) > 0.1f || std::abs(delta.y) > 0.1f) {
+                   viewer.getCamera()->ProcessMouseMovement(delta.x, delta.y, true); 
+              }
+          }
+      }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(); // WindowPadding
+  }
 
   // If the main show3DView flag becomes false, ensure we reset initialization
   if (!UIState::show3DView) {
       UIState::bellows3DViewInitialized = false; // Reset initialization flag when view is closed
+      UIState::ballBearing3DViewInitialized = false; // Reset ball bearing initialization flag when view is closed
   }
 }
 
@@ -1617,16 +1808,23 @@ void Render3DViewWindow(Drawing::Canvas &canvas) {
 void Handle3DViewerInput(const SDL_Event& event) {
   if (!UIState::show3DView) return;
   
-  // Get the static viewer instance
-  BellowsViewer3D& viewer = GetBellowsViewer();
+  // Check if ImGui wants to capture keyboard input (e.g., when typing in text fields)
+  ImGuiIO& io = ImGui::GetIO();
+  bool allowKeyboardInput = !io.WantCaptureKeyboard;
   
-  // Pass only relevant events (keyboard, wheel) to the viewer's handler
-  // Mouse motion is now handled within Render3DViewWindow
-  if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP || event.type == SDL_MOUSEWHEEL) {
-      viewer.handleInput(event);
+  // Determine which viewer is active
+  // For now, we'll handle input for both viewers since we don't track which is currently shown
+  BellowsViewer3D& bellowsViewer = GetBellowsViewer();
+  BallBearingViewer3D& ballBearingViewer = GetBallBearingViewer();
+  
+  // Pass keyboard events only if ImGui doesn't want them, always pass mouse events
+  if ((event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) && allowKeyboardInput) {
+      bellowsViewer.handleInput(event);
+      ballBearingViewer.handleInput(event);
   }
-  // We might still need mouse button down/up for the viewer's internal state if it uses it
-  else if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-       viewer.handleInput(event); // Keep passing button events for now
+  // Always pass mouse wheel and mouse button events
+  else if (event.type == SDL_MOUSEWHEEL || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+      bellowsViewer.handleInput(event);
+      ballBearingViewer.handleInput(event);
   }
 }
