@@ -24,7 +24,8 @@ enum class DrawingMode {
     Rectangle,
     Spline,
     BezierCurve,
-    Bellows
+    Bellows,
+    Spring2D
 };
 
 class Canvas {
@@ -179,6 +180,38 @@ public:
     void fitBellowsToView();
     const Bellows* findOrCreateBellows() const;
 
+    void setSpring2DShape(std::unique_ptr<Shape> spring);
+
+    // Spring2D parameters for click-to-place and preview
+    float springOuterDiameter = 44.5f;
+    float springWireDiameter = 7.25f;
+    float springFreeLength = 68.0f;
+    int springNumCoils = 6;
+
+    void renderBellows(ImDrawList* drawList) const;
+    void renderSprings2D(ImDrawList* drawList) const;
+
+    // Viewport culling methods
+    bool isPointInViewport(const ImVec2& point) const {
+        ImVec2 transformed = transformCoordinates(point);
+        return transformed.x >= 0 && transformed.x <= windowWidth &&
+               transformed.y >= 0 && transformed.y <= windowHeight;
+    }
+
+    bool isRectInViewport(const ImVec2& min, const ImVec2& max) const {
+        ImVec2 transformedMin = transformCoordinates(min);
+        ImVec2 transformedMax = transformCoordinates(max);
+        return !(transformedMax.x < 0 || transformedMin.x > windowWidth ||
+                transformedMax.y < 0 || transformedMin.y > windowHeight);
+    }
+
+    void addShape(std::unique_ptr<Shape> shape) { shapes.push_back(std::move(shape)); }
+
+    // Update all ShockAbsorberEnd2D shapes for a given parent spring
+    void updateShockAbsorberEndsForSpring(const Drawing::Spring2D* spring);
+
+    const std::vector<std::unique_ptr<Shape>>& getShapes() const { return shapes; }
+
 private:
     // Drawing state
     DrawingMode currentMode{DrawingMode::None};
@@ -248,7 +281,7 @@ private:
     
     // Current dimensions - use fixed defaults
     float lineLength = 100.0f;  // Default line length
-    bool fixedLineLength = true;  // Whether to use fixed or dynamic line length
+    bool fixedLineLength = false;  // Whether to use fixed or dynamic line length (set to false for variable by default)
     float circleRadius = 50.0f;  // Default circle radius
     bool fixedCircleRadius = false;  // Whether to use fixed or dynamic circle radius
     float squareSize = 100.0f;  // Default square size
@@ -263,7 +296,7 @@ private:
     void restoreHistoryState(const HistoryState& state);
     ImVec2 getSnappedPoint(const ImVec2& point) const;
     bool trySnapToExistingPoint(ImVec2& point) const;
-    void renderPreview(ImDrawList* drawList, const ImVec2& currentPos);
+    void renderPreview(ImDrawList* drawList, const ImVec2& currentPos) const;
     std::optional<ImVec2> findNearestPoint(const ImVec2& point, float threshold) const;
     ImVec2 findNearestSnapPoint(const ImVec2& pos) const;
     
@@ -284,6 +317,7 @@ private:
     void handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos);
+    void handleSpring2DDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     
     // Preview methods
     void previewPoint(ImDrawList* drawList, const ImVec2& pos) const;
@@ -295,6 +329,7 @@ private:
     void previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
+    void previewSpring2D(ImDrawList* drawList, const ImVec2& center) const;
     void drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
                        ImU32 color, float thickness, float dash_length) const;
 
@@ -309,7 +344,6 @@ private:
     void renderRectangles(ImDrawList* drawList) const;
     void renderSplines(ImDrawList* drawList) const;
     void renderBezierCurves(ImDrawList* drawList) const;
-    void renderBellows(ImDrawList* drawList) const;
 
     // Curve calculation methods
     ImVec2 calculateBezierPoint(const std::vector<ImVec2>& points, float t) const;

@@ -1,6 +1,7 @@
 #include "Shader.hpp"
 
 Shader::Shader(const char* vertexPath, const char* fragmentPath) {
+    std::cout << "Shader constructor called for: " << vertexPath << " and " << fragmentPath << std::endl;
     // 1. Retrieve the vertex/fragment source code from filePath
     std::string vertexCode;
     std::string fragmentCode;
@@ -123,12 +124,16 @@ void Shader::checkCompileErrors(unsigned int shader, std::string type) {
         if (!success) {
             glGetShaderInfoLog(shader, 1024, NULL, infoLog);
             std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+        } else {
+            std::cout << "SHADER::" << type << " compiled successfully." << std::endl;
         }
     } else {
         glGetProgramiv(shader, GL_LINK_STATUS, &success);
         if (!success) {
             glGetProgramInfoLog(shader, 1024, NULL, infoLog);
             std::cerr << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+        } else {
+            std::cout << "SHADER::PROGRAM linked successfully." << std::endl;
         }
     }
 } 

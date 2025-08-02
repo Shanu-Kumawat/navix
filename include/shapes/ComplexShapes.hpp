@@ -67,6 +67,21 @@ struct Spline : public Shape {
     void insertKnot(float t);     // Insert a new control point at parameter t
     void removeKnot(size_t index, float tolerance); // Remove control point while maintaining shape
     void fitToCurve(const std::vector<ImVec2>& points); // Fit spline to a set of points
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        if (controlPoints.empty()) {
+            min = max = ImVec2(0, 0);
+            return;
+        }
+        
+        min = max = controlPoints[0];
+        for (const auto& point : controlPoints) {
+            min.x = std::min(min.x, point.x);
+            min.y = std::min(min.y, point.y);
+            max.x = std::max(max.x, point.x);
+            max.y = std::max(max.y, point.y);
+        }
+    }
 };
 
 class BezierCurve : public Shape {
@@ -121,6 +136,21 @@ public:
     ImVec2 calculateDerivative(float t) const;
     float calculateCurvature(float t) const;
     std::vector<ImVec2> calculatePoints(float step = 0.01f) const;
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        if (controlPoints.empty()) {
+            min = max = ImVec2(0, 0);
+            return;
+        }
+        
+        min = max = controlPoints[0];
+        for (const auto& point : controlPoints) {
+            min.x = std::min(min.x, point.x);
+            min.y = std::min(min.y, point.y);
+            max.x = std::max(max.x, point.x);
+            max.y = std::max(max.y, point.y);
+        }
+    }
 };
 
 // Enhanced UI helper functions
@@ -263,6 +293,34 @@ public:
         convolutedSectionLength = 100.0f;
         numConvolutions = 6;
         wallThickness = 2.0f;
+    }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        // Get profile points
+        std::vector<ImVec2> profile = generateProfile();
+        
+        if (profile.empty()) {
+            min = max = ImVec2(0, 0);
+            return;
+        }
+        
+        // Calculate bounds based on profile points
+        min = max = profile[0];
+        for (const auto& point : profile) {
+            min.x = std::min(min.x, point.x);
+            min.y = std::min(min.y, point.y);
+            max.x = std::max(max.x, point.x);
+            max.y = std::max(max.y, point.y);
+        }
+        
+        // Add margin for dimensions if they are shown
+        if (showDimensions) {
+            float margin = peakConvolutionDiameter / 2.0f;
+            min.x -= margin;
+            min.y -= margin;
+            max.x += margin;
+            max.y += margin;
+        }
     }
 };
 

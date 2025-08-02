@@ -13,6 +13,7 @@ namespace Drawing {
 
 // Forward declaration
 class Canvas;
+struct ShockAbsorberEnd2D;
 
 enum class ShapeType {
     POINT,
@@ -24,7 +25,10 @@ enum class ShapeType {
     SPLINE,
     BEZIER,
     DIMENSION,
-    BELLOWS
+    BELLOWS,
+    SPRING2D,
+    SHOCK_ABSORBER_END_2D,
+    SHOCK_ABSORBER_BOTTOM_END
 };
 
 struct Shape {
@@ -39,6 +43,7 @@ struct Shape {
     virtual std::unique_ptr<Shape> clone() const = 0;
     virtual bool isValid() const = 0;
     virtual bool isPointNear(const ImVec2& point, float threshold) const = 0;
+    virtual void getBounds(ImVec2& min, ImVec2& max) const = 0;
 };
 
 struct Point : public Shape {
@@ -60,6 +65,11 @@ struct Point : public Shape {
         float dx = point.x - position.x;
         float dy = point.y - position.y;
         return (dx * dx + dy * dy) <= threshold * threshold;
+    }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        min = ImVec2(position.x - size, position.y - size);
+        max = ImVec2(position.x + size, position.y + size);
     }
 };
 
@@ -122,6 +132,11 @@ struct Line : public Shape {
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Line>(*this);
     }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        min = ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
+        max = ImVec2(std::max(start.x, end.x), std::max(start.y, end.y));
+    }
 };
 
 struct Circle : public Shape {
@@ -144,6 +159,11 @@ struct Circle : public Shape {
 
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Circle>(*this);
+    }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        min = ImVec2(center.x - radius, center.y - radius);
+        max = ImVec2(center.x + radius, center.y + radius);
     }
 };
 
@@ -195,6 +215,13 @@ struct Triangle : public Shape {
 
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Triangle>(*this);
+    }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        min = ImVec2(std::min({points[0].x, points[1].x, points[2].x}),
+                    std::min({points[0].y, points[1].y, points[2].y}));
+        max = ImVec2(std::max({points[0].x, points[1].x, points[2].x}),
+                    std::max({points[0].y, points[1].y, points[2].y}));
     }
 };
 
@@ -263,6 +290,13 @@ struct Square : public Shape {
 
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Square>(*this);
+    }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        ImVec2 topLeft = getTopLeft();
+        float size = getSize();
+        min = topLeft;
+        max = ImVec2(topLeft.x + size, topLeft.y + size);
     }
 };
 
@@ -346,6 +380,11 @@ struct Rectangle : public Shape {
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Rectangle>(*this);
     }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        min = topLeft;
+        max = bottomRight;
+    }
 };
 
 // Dimension type enum
@@ -397,6 +436,128 @@ struct Dimension : public Shape {
     void move(const ImVec2& delta);
     void scale(float factor);
     void rotate(float angle, const ImVec2& center);
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        // Calculate bounds based on start and end points
+        min = ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
+        max = ImVec2(std::max(start.x, end.x), std::max(start.y, end.y));
+        
+        // Add margin for text and extension lines
+        float margin = 20.0f; // Adjust this value based on your text size and extension line length
+        min.x -= margin;
+        min.y -= margin;
+        max.x += margin;
+        max.y += margin;
+    }
+};
+
+struct Spring2D : public Shape {
+    float centerX, centerY;
+    float outerDiameter;
+    float wireDiameter;
+    float freeLength;
+    int numCoils;
+
+    Spring2D(float cx, float cy, float od, float wd, float fl, int coils, ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+        : Shape(ShapeType::SPRING2D, color, thickness),
+          centerX(cx), centerY(cy), outerDiameter(od), wireDiameter(wd), freeLength(fl), numCoils(coils) {}
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<Spring2D>(*this);
+    }
+    bool isValid() const override {
+        return outerDiameter > wireDiameter && wireDiameter > 0 && freeLength > 0 && numCoils > 0;
+    }
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        float dx = point.x - centerX;
+        float dy = point.y - centerY;
+        float distance = std::sqrt(dx * dx + dy * dy);
+        float radius = outerDiameter / 2.0f;
+        // Allow selection if within the outer circle, plus a threshold
+        return distance <= radius + threshold;
+    }
+    bool isPointInBoundingBox(const ImVec2& point, float threshold) const {
+        float halfLength = freeLength / 2.0f;
+        float radius = outerDiameter / 2.0f;
+        return (point.x >= centerX - radius - threshold && point.x <= centerX + radius + threshold &&
+                point.y >= centerY - halfLength - threshold && point.y <= centerY + halfLength + threshold);
+    }
+
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        // Calculate the bounds based on the spring's properties
+        float radius = outerDiameter / 2.0f;
+        min = ImVec2(centerX - radius, centerY - radius);
+        max = ImVec2(centerX + radius, centerY + radius);
+    }
+
+    std::vector<ImVec2> generateProfile() const;
+};
+
+enum class EndPosition { Top, Bottom };
+struct ShockAbsorberEnd2D : public Shape {
+    const Spring2D* parentSpring;
+    EndPosition position; // Top or Bottom
+    float shaftLength;
+    float step1Length;
+    float step2Length;
+    float step3Length;
+    float step1Diameter;
+    float step2Diameter;
+    float step3Diameter;
+    float boreDiameter;
+    float chamfer;
+    ImVec2 baseCenter;
+
+    ShockAbsorberEnd2D(const Spring2D* spring, EndPosition pos = EndPosition::Top, ImU32 color = IM_COL32(80, 80, 80, 255), float thickness = 2.0f)
+        : Shape(ShapeType::SHOCK_ABSORBER_END_2D, color, thickness), parentSpring(spring), position(pos)
+    {
+        updateGeometry();
+    }
+
+    void updateGeometry() {
+        float od = parentSpring->outerDiameter;
+        float wd = parentSpring->wireDiameter;
+        float fl = parentSpring->freeLength;
+        // step1 covers 50% of the spring, step2 15%, step3 10%
+        step1Length = fl * 0.50f;
+        step2Length = fl * 0.15f;
+        step3Length = fl * 0.10f;
+        shaftLength = step1Length + step2Length + step3Length;
+        step1Diameter = od * 0.9f;
+        step2Diameter = step1Diameter; // Make step 2 as wide as step 1
+        step3Diameter = od * 0.5f;
+        boreDiameter = od * 0.22f;
+        chamfer = step1Diameter * 0.08f;
+        if (position == EndPosition::Top) {
+            // Center step1 on the top of the spring (overlap)
+            baseCenter = ImVec2(parentSpring->centerX, parentSpring->centerY - fl/2 + step1Length/2);
+        } else {
+            // Center step1 on the bottom of the spring (overlap)
+            baseCenter = ImVec2(parentSpring->centerX, parentSpring->centerY + fl/2 - step1Length/2);
+        }
+    }
+
+    std::unique_ptr<Shape> clone() const override {
+        return std::make_unique<ShockAbsorberEnd2D>(*this);
+    }
+    bool isValid() const override { return parentSpring != nullptr; }
+    bool isPointNear(const ImVec2& point, float threshold) const override {
+        float halfLen = shaftLength / 2.0f;
+        float halfDia = step1Diameter / 2.0f;
+        if (point.x >= baseCenter.x - halfDia - threshold && point.x <= baseCenter.x + halfDia + threshold &&
+            point.y >= baseCenter.y - halfLen - threshold && point.y <= baseCenter.y + halfLen + threshold) {
+            return true;
+        }
+        return false;
+    }
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        float halfLen = shaftLength / 2.0f;
+        float halfDia = step1Diameter / 2.0f;
+        min = ImVec2(baseCenter.x - halfDia, baseCenter.y - halfLen);
+        max = ImVec2(baseCenter.x + halfDia, baseCenter.y + halfLen);
+    }
+
+    std::vector<ImVec2> generateProfile() const;
 };
 
 } // namespace Drawing 
