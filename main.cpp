@@ -1812,6 +1812,13 @@ void Handle3DViewerInput(const SDL_Event& event) {
   ImGuiIO& io = ImGui::GetIO();
   bool allowKeyboardInput = !io.WantCaptureKeyboard;
   
+  // Add debug output to see if events are reaching this function
+  if (event.type == SDL_KEYDOWN) {
+    std::cout << "Key pressed: " << SDL_GetKeyName(event.key.keysym.sym) 
+              << " - ImGui wants keyboard: " << io.WantCaptureKeyboard 
+              << " - Allow input: " << allowKeyboardInput << std::endl;
+  }
+  
   // Determine which viewer is active
   // For now, we'll handle input for both viewers since we don't track which is currently shown
   BellowsViewer3D& bellowsViewer = GetBellowsViewer();
@@ -1819,6 +1826,7 @@ void Handle3DViewerInput(const SDL_Event& event) {
   
   // Pass keyboard events only if ImGui doesn't want them, always pass mouse events
   if ((event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) && allowKeyboardInput) {
+      std::cout << "Passing keyboard event to 3D viewers" << std::endl;
       bellowsViewer.handleInput(event);
       ballBearingViewer.handleInput(event);
   }

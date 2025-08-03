@@ -1,5 +1,8 @@
 # Build directories
 build/
+build_windows/
+deps/ 
+imgui
 out/
 bin/
 lib/

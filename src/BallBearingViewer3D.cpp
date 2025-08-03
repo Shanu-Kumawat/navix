@@ -181,21 +181,27 @@ void BallBearingViewer3D::handleInput(const SDL_Event& event) {
         camera->ProcessMouseScroll(static_cast<float>(event.wheel.y));
     } else if (event.type == SDL_KEYDOWN) {
         // Add keyboard controls like bellows viewer
+        std::cout << "BallBearingViewer3D: Key pressed: " << SDL_GetKeyName(event.key.keysym.sym) << std::endl;
         float deltaTime = 0.1f; 
         switch (event.key.keysym.sym) {
             case SDLK_w:
+                std::cout << "BallBearingViewer3D: Moving FORWARD" << std::endl;
                 camera->ProcessKeyboard(FORWARD, deltaTime);
                 break;
             case SDLK_s:
+                std::cout << "BallBearingViewer3D: Moving BACKWARD" << std::endl;
                 camera->ProcessKeyboard(BACKWARD, deltaTime);
                 break;
             case SDLK_a:
+                std::cout << "BallBearingViewer3D: Moving LEFT" << std::endl;
                 camera->ProcessKeyboard(LEFT, deltaTime);
                 break;
             case SDLK_d:
+                std::cout << "BallBearingViewer3D: Moving RIGHT" << std::endl;
                 camera->ProcessKeyboard(RIGHT, deltaTime);
                 break;
             case SDLK_r:
+                std::cout << "BallBearingViewer3D: Resetting view" << std::endl;
                 // Reset both camera and model view
                 camera->Reset(); 
                 ballBearingModel->resetView(); 
