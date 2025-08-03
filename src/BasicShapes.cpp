@@ -6,18 +6,11 @@ namespace Drawing {
 
 std::vector<ImVec2> Spring2D::generateProfile() const {
     std::vector<ImVec2> profile;
-    float r_outer = outerDiameter / 2.0f;
-    float r_inner = r_outer - wireDiameter;
+    float r = outerDiameter / 2.0f - wireDiameter / 2.0f;
     float y0 = centerY - freeLength / 2.0f;
     float y1 = centerY + freeLength / 2.0f;
-    // Outer edge from bottom to top
-    profile.push_back(ImVec2(r_outer, y0));
-    profile.push_back(ImVec2(r_outer, y1));
-    // Inner edge from top to bottom
-    profile.push_back(ImVec2(r_inner, y1));
-    profile.push_back(ImVec2(r_inner, y0));
-    // Close the profile
-    profile.push_back(ImVec2(r_outer, y0));
+    profile.push_back(ImVec2(r, y0));
+    profile.push_back(ImVec2(r, y1));
     return profile;
 }
 

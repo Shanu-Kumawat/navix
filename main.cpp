@@ -7,6 +7,9 @@
 #include <iostream>
 #include "BellowsViewer3D.hpp"
 #include "BallBearingViewer3D.hpp"
+#include "SpringViewer3D.hpp"
+#include "shapes/ShockAbsorberBottomEnd.hpp"
+#include "ShockAbsorberViewer3D.hpp"
 
 // Replace icon definitions with text labels
 #define ICON_LINE "Line"
@@ -24,6 +27,7 @@
 #define ICON_ZOOM "Zoom"
 #define ICON_MEASURE "Measure"
 #define ICON_ANNOTATION "Text"
+
 
 // Window dimensions
 const int WINDOW_WIDTH = 1280;
@@ -45,6 +49,7 @@ const ImVec4 BUTTON_ACTIVE = ImVec4(0.18f, 0.69f, 0.69f, 1.0f);          // Teal
 const ImVec4 BUTTON_TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);            // Dark button text
 const ImVec4 ACCENT = ImVec4(0.18f, 0.69f, 0.69f, 1.0f);                 // Teal accent color
 const ImVec4 TAB_ACTIVE = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);                // White active tab background
+
 const ImVec4 GRID_BACKGROUND = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);        // Very light background for grid area
 const ImVec4 COMMAND_BG = ImVec4(0.90f, 0.90f, 0.90f, 1.0f);             // Light gray command line background
 const ImVec4 COMMAND_TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);           // Dark command line text
@@ -99,6 +104,14 @@ static std::vector<std::string> recentFiles;
 // Workspace settings
 static std::string currentWorkspace = "2D Drafting";
 static bool darkMode = false;
+
+// Add a global or static instance for the spring 3D viewer
+static SpringViewer3D springViewer;
+static bool showSpring3DView = false;
+static bool spring3DViewInitialized = false;
+// Add a flag for the new 3D Shock Absorber viewer
+static bool showShockAbsorber3DView = false;
+static bool shockAbsorber3DViewInitialized = false;
 } // namespace UIState
 
 // Function declaration prototypes
@@ -113,6 +126,11 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas);
 // Forward declare the 3D view functions
 void Render3DViewWindow(Drawing::Canvas &canvas);
 void Handle3DViewerInput(const SDL_Event& event);
+
+// Add function prototype at the top
+void RenderSpring3DViewWindow(Drawing::Canvas &canvas);
+// Add prototype for the new 3D shock absorber view window
+void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas);
 
 // Helper function to handle tool selection
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas,
@@ -351,6 +369,12 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     SelectTool(Drawing::DrawingMode::BallBearing, canvas, "Ball Bearing Tool: Click to create a parametric ball bearing");
   }
   
+  ImGui::SameLine(0, buttonSpacing);
+  selected = UIState::activeMode == Drawing::DrawingMode::Spring2D;
+  if (ImGui::Button("Spring", ImVec2(buttonWidth, buttonHeight))) {
+    SelectTool(Drawing::DrawingMode::Spring2D, canvas, "Spring Tool: Set parameters in properties panel");
+  }
+  
   ImGui::EndChild();
   ImGui::PopStyleColor();
   ImGui::EndGroup();
@@ -574,17 +598,37 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f); // Increased from 300.0f and 0.2f for wider panel
   const float propertyPanelMinWidth = 300.0f; // Increased from 250.0f for better text accommodation
   const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
-  
-  // AutoCAD-style properties panel on the right
   ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - actualPanelWidth, 95));
   ImGui::SetNextWindowSize(ImVec2(actualPanelWidth, ImGui::GetIO().DisplaySize.y - 150));
-
   ImGui::Begin("Properties", nullptr,
                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                    ImGuiWindowFlags_NoCollapse);
 
   // Get the selected shape
   const Drawing::Shape* selectedShape = canvas.getSelectedShape();
+
+  // Always show Add ShockAbsorberEnd2D and 3D View buttons for Spring2D selection
+  if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+    ImGui::Separator();
+    ImGui::Text("Spring2D Actions:");
+    if (ImGui::Button("Add ShockAbsorberEnd2D")) {
+      auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
+      auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
+      canvas.addShape(std::move(end));
+    }
+    if (ImGui::Button("Add ShockAbsorberBottomEnd")) {
+      auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
+      auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
+      canvas.addShape(std::move(bottomEnd));
+    }
+    if (ImGui::Button("3D View")) {
+      UIState::showSpring3DView = true;
+    }
+    // Add the new 3D Shock Absorber button
+    if (ImGui::Button("3D Shock Absorber")) {
+      UIState::showShockAbsorber3DView = true;
+    }
+  }
 
   ImGui::PushStyleColor(ImGuiCol_Header, UIColors::HEADER);
   
@@ -793,6 +837,162 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
+  else if (UIState::activeMode == Drawing::DrawingMode::Spring2D) {
+    if (ImGui::CollapsingHeader("Spring Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Indent(10);
+
+        // Use Canvas member variables for live update
+        ImGui::Text("Outer Diameter:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringOuterDiameter", &canvas.springOuterDiameter, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springOuterDiameter < 1.0f) canvas.springOuterDiameter = 1.0f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Wire Diameter:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringWireDiameter", &canvas.springWireDiameter, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springWireDiameter < 0.1f) canvas.springWireDiameter = 0.1f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Free Length:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringFreeLength", &canvas.springFreeLength, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springFreeLength < 1.0f) canvas.springFreeLength = 1.0f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Number of Coils:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputInt("##SpringNumCoils", &canvas.springNumCoils)) {
+            if (canvas.springNumCoils < 1) canvas.springNumCoils = 1;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Unindent(10);
+    }
+  }
+  else if (UIState::activeMode == Drawing::DrawingMode::Spring2D) {
+    if (ImGui::CollapsingHeader("Spring Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Indent(10);
+
+        // Use Canvas member variables for live update
+        ImGui::Text("Outer Diameter:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringOuterDiameter", &canvas.springOuterDiameter, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springOuterDiameter < 1.0f) canvas.springOuterDiameter = 1.0f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Wire Diameter:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringWireDiameter", &canvas.springWireDiameter, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springWireDiameter < 0.1f) canvas.springWireDiameter = 0.1f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Free Length:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringFreeLength", &canvas.springFreeLength, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springFreeLength < 1.0f) canvas.springFreeLength = 1.0f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Number of Coils:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputInt("##SpringNumCoils", &canvas.springNumCoils)) {
+            if (canvas.springNumCoils < 1) canvas.springNumCoils = 1;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Unindent(10);
+    }
+  }
+  else if (UIState::activeMode == Drawing::DrawingMode::Spring2D) {
+    if (ImGui::CollapsingHeader("Spring Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Indent(10);
+
+        // Use Canvas member variables for live update
+        ImGui::Text("Outer Diameter:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringOuterDiameter", &canvas.springOuterDiameter, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springOuterDiameter < 1.0f) canvas.springOuterDiameter = 1.0f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Wire Diameter:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringWireDiameter", &canvas.springWireDiameter, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springWireDiameter < 0.1f) canvas.springWireDiameter = 0.1f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Free Length:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputFloat("##SpringFreeLength", &canvas.springFreeLength, 0.1f, 1.0f, "%.2f")) {
+            if (canvas.springFreeLength < 1.0f) canvas.springFreeLength = 1.0f;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Text("Number of Coils:");
+        ImGui::SameLine(120);
+        ImGui::PushItemWidth(inputWidth);
+        if (ImGui::InputInt("##SpringNumCoils", &canvas.springNumCoils)) {
+            if (canvas.springNumCoils < 1) canvas.springNumCoils = 1;
+            if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+                canvas.updateShockAbsorberEndsForSpring(static_cast<const Drawing::Spring2D*>(selectedShape));
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::Unindent(10);
+    }
+  }
   else if (UIState::activeMode == Drawing::DrawingMode::BallBearing) {
     if (ImGui::CollapsingHeader("Ball Bearing Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
@@ -807,6 +1007,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
+
   
   // Selected object properties
   if (ImGui::CollapsingHeader("Object Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -1179,6 +1380,29 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   }
   
   ImGui::End();
+
+  // Always show Add ShockAbsorberEnd2D and 3D View buttons for Spring2D selection
+  if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+    ImGui::Separator();
+    ImGui::Text("Spring2D Actions:");
+    if (ImGui::Button("Add ShockAbsorberEnd2D")) {
+      auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
+      auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
+      canvas.addShape(std::move(end));
+    }
+    if (ImGui::Button("Add ShockAbsorberBottomEnd")) {
+      auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
+      auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
+      canvas.addShape(std::move(bottomEnd));
+    }
+    if (ImGui::Button("3D View")) {
+      UIState::showSpring3DView = true;
+    }
+    // Add the new 3D Shock Absorber button
+    if (ImGui::Button("3D Shock Absorber")) {
+      UIState::showShockAbsorber3DView = true;
+    }
+  }
 }
 
 void RenderCanvas(Drawing::Canvas &canvas) {
@@ -1640,6 +1864,39 @@ int main(int, char **) {
     // Render 3D view window if active (will now create separate windows)
     Render3DViewWindow(canvas); // Use original function name
 
+    // Add a global or static instance for the spring 3D viewer
+    static SpringViewer3D springViewer;
+    static bool showSpring3DView = false;
+    static bool spring3DViewInitialized = false;
+
+    // Declare selectedShape before use
+    Drawing::Shape* selectedShape = canvas.getSelectedShape();
+
+    if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+        if (ImGui::Button("3D View")) {
+            UIState::showSpring3DView = true;
+        }
+        if (ImGui::Button("Add ShockAbsorberEnd2D")) {
+            auto* spring = static_cast<Drawing::Spring2D*>(selectedShape);
+            auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
+            canvas.addShape(std::move(end));
+        }
+        if (ImGui::Button("Add ShockAbsorberBottomEnd")) {
+            auto* spring = static_cast<Drawing::Spring2D*>(selectedShape);
+            auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
+            canvas.addShape(std::move(bottomEnd));
+        }
+    }
+
+    // Only call the 3D spring view window if the flag is set
+    if (UIState::showSpring3DView) {
+        RenderSpring3DViewWindow(canvas);
+    }
+    // Call the new 3D shock absorber view window if the flag is set
+    if (UIState::showShockAbsorber3DView) {
+        RenderShockAbsorber3DViewWindow(canvas);
+    }
+
     ImGui::Render();
     glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
     glClearColor(UIColors::BACKGROUND.x, UIColors::BACKGROUND.y,
@@ -1835,4 +2092,92 @@ void Handle3DViewerInput(const SDL_Event& event) {
       bellowsViewer.handleInput(event);
       ballBearingViewer.handleInput(event);
   }
+}
+
+// Add function prototype at the top
+void RenderSpring3DViewWindow(Drawing::Canvas &canvas) {
+    if (!UIState::showSpring3DView) {
+        return;
+    }
+
+    Drawing::Shape* selectedShape = canvas.getSelectedShape();
+
+    static SpringViewer3D springViewer;
+    static bool spring3DViewInitialized = false;
+
+    // Only initialize the viewer once per window open
+    if (!spring3DViewInitialized) {
+        springViewer.initialize();
+        spring3DViewInitialized = true;
+    }
+
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("3D Spring Viewport", &UIState::showSpring3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
+        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+        if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+            springViewer.render(static_cast<const Drawing::Spring2D*>(selectedShape), viewportSize);
+        } else {
+            ImGui::Text("No 2D spring selected!");
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+    if (!UIState::showSpring3DView) {
+        spring3DViewInitialized = false;
+    }
+}
+// Add prototype for the new 3D shock absorber view window
+void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas) {
+    if (!UIState::showShockAbsorber3DView) {
+        return;
+    }
+
+    // Find the selected spring and its ends
+    const Drawing::Spring2D* spring = nullptr;
+    const Drawing::ShockAbsorberEnd2D* end = nullptr;
+    const Drawing::ShockAbsorberBottomEnd* bottomEnd = nullptr;
+    for (const auto& shapePtr : canvas.getShapes()) {
+        if (!spring) {
+            spring = dynamic_cast<const Drawing::Spring2D*>(shapePtr.get());
+        }
+        if (!end) {
+            end = dynamic_cast<const Drawing::ShockAbsorberEnd2D*>(shapePtr.get());
+        }
+        if (!bottomEnd) {
+            bottomEnd = dynamic_cast<const Drawing::ShockAbsorberBottomEnd*>(shapePtr.get());
+        }
+    }
+
+    static ShockAbsorberViewer3D viewer;
+    static bool initialized = false;
+    if (!initialized) {
+        viewer.initialize();
+        initialized = true;
+    }
+
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("3D Shock Absorber Viewport", &UIState::showShockAbsorber3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
+        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+        if (!spring || !end || !bottomEnd) {
+            ImGui::Text("Please add a Spring2D, ShockAbsorberEnd2D, and ShockAbsorberBottomEnd to view the 3D shock absorber.");
+            ImGui::End();
+            ImGui::PopStyleVar();
+            if (!UIState::showShockAbsorber3DView) {
+                initialized = false;
+            }
+            return;
+        }
+        viewer.render(spring, end, bottomEnd, viewportSize);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
+    if (!UIState::showShockAbsorber3DView) {
+        initialized = false;
+    }
 }

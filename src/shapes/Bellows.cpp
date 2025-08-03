@@ -3,6 +3,7 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 
 namespace Drawing {
 
@@ -74,6 +75,18 @@ bool Bellows::isPointNear(const ImVec2& point, float threshold) const {
 }
 
 std::vector<ImVec2> Bellows::generateProfile() const {
+    // Debug: Print parameter values
+    std::cout << "[Bellows::generateProfile] Parameters:" << std::endl;
+    std::cout << "  cuffAInnerDiameter: " << cuffAInnerDiameter << std::endl;
+    std::cout << "  cuffBInnerDiameter: " << cuffBInnerDiameter << std::endl;
+    std::cout << "  cuffALength: " << cuffALength << std::endl;
+    std::cout << "  cuffBLength: " << cuffBLength << std::endl;
+    std::cout << "  baseConvolutionDiameter: " << baseConvolutionDiameter << std::endl;
+    std::cout << "  peakConvolutionDiameter: " << peakConvolutionDiameter << std::endl;
+    std::cout << "  convolutedSectionLength: " << convolutedSectionLength << std::endl;
+    std::cout << "  numConvolutions: " << numConvolutions << std::endl;
+    std::cout << "  wallThickness: " << wallThickness << std::endl;
+
     std::vector<ImVec2> points;
     
     // Calculate derived parameters
@@ -175,6 +188,8 @@ std::vector<ImVec2> Bellows::generateProfile() const {
     // Close the profile
     points.push_back(points[0]);
     
+    // Debug: Print the number of generated profile points
+    std::cout << "[Bellows::generateProfile] Generated " << points.size() << " profile points." << std::endl;
     return points;
 }
 

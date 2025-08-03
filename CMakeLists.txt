@@ -117,6 +117,7 @@ add_library(drawing STATIC
     src/shapes/ComplexShapes.cpp
     src/shapes/Bellows.cpp
     src/shapes/BallBearing.cpp
+    src/shapes/ShockAbsorberBottomEnd.cpp
     src/shapes/Dimension.cpp
     src/shapes/BasicShapes.cpp
     src/utils/MathUtils.cpp
@@ -126,6 +127,10 @@ add_library(drawing STATIC
     src/BallBearingModel3D.cpp
     src/BallBearingViewer3D.cpp
     src/Camera.cpp
+    src/SpringModel3D.cpp
+    src/SpringViewer3D.cpp
+    src/ShockAbsorberModel3D.cpp
+    src/ShockAbsorberViewer3D.cpp
 )
 
 target_include_directories(drawing PUBLIC
