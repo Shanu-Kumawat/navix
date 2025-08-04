@@ -463,6 +463,9 @@ struct Spring2D : public Shape {
         : Shape(ShapeType::SPRING2D, color, thickness),
           centerX(cx), centerY(cy), outerDiameter(od), wireDiameter(wd), freeLength(fl), numCoils(coils) {}
 
+    // Static method for template-based shape finding
+    static ShapeType GetShapeType() { return ShapeType::SPRING2D; }
+
     std::unique_ptr<Shape> clone() const override {
         return std::make_unique<Spring2D>(*this);
     }
@@ -514,6 +517,9 @@ struct ShockAbsorberEnd2D : public Shape {
     {
         updateGeometry();
     }
+
+    // Static method for template-based shape finding
+    static ShapeType GetShapeType() { return ShapeType::SHOCK_ABSORBER_END_2D; }
 
     void updateGeometry() {
         float od = parentSpring->outerDiameter;

@@ -730,14 +730,6 @@ void Canvas::renderPreview(ImDrawList* drawList, const ImVec2& currentPos) const
                 previewBallBearing(drawList, startPoint, radius);
             }
             break;
-        case DrawingMode::BallBearing:
-            if (isDrawing) {
-                float dx = currentPos.x - startPoint.x;
-                float dy = currentPos.y - startPoint.y;
-                float radius = std::sqrt(dx * dx + dy * dy);
-                previewBallBearing(drawList, startPoint, radius);
-            }
-            break;
         default:
             break;
     }
@@ -1349,14 +1341,22 @@ void Canvas::handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos
             float minLength = bellows->cuffALength + bellows->cuffBLength + 10.0f;
             if (length > minLength) {
                 bellows->convolutedSectionLength = length - bellows->cuffALength - bellows->cuffBLength;
+                bellows->invalidateCache();
                 bellows->position = startPoint;
                 bellows->angle = std::atan2(dy, dx);
+                
+                std::cout << "[DEBUG] Creating bellows: length=" << length 
+                         << " convolutedSectionLength=" << bellows->convolutedSectionLength
+                         << " isValid=" << bellows->isValid() << std::endl;
+                
                 selectedShape = bellows.get(); // Select the new bellows
                 shapes.push_back(std::move(bellows));
                 saveToHistory();
                 isFirstClick = true;
                 isDrawing = false;
             } else {
+                std::cout << "[DEBUG] Bellows too short: length=" << length 
+                         << " minLength=" << minLength << std::endl;
                 // Optionally: show a message to the user
                 // Do NOT reset state; allow the user to try again
             }
@@ -2823,12 +2823,24 @@ ImVec2 Canvas::findNearestSnapPoint(const ImVec2& pos) const {
 
 void Canvas::renderBellows(ImDrawList* drawList) const {
     int bellowsCount = 0;
+    std::cout << "[DEBUG] Total shapes in vector: " << shapes.size() << std::endl;
     for (const auto& shape : shapes) {
         if (shape->type == ShapeType::BELLOWS) {
             ++bellowsCount;
             const Bellows* bellows = static_cast<const Bellows*>(shape.get());
-            if (!bellows->isValid()) continue;
-            std::vector<ImVec2> profilePoints = bellows->generateProfile();
+            
+            // Debug: Check bellows validity and parameters
+            bool valid = bellows->isValid();
+            std::cout << "[DEBUG] Bellows #" << bellowsCount 
+                      << " valid=" << valid 
+                      << " convolutedSectionLength=" << bellows->convolutedSectionLength
+                      << " numConvolutions=" << bellows->numConvolutions
+                      << " cuffALength=" << bellows->cuffALength 
+                      << " cuffBLength=" << bellows->cuffBLength << std::endl;
+            
+            if (!valid) continue;
+            
+            const std::vector<ImVec2>& profilePoints = bellows->getCachedProfile();
             std::vector<ImVec2> transformedPoints;
             transformedPoints.reserve(profilePoints.size());
             float s = sin(bellows->angle);
@@ -2853,7 +2865,6 @@ void Canvas::renderBellows(ImDrawList* drawList) const {
             // ... (rest of dimension rendering code) ...
         }
     }
-    std::cout << "[renderBellows] Number of bellows in shapes: " << bellowsCount << std::endl;
 }
 
 void Canvas::clearSelection() {

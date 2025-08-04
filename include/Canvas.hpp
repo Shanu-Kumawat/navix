@@ -177,42 +177,42 @@ public:
     UnitSystem getCurrentUnit() const { return currentUnits; }
     float getZoomLevel() const { return zoomLevel; }
     
-    // Bellows-specific methods
+    // Unified complex shape management
     void fitBellowsToView();
+    
+    // Unified shape finding (replaces inconsistent findOrCreate methods)
+    template<typename T>
+    const T* findSelectedShapeOfType() const {
+        if (selectedShape && selectedShape->type == T::GetShapeType()) {
+            return static_cast<const T*>(selectedShape);
+        }
+        return nullptr;
+    }
+    
+    template<typename T>
+    const T* findFirstShapeOfType() const {
+        for (const auto& shape : shapes) {
+            if (shape->type == T::GetShapeType()) {
+                return static_cast<const T*>(shape.get());
+            }
+        }
+        return nullptr;
+    }
+    
+    template<typename T>
+    std::vector<const T*> findAllShapesOfType() const {
+        std::vector<const T*> result;
+        for (const auto& shape : shapes) {
+            if (shape->type == T::GetShapeType()) {
+                result.push_back(static_cast<const T*>(shape.get()));
+            }
+        }
+        return result;
+    }
+    
+    // Legacy methods for backward compatibility
     const Bellows* findOrCreateBellows() const;
     const BallBearing* findOrCreateBallBearing() const;
-
-    void setSpring2DShape(std::unique_ptr<Shape> spring);
-
-    // Spring2D parameters for click-to-place and preview
-    float springOuterDiameter = 44.5f;
-    float springWireDiameter = 7.25f;
-    float springFreeLength = 68.0f;
-    int springNumCoils = 6;
-
-    void renderBellows(ImDrawList* drawList) const;
-    void renderSprings2D(ImDrawList* drawList) const;
-
-    // Viewport culling methods
-    bool isPointInViewport(const ImVec2& point) const {
-        ImVec2 transformed = transformCoordinates(point);
-        return transformed.x >= 0 && transformed.x <= windowWidth &&
-               transformed.y >= 0 && transformed.y <= windowHeight;
-    }
-
-    bool isRectInViewport(const ImVec2& min, const ImVec2& max) const {
-        ImVec2 transformedMin = transformCoordinates(min);
-        ImVec2 transformedMax = transformCoordinates(max);
-        return !(transformedMax.x < 0 || transformedMin.x > windowWidth ||
-                transformedMax.y < 0 || transformedMin.y > windowHeight);
-    }
-
-    void addShape(std::unique_ptr<Shape> shape) { shapes.push_back(std::move(shape)); }
-
-    // Update all ShockAbsorberEnd2D shapes for a given parent spring
-    void updateShockAbsorberEndsForSpring(const Drawing::Spring2D* spring);
-
-    const std::vector<std::unique_ptr<Shape>>& getShapes() const { return shapes; }
 
     void setSpring2DShape(std::unique_ptr<Shape> spring);
 

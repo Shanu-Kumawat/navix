@@ -198,6 +198,9 @@ public:
     Bellows(ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::BELLOWS, color, thickness) {}
 
+    // Static method for template-based shape finding
+    static ShapeType GetShapeType() { return ShapeType::BELLOWS; }
+
     // Shape interface implementation
     bool isValid() const override {
         return numConvolutions > 0 && 
@@ -257,8 +260,8 @@ public:
     
     // Calculate bounding box for fit-to-view functionality
     ImVec4 calculateBoundingBox() const {
-        // Get profile points
-        std::vector<ImVec2> profile = generateProfile();
+        // Get cached profile points to avoid expensive regeneration
+        const std::vector<ImVec2>& profile = getCachedProfile();
         
         // Find min/max coordinates
         float minX = profile[0].x;
@@ -296,8 +299,8 @@ public:
     }
 
     void getBounds(ImVec2& min, ImVec2& max) const override {
-        // Get profile points
-        std::vector<ImVec2> profile = generateProfile();
+        // Get cached profile points to avoid expensive regeneration
+        const std::vector<ImVec2>& profile = getCachedProfile();
         
         if (profile.empty()) {
             min = max = ImVec2(0, 0);
@@ -322,6 +325,33 @@ public:
             max.y += margin;
         }
     }
+
+    // Get cached profile with efficient regeneration only when needed
+    const std::vector<ImVec2>& getCachedProfile() const;
+    
+    // Force profile regeneration (call after parameter changes)
+    void invalidateCache() const { profileCached = false; }
+
+private:
+    // Profile caching to prevent expensive regeneration every frame
+    mutable std::vector<ImVec2> cachedProfile;
+    mutable bool profileCached = false;
+    
+    // Cache validation - stores parameters used for last cached profile
+    mutable float cachedCuffAInnerDiameter = -1.0f;
+    mutable float cachedCuffBInnerDiameter = -1.0f;
+    mutable float cachedCuffALength = -1.0f;
+    mutable float cachedCuffBLength = -1.0f;
+    mutable float cachedBaseConvolutionDiameter = -1.0f;
+    mutable float cachedPeakConvolutionDiameter = -1.0f;
+    mutable float cachedConvolutedSectionLength = -1.0f;
+    mutable int cachedNumConvolutions = -1;
+    mutable float cachedWallThickness = -1.0f;
+    mutable ImVec2 cachedPosition = ImVec2(-9999, -9999);
+    mutable float cachedAngle = -9999.0f;
+    
+    // Check if cache is still valid
+    bool isCacheValid() const;
 };
 
 // Ball Bearing design class for generating parameterized ball bearing profiles
@@ -348,6 +378,9 @@ public:
     BallBearing(ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::BALL_BEARING, color, thickness) {}
 
+    // Static method for template-based shape finding
+    static ShapeType GetShapeType() { return ShapeType::BALL_BEARING; }
+
     // Shape interface implementation
     bool isValid() const override {
         return outerDiameter > innerDiameter && 
@@ -363,6 +396,13 @@ public:
     }
 
     bool isPointNear(const ImVec2& point, float threshold) const override;
+    
+    // Required Shape interface implementation
+    void getBounds(ImVec2& min, ImVec2& max) const override {
+        float radius = outerDiameter / 2.0f;
+        min = ImVec2(position.x - radius, position.y - radius);
+        max = ImVec2(position.x + radius, position.y + radius);
+    }
     
     // Generate ball bearing profile points
     std::vector<ImVec2> generateProfile() const;

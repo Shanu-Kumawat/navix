@@ -10,6 +10,7 @@
 #include "SpringViewer3D.hpp"
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "ShockAbsorberViewer3D.hpp"
+#include "ComplexShape3DManager.hpp"
 
 // Replace icon definitions with text labels
 #define ICON_LINE "Line"
@@ -71,10 +72,9 @@ static bool fixedSquareSize = false;  // Set to false by default for dynamic squ
 static bool fixedTriangleSize = false;  // Set to false by default for dynamic triangle size
 static bool fixedRectangleSize = false;  // Set to false by default for dynamic rectangle size
 
-// 3D view settings
-static bool show3DView = false;
-static bool bellows3DViewInitialized = false;
-static bool ballBearing3DViewInitialized = false;
+// 3D view settings (using unified system)
+static bool showSpring3DView = false;
+static bool showShockAbsorber3DView = false;
 
 // Command line
 static char commandBuffer[256] = "";
@@ -107,11 +107,15 @@ static bool darkMode = false;
 
 // Add a global or static instance for the spring 3D viewer
 static SpringViewer3D springViewer;
-static bool showSpring3DView = false;
 static bool spring3DViewInitialized = false;
 // Add a flag for the new 3D Shock Absorber viewer
-static bool showShockAbsorber3DView = false;
 static bool shockAbsorber3DViewInitialized = false;
+
+// Unified 3D Manager for all complex shapes
+static ComplexShape3DManager shape3DManager;
+static bool showBellows3DView = false;
+static bool showBallBearing3DView = false;
+static bool showShockAbsorber3DViewUnified = false;
 } // namespace UIState
 
 // Function declaration prototypes
@@ -123,13 +127,8 @@ void RenderStatusBar(Drawing::Canvas &canvas);
 void RenderCanvas(Drawing::Canvas &canvas);
 void HandleKeyboardShortcuts(Drawing::Canvas &canvas);
 
-// Forward declare the 3D view functions
-void Render3DViewWindow(Drawing::Canvas &canvas);
-void Handle3DViewerInput(const SDL_Event& event);
-
-// Add function prototype at the top
+// Forward declare the remaining 3D view functions (unified system handles others)
 void RenderSpring3DViewWindow(Drawing::Canvas &canvas);
-// Add prototype for the new 3D shock absorber view window
 void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas);
 
 // Helper function to handle tool selection
@@ -476,16 +475,41 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   
   // Right-aligned section for 3D view button
   ImGui::SameLine();
+  
+  // Shape-specific 3D view buttons
   ImGui::PushStyleColor(ImGuiCol_Button, UIColors::ACCENT);
   ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.73f, 0.73f, 1.0f));
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
   
-  // Increase 3D View button width
-  if (ImGui::Button("3D View", ImVec2(100, 30))) {
-    UIState::show3DView = true;
-    UIState::bellows3DViewInitialized = false;
-    UIState::ballBearing3DViewInitialized = false;
-    UIState::consoleMessage = "Opening 3D View";
+  // Check if we have any complex shapes to show 3D views for
+  Drawing::Shape* selectedShape = canvas.getSelectedShape();
+  bool hasComplexShapes = false;
+  
+  if (selectedShape) {
+    if (selectedShape->type == Drawing::ShapeType::BELLOWS) {
+      if (ImGui::Button("3D Bellows", ImVec2(100, 30))) {
+        UIState::showBellows3DView = true;
+        UIState::consoleMessage = "Opening 3D Bellows View";
+      }
+      hasComplexShapes = true;
+    }
+    else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
+      if (ImGui::Button("3D Ball Bearing", ImVec2(100, 30))) {
+        UIState::showBallBearing3DView = true;
+        UIState::consoleMessage = "Opening 3D Ball Bearing View";
+      }
+      hasComplexShapes = true;
+    }
+  }
+  
+  // If no complex shape selected, show a disabled button with tooltip
+  if (!hasComplexShapes) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+    ImGui::Button("3D View", ImVec2(100, 30));
+    ImGui::PopStyleColor(1);
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip("Select a complex shape (Bellows, Ball Bearing, etc.) to view in 3D");
+    }
   }
   
   ImGui::PopStyleColor(3);
@@ -1058,11 +1082,13 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           if (ImGui::DragFloat("Cuff A Inner Diam", &bellows->cuffAInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
             // Validate input - ensure it's positive
             if (bellows->cuffAInnerDiameter < 5.0f) bellows->cuffAInnerDiameter = 5.0f;
+            bellows->invalidateCache(); // Invalidate cache when parameter changes
           }
           
           if (ImGui::DragFloat("Cuff B Inner Diam", &bellows->cuffBInnerDiameter, 0.5f, 5.0f, 200.0f, "%.1f")) {
             // Validate input - ensure it's positive
             if (bellows->cuffBInnerDiameter < 5.0f) bellows->cuffBInnerDiameter = 5.0f;
+            bellows->invalidateCache(); // Invalidate cache when parameter changes
           }
           
           if (ImGui::DragFloat("Cuff A Length", &bellows->cuffALength, 0.5f, 5.0f, 100.0f, "%.1f")) {
@@ -1071,6 +1097,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
             
             // Update overall length
             overallLength = bellows->calculateOverallLength();
+            bellows->invalidateCache(); // Invalidate cache when parameter changes
           }
           
           if (ImGui::DragFloat("Cuff B Length", &bellows->cuffBLength, 0.5f, 5.0f, 100.0f, "%.1f")) {
@@ -1079,6 +1106,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
             
             // Update overall length
             overallLength = bellows->calculateOverallLength();
+            bellows->invalidateCache(); // Invalidate cache when parameter changes
           }
           
           ImGui::PopItemWidth();
@@ -1103,6 +1131,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           
           if (ImGui::DragFloat("Base Diameter", &bellows->baseConvolutionDiameter, 0.5f, 
                            minBaseDiameter, 300.0f, "%.1f")) {
+            bellows->invalidateCache();
             // Ensure peak diameter is always greater than base
             if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter) {
               bellows->peakConvolutionDiameter = bellows->baseConvolutionDiameter + 5.0f;
@@ -1111,6 +1140,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           
           if (ImGui::DragFloat("Peak Diameter", &bellows->peakConvolutionDiameter, 0.5f, 
                            bellows->baseConvolutionDiameter + 0.1f, 350.0f, "%.1f")) {
+            bellows->invalidateCache();
             // Enforce the constraint directly in the UI
             if (bellows->peakConvolutionDiameter <= bellows->baseConvolutionDiameter) {
               bellows->peakConvolutionDiameter = bellows->baseConvolutionDiameter + 0.1f;
@@ -1119,6 +1149,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           
           // Prevent negative or zero convolution section length
           if (ImGui::DragFloat("Section Length", &bellows->convolutedSectionLength, 1.0f, 10.0f, 500.0f, "%.1f")) {
+            bellows->invalidateCache();
             if (bellows->convolutedSectionLength < 10.0f) {
               bellows->convolutedSectionLength = 10.0f;
             }
@@ -1129,6 +1160,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
           
           // Enforce reasonable limits for number of convolutions
           if (ImGui::DragInt("Convolutions", &bellows->numConvolutions, 1, 1, 30)) {
+            bellows->invalidateCache();
             // Keep numConvolutions at least 1
             bellows->numConvolutions = std::max(1, bellows->numConvolutions);
             
@@ -1159,6 +1191,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         if (maxWallThickness < 0.5f) maxWallThickness = 0.5f;
         
         if (ImGui::DragFloat("Wall Thickness", &bellows->wallThickness, 0.1f, 0.5f, maxWallThickness, "%.1f")) {
+          bellows->invalidateCache();
           // Ensure wall thickness stays within reasonable limits
           if (bellows->wallThickness < 0.5f) bellows->wallThickness = 0.5f;
           if (bellows->wallThickness > maxWallThickness) bellows->wallThickness = maxWallThickness;
@@ -1197,6 +1230,12 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         }
         
         ImGui::PopStyleColor(2);
+        
+        // Unified 3D View button for Bellows
+        ImGui::Separator();
+        if (ComplexShape3DManager::render3DViewButton("3D Bellows View", "Open 3D visualization of the bellows")) {
+          UIState::showBellows3DView = true;
+        }
       }
       // Add Ball Bearing shape properties
       else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
@@ -1299,6 +1338,12 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         }
         
         ImGui::PopStyleColor(2);
+        
+        // Unified 3D View button for Ball Bearing
+        ImGui::Separator();
+        if (ComplexShape3DManager::render3DViewButton("3D Ball Bearing View", "Open 3D visualization of the ball bearing")) {
+          UIState::showBallBearing3DView = true;
+        }
       }
     }
     
@@ -1349,25 +1394,42 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         // Cuffs
         ImGui::Text("Cuffs:");
-        ImGui::DragFloat("Cuff A Inner Diameter", &bellows->cuffAInnerDiameter, 0.5f, 10.0f, 100.0f, "%.1f mm");
-        ImGui::DragFloat("Cuff B Inner Diameter", &bellows->cuffBInnerDiameter, 0.5f, 10.0f, 100.0f, "%.1f mm");
-        ImGui::DragFloat("Cuff A Length", &bellows->cuffALength, 0.5f, 5.0f, 50.0f, "%.1f mm");
-        ImGui::DragFloat("Cuff B Length", &bellows->cuffBLength, 0.5f, 5.0f, 50.0f, "%.1f mm");
+        if (ImGui::DragFloat("Cuff A Inner Diameter", &bellows->cuffAInnerDiameter, 0.5f, 10.0f, 100.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
+        if (ImGui::DragFloat("Cuff B Inner Diameter", &bellows->cuffBInnerDiameter, 0.5f, 10.0f, 100.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
+        if (ImGui::DragFloat("Cuff A Length", &bellows->cuffALength, 0.5f, 5.0f, 50.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
+        if (ImGui::DragFloat("Cuff B Length", &bellows->cuffBLength, 0.5f, 5.0f, 50.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
         
         ImGui::Separator();
         
         // Convolutions
         ImGui::Text("Convolutions:");
-        ImGui::DragFloat("Base Diameter", &bellows->baseConvolutionDiameter, 0.5f, bellows->cuffAInnerDiameter, bellows->peakConvolutionDiameter, "%.1f mm");
-        ImGui::DragFloat("Peak Diameter", &bellows->peakConvolutionDiameter, 0.5f, bellows->baseConvolutionDiameter, 150.0f, "%.1f mm");
-        ImGui::DragFloat("Convoluted Section Length", &bellows->convolutedSectionLength, 1.0f, 10.0f, 300.0f, "%.1f mm");
+        if (ImGui::DragFloat("Base Diameter", &bellows->baseConvolutionDiameter, 0.5f, bellows->cuffAInnerDiameter, bellows->peakConvolutionDiameter, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
+        if (ImGui::DragFloat("Peak Diameter", &bellows->peakConvolutionDiameter, 0.5f, bellows->baseConvolutionDiameter, 150.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
+        if (ImGui::DragFloat("Convoluted Section Length", &bellows->convolutedSectionLength, 1.0f, 10.0f, 300.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
         
         int numConvs = bellows->numConvolutions;
         if (ImGui::InputInt("Number of Convolutions", &numConvs, 1, 2)) {
           bellows->numConvolutions = std::max(1, numConvs);
+          bellows->invalidateCache();
         }
         
-        ImGui::DragFloat("Wall Thickness", &bellows->wallThickness, 0.1f, 0.5f, 5.0f, "%.1f mm");
+        if (ImGui::DragFloat("Wall Thickness", &bellows->wallThickness, 0.1f, 0.5f, 5.0f, "%.1f mm")) {
+            bellows->invalidateCache();
+        }
         
         ImGui::Unindent(10);
       }
@@ -1401,6 +1463,12 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     // Add the new 3D Shock Absorber button
     if (ImGui::Button("3D Shock Absorber")) {
       UIState::showShockAbsorber3DView = true;
+    }
+    
+    // Unified 3D Shock Absorber button using the new manager
+    ImGui::Separator();
+    if (ComplexShape3DManager::render3DViewButton("3D Shock Absorber View (Unified)", "Open unified 3D visualization of the complete shock absorber assembly")) {
+      UIState::showShockAbsorber3DViewUnified = true;
     }
   }
 }
@@ -1771,9 +1839,9 @@ int main(int, char **) {
           event.window.windowID == SDL_GetWindowID(window))
         running = false;
       
-      // Handle 3D viewer input
-      if (UIState::show3DView) {
-        Handle3DViewerInput(event);
+      // Handle unified 3D manager input for all shapes
+      if (UIState::showBellows3DView || UIState::showBallBearing3DView || UIState::showShockAbsorber3DViewUnified) {
+        UIState::shape3DManager.handleInput(event);
       }
       
       // Handle mouse wheel for zoom (AutoCAD-like)
@@ -1801,8 +1869,9 @@ int main(int, char **) {
           isOverCanvas = true;
         }
         
-        // Only apply zoom/pan if over canvas or if in 3D view mode
-        if (isOverCanvas || UIState::show3DView) {
+        // Only apply zoom/pan if over canvas or if any 3D view is active
+        bool any3DViewActive = UIState::showBellows3DView || UIState::showBallBearing3DView || UIState::showShockAbsorber3DViewUnified;
+        if (isOverCanvas || any3DViewActive) {
           if (io.KeyCtrl) {
             // Zoom in/out with Ctrl+Wheel
             float zoom_delta = event.wheel.y > 0 ? 1.1f : 0.9f;
@@ -1861,8 +1930,7 @@ int main(int, char **) {
     RenderPropertyPanel(canvas);
     RenderStatusBar(canvas);
     
-    // Render 3D view window if active (will now create separate windows)
-    Render3DViewWindow(canvas); // Use original function name
+    // OLD 3D system removed - now using unified ComplexShape3DManager
 
     // Add a global or static instance for the spring 3D viewer
     static SpringViewer3D springViewer;
@@ -1895,6 +1963,36 @@ int main(int, char **) {
     // Call the new 3D shock absorber view window if the flag is set
     if (UIState::showShockAbsorber3DView) {
         RenderShockAbsorber3DViewWindow(canvas);
+    }
+
+    // Unified 3D View Manager rendering - works with selected shapes
+    if (UIState::showBellows3DView) {
+        const Drawing::Bellows* bellows = nullptr;
+        if (selectedShape && selectedShape->type == Drawing::ShapeType::BELLOWS) {
+            bellows = static_cast<const Drawing::Bellows*>(selectedShape);
+        } else {
+            // Fallback to first found bellows if no specific selection
+            bellows = canvas.findFirstShapeOfType<Drawing::Bellows>();
+        }
+        UIState::shape3DManager.renderBellows3DView(bellows, UIState::showBellows3DView);
+    }
+    
+    if (UIState::showBallBearing3DView) {
+        const Drawing::BallBearing* ballBearing = nullptr;
+        if (selectedShape && selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
+            ballBearing = static_cast<const Drawing::BallBearing*>(selectedShape);
+        } else {
+            // Fallback to first found ball bearing if no specific selection
+            ballBearing = canvas.findFirstShapeOfType<Drawing::BallBearing>();
+        }
+        UIState::shape3DManager.renderBallBearing3DView(ballBearing, UIState::showBallBearing3DView);
+    }
+    
+    if (UIState::showShockAbsorber3DViewUnified) {
+        const Drawing::Spring2D* spring = canvas.findFirstShapeOfType<Drawing::Spring2D>();
+        const Drawing::ShockAbsorberEnd2D* end = canvas.findFirstShapeOfType<Drawing::ShockAbsorberEnd2D>();
+        const Drawing::ShockAbsorberBottomEnd* bottomEnd = canvas.findFirstShapeOfType<Drawing::ShockAbsorberBottomEnd>();
+        UIState::shape3DManager.renderShockAbsorber3DView(spring, end, bottomEnd, UIState::showShockAbsorber3DViewUnified);
     }
 
     ImGui::Render();
@@ -1943,156 +2041,7 @@ BallBearingViewer3D& GetBallBearingViewer() {
   return viewer;
 }
 
-// Modified function to render separate standard windows
-void Render3DViewWindow(Drawing::Canvas &canvas) {
-  // Exit immediately if 3D view is not enabled
-  if (!UIState::show3DView) {
-    return;
-  }
-  
-  // Check what type of shape we're viewing
-  const Drawing::Bellows* bellows = canvas.findOrCreateBellows();
-  const Drawing::BallBearing* ballBearing = canvas.findOrCreateBallBearing();
-  
-  // Determine which viewer to use
-  bool showBellows = (bellows != nullptr);
-  bool showBallBearing = (ballBearing != nullptr);
-  
-  // If no supported shape exists, don't show the 3D view
-  if (!showBellows && !showBallBearing) {
-    UIState::show3DView = false;
-    return;
-  }
-  
-  // Prefer ball bearing if both exist (most recently selected)
-  if (showBallBearing) {
-    // Get a reference to the static ball bearing viewer instance
-    BallBearingViewer3D& viewer = GetBallBearingViewer();
-    
-    // Initialize viewer once only
-    if (!UIState::ballBearing3DViewInitialized) {
-      viewer.initialize();
-      UIState::ballBearing3DViewInitialized = true;
-    }
-    
-    // Get the current window size
-    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-    
-    // Set the 3D viewport size
-    ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-    
-    // Add no padding to ensure viewport uses full window size
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    
-    if (ImGui::Begin("3D Ball Bearing Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
-      ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-      
-      // Render the 3D model into the viewport window
-      viewer.render(ballBearing, viewportSize); 
-      
-      // Handle Mouse Rotation Input
-      ImGuiIO& io = ImGui::GetIO();
-      if (ImGui::IsWindowHovered()) {
-          ImGui::SetWindowFocus(); 
-
-          if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-              ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-              ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left); 
-              
-              if (std::abs(delta.x) > 0.1f || std::abs(delta.y) > 0.1f) {
-                   viewer.getCamera()->ProcessMouseMovement(delta.x, delta.y, true); 
-              }
-          }
-      }
-    }
-    ImGui::End();
-    ImGui::PopStyleVar(); // WindowPadding
-  }
-  else if (showBellows) {
-    // Get a reference to the static bellows viewer instance
-    BellowsViewer3D& viewer = GetBellowsViewer();
-    
-    // Initialize viewer once only
-    if (!UIState::bellows3DViewInitialized) {
-      viewer.initialize();
-      UIState::bellows3DViewInitialized = true;
-    }
-    
-    // Get the current window size
-    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-    
-    // Set the 3D viewport size
-    ImGui::SetNextWindowSize(ImVec2(screenSize.x * 0.75f, screenSize.y * 0.75f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImVec2(screenSize.x * 0.5f, screenSize.y * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-    
-    // Add no padding to ensure viewport uses full window size
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    
-    if (ImGui::Begin("3D Bellows Viewport", &UIState::show3DView, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove)) {
-      ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-      
-      // Render the 3D model into the viewport window
-      viewer.render(bellows, viewportSize); 
-      
-      // Handle Mouse Rotation Input
-      ImGuiIO& io = ImGui::GetIO();
-      if (ImGui::IsWindowHovered()) {
-          ImGui::SetWindowFocus(); 
-
-          if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-              ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-              ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left); 
-              
-              if (std::abs(delta.x) > 0.1f || std::abs(delta.y) > 0.1f) {
-                   viewer.getCamera()->ProcessMouseMovement(delta.x, delta.y, true); 
-              }
-          }
-      }
-    }
-    ImGui::End();
-    ImGui::PopStyleVar(); // WindowPadding
-  }
-
-  // If the main show3DView flag becomes false, ensure we reset initialization
-  if (!UIState::show3DView) {
-      UIState::bellows3DViewInitialized = false; // Reset initialization flag when view is closed
-      UIState::ballBearing3DViewInitialized = false; // Reset ball bearing initialization flag when view is closed
-  }
-}
-
-// Helper function to handle 3D viewer input
-void Handle3DViewerInput(const SDL_Event& event) {
-  if (!UIState::show3DView) return;
-  
-  // Check if ImGui wants to capture keyboard input (e.g., when typing in text fields)
-  ImGuiIO& io = ImGui::GetIO();
-  bool allowKeyboardInput = !io.WantCaptureKeyboard;
-  
-  // Add debug output to see if events are reaching this function
-  if (event.type == SDL_KEYDOWN) {
-    std::cout << "Key pressed: " << SDL_GetKeyName(event.key.keysym.sym) 
-              << " - ImGui wants keyboard: " << io.WantCaptureKeyboard 
-              << " - Allow input: " << allowKeyboardInput << std::endl;
-  }
-  
-  // Determine which viewer is active
-  // For now, we'll handle input for both viewers since we don't track which is currently shown
-  BellowsViewer3D& bellowsViewer = GetBellowsViewer();
-  BallBearingViewer3D& ballBearingViewer = GetBallBearingViewer();
-  
-  // Pass keyboard events only if ImGui doesn't want them, always pass mouse events
-  if ((event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) && allowKeyboardInput) {
-      std::cout << "Passing keyboard event to 3D viewers" << std::endl;
-      bellowsViewer.handleInput(event);
-      ballBearingViewer.handleInput(event);
-  }
-  // Always pass mouse wheel and mouse button events
-  else if (event.type == SDL_MOUSEWHEEL || event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-      bellowsViewer.handleInput(event);
-      ballBearingViewer.handleInput(event);
-  }
-}
+// OLD 3D rendering system removed - using unified ComplexShape3DManager instead
 
 // Add function prototype at the top
 void RenderSpring3DViewWindow(Drawing::Canvas &canvas) {

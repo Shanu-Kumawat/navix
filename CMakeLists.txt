@@ -122,6 +122,8 @@ add_library(drawing STATIC
     src/shapes/BasicShapes.cpp
     src/utils/MathUtils.cpp
     src/Shader.cpp
+    src/Base3DViewer.cpp
+    src/Base3DModel.cpp
     src/BellowsModel3D.cpp
     src/BellowsViewer3D.cpp
     src/BallBearingModel3D.cpp
@@ -131,6 +133,7 @@ add_library(drawing STATIC
     src/SpringViewer3D.cpp
     src/ShockAbsorberModel3D.cpp
     src/ShockAbsorberViewer3D.cpp
+    src/ComplexShape3DManager.cpp
 )
 
 target_include_directories(drawing PUBLIC
