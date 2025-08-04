@@ -1,67 +1,32 @@
 #ifndef BELLOWS_VIEWER_3D_HPP
 #define BELLOWS_VIEWER_3D_HPP
 
-#include <memory>
-#include "Camera.hpp"
-#include "Shader.hpp"
+#include "Base3DViewer.hpp"
 #include "BellowsModel3D.hpp"
 #include "shapes/ComplexShapes.hpp"
-#include <glad/glad.h>
-#include <SDL2/SDL.h>
-#include "imgui.h"
 
-class BellowsViewer3D {
+/**
+ * BellowsViewer3D - Standardized 3D viewer for bellows shapes
+ * Inherits from Base3DViewer to follow unified architecture pattern
+ */
+class BellowsViewer3D : public Base3DViewer {
 public:
     BellowsViewer3D();
-    ~BellowsViewer3D();
+    ~BellowsViewer3D() = default;
     
-    void initialize();
+    // Base3DViewer interface implementation
+    void initialize() override;
+    void handleInput(const SDL_Event& event) override;
+    
+    // Bellows-specific rendering
     void render(const Drawing::Bellows* bellows, ImVec2 windowSize);
-    void handleInput(const SDL_Event& event);
-    
-    // Public getter for the camera
-    Camera* getCamera(); 
 
 private:
-    // OpenGL objects
-    unsigned int framebuffer;
-    unsigned int textureColorBuffer;
-    unsigned int rbo;
-    
-    // Camera
-    std::unique_ptr<Camera> camera;
-    
-    // Shader
-    std::unique_ptr<Shader> shader;
-    
-    // 3D model
+    // Bellows-specific 3D model
     std::unique_ptr<BellowsModel3D> bellowsModel;
     
-    // Rendering settings
-    int renderMode;
-    glm::vec3 objectColor;
-    glm::vec3 lightColor;
-    float ambientStrength;
-    float diffuseStrength;
-    float specularStrength;
-    float shininess;
-    
-    // Cross-section settings
-    bool showCrossSection;
-    int crossSectionAxis;
-    float crossSectionPos;
-    
-    // Mouse handling
-    bool mousePressed;
-    float lastX, lastY;
-    
-    // Window size
-    int viewportWidth;
-    int viewportHeight;
-    
-    // Setup methods
-    void setupFramebuffer(int width, int height);
-    void resizeFramebuffer(int width, int height);
+    // Setup methods - no longer needed as they're in base class
+    // All framebuffer and common setup handled by Base3DViewer
 };
 
 #endif

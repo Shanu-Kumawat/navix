@@ -25,6 +25,7 @@ enum class DrawingMode {
     Spline,
     BezierCurve,
     Bellows,
+    BallBearing,
     Spring2D
 };
 
@@ -176,9 +177,42 @@ public:
     UnitSystem getCurrentUnit() const { return currentUnits; }
     float getZoomLevel() const { return zoomLevel; }
     
-    // Bellows-specific methods
+    // Unified complex shape management
     void fitBellowsToView();
+    
+    // Unified shape finding (replaces inconsistent findOrCreate methods)
+    template<typename T>
+    const T* findSelectedShapeOfType() const {
+        if (selectedShape && selectedShape->type == T::GetShapeType()) {
+            return static_cast<const T*>(selectedShape);
+        }
+        return nullptr;
+    }
+    
+    template<typename T>
+    const T* findFirstShapeOfType() const {
+        for (const auto& shape : shapes) {
+            if (shape->type == T::GetShapeType()) {
+                return static_cast<const T*>(shape.get());
+            }
+        }
+        return nullptr;
+    }
+    
+    template<typename T>
+    std::vector<const T*> findAllShapesOfType() const {
+        std::vector<const T*> result;
+        for (const auto& shape : shapes) {
+            if (shape->type == T::GetShapeType()) {
+                result.push_back(static_cast<const T*>(shape.get()));
+            }
+        }
+        return result;
+    }
+    
+    // Legacy methods for backward compatibility
     const Bellows* findOrCreateBellows() const;
+    const BallBearing* findOrCreateBallBearing() const;
 
     void setSpring2DShape(std::unique_ptr<Shape> spring);
 
@@ -317,6 +351,7 @@ private:
     void handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos);
+    void handleBallBearingDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     void handleSpring2DDrawing(ImDrawList* drawList, const ImVec2& currentPos);
     
     // Preview methods
@@ -329,6 +364,7 @@ private:
     void previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
     void previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
+    void previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius) const;
     void previewSpring2D(ImDrawList* drawList, const ImVec2& center) const;
     void drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
                        ImU32 color, float thickness, float dash_length) const;
@@ -344,6 +380,7 @@ private:
     void renderRectangles(ImDrawList* drawList) const;
     void renderSplines(ImDrawList* drawList) const;
     void renderBezierCurves(ImDrawList* drawList) const;
+    void renderBallBearings(ImDrawList* drawList) const;
 
     // Curve calculation methods
     ImVec2 calculateBezierPoint(const std::vector<ImVec2>& points, float t) const;
