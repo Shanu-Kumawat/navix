@@ -243,6 +243,56 @@ void Base3DModel::revolveProfile(const std::vector<ImVec2>& profile, int segment
     }
 }
 
+void Base3DModel::revolveProfileAroundX(const std::vector<ImVec2>& profile, int segments, float xOffset, float xScale) {
+    if (profile.empty()) return;
+    
+    const float PI = 3.14159265359f;
+    const float angleStep = 2.0f * PI / segments;
+    size_t baseVertex = vertices.size() / 6; // 6 floats per vertex (pos + normal)
+    
+    // Generate vertices by revolving the profile around X-axis
+    for (const auto& point : profile) {
+        float radius = point.x;  // radius from X-axis
+        float x = (point.y + xOffset) * xScale;  // position along X-axis
+        
+        for (int i = 0; i < segments; ++i) {
+            float angle = i * angleStep;
+            float y = radius * cos(angle);
+            float z = radius * sin(angle);
+            
+            // Add vertex position
+            vertices.push_back(x);
+            vertices.push_back(y);
+            vertices.push_back(z);
+            
+            // Add placeholder normal (will be calculated later)
+            vertices.push_back(0.0f);
+            vertices.push_back(0.0f);
+            vertices.push_back(0.0f);
+        }
+    }
+    
+    // Generate indices for the revolved surface
+    for (size_t i = 0; i < profile.size() - 1; ++i) {
+        for (int j = 0; j < segments; ++j) {
+            unsigned int curr = baseVertex + i * segments + j;
+            unsigned int next = baseVertex + (i + 1) * segments + j;
+            unsigned int currNext = baseVertex + i * segments + ((j + 1) % segments);
+            unsigned int nextNext = baseVertex + (i + 1) * segments + ((j + 1) % segments);
+            
+            // First triangle
+            indices.push_back(curr);
+            indices.push_back(next);
+            indices.push_back(currNext);
+            
+            // Second triangle
+            indices.push_back(next);
+            indices.push_back(nextNext);
+            indices.push_back(currNext);
+        }
+    }
+}
+
 void Base3DModel::generateNormals() {
     if (vertices.empty() || indices.empty()) return;
     

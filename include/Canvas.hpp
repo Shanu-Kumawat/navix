@@ -8,6 +8,7 @@
 #include <algorithm>  
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
+#include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "utils/MathUtils.hpp"
 #include "Constants.hpp"
 
@@ -245,6 +246,19 @@ public:
     void updateShockAbsorberEndsForSpring(const Drawing::Spring2D* spring);
 
     const std::vector<std::unique_ptr<Shape>>& getShapes() const { return shapes; }
+    
+    // Shock absorber assembly detection
+    struct ShockAbsorberAssembly {
+        const Spring2D* spring;
+        const ShockAbsorberEnd2D* topEnd;
+        const ShockAbsorberBottomEnd* bottomEnd;
+        // Assembly is complete if we have spring and both end components for 3D viewing
+        bool isComplete() const { return spring && topEnd && bottomEnd; }
+    };
+    
+    // Find complete shock absorber assemblies
+    std::vector<ShockAbsorberAssembly> findShockAbsorberAssemblies() const;
+    bool hasCompleteShockAbsorberAssembly() const;
 
 private:
     // Drawing state

@@ -1,6 +1,7 @@
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "Canvas.hpp"
 #include <cmath>
+#include <iostream>
 
 namespace Drawing {
 
@@ -51,6 +52,10 @@ void ShockAbsorberBottomEnd::draw(ImDrawList* drawList, const Canvas* canvas) co
     auto tx = [&](const ImVec2& p) { return canvas->transformCoordinates(p); };
     ImU32 c = color;
     float t = std::max(thickness * canvas->getZoomLevel(), 2.0f);
+    
+    // Define PI if not available
+    const float PI = 3.14159265358979323846f;
+    
     // Shaft
     float shaftWidth = thickness * 1.2f;
     float fl = parentSpring->freeLength;
@@ -82,7 +87,7 @@ void ShockAbsorberBottomEnd::draw(ImDrawList* drawList, const Canvas* canvas) co
     int arcSegments = 32;
     std::vector<ImVec2> arcPts;
     for (int i = 0; i <= arcSegments; ++i) {
-        float theta = (float(i) / arcSegments) * M_PI;
+        float theta = (float(i) / arcSegments) * PI;
         float x = arcCenter.x + arcRadius * cosf(theta);
         float y = arcCenter.y + arcRadius * sinf(theta);
         arcPts.emplace_back(x, y);
@@ -95,6 +100,10 @@ void ShockAbsorberBottomEnd::draw(ImDrawList* drawList, const Canvas* canvas) co
 
 std::vector<ImVec2> ShockAbsorberBottomEnd::generateProfile() const {
     std::vector<ImVec2> profile;
+    
+    // Define PI if not available
+    const float PI = 3.14159265358979323846f;
+    
     // Plate top
     float plateTopY = baseCenter.y - plateThickness / 2;
     float plateBottomY = plateTopY + plateThickness;
@@ -112,6 +121,9 @@ std::vector<ImVec2> ShockAbsorberBottomEnd::generateProfile() const {
     float arcCenterY = legBottom;
     float arcRadius = (width - 2 * thickness) / 2;
     int arcSegments = 16;
+    
+    std::cout << "[ShockAbsorberBottomEnd] Generating profile with " << arcSegments << " arc segments" << std::endl;
+    
     // Build profile (left side, down, arc, up right side)
     profile.push_back(ImVec2(shaftLeftX, shaftTopY));
     profile.push_back(ImVec2(shaftLeftX, plateTopY));
@@ -120,7 +132,7 @@ std::vector<ImVec2> ShockAbsorberBottomEnd::generateProfile() const {
     profile.push_back(ImVec2(leftX, legBottom));
     // Arc (bottom)
     for (int i = arcSegments; i >= 0; --i) {
-        float theta = M_PI - (float(i) / arcSegments) * M_PI;
+        float theta = PI - (float(i) / arcSegments) * PI;
         float x = baseCenter.x + arcRadius * cosf(theta);
         float y = arcCenterY + arcRadius * sinf(theta);
         profile.push_back(ImVec2(x, y));
@@ -130,6 +142,9 @@ std::vector<ImVec2> ShockAbsorberBottomEnd::generateProfile() const {
     profile.push_back(ImVec2(rightX, plateTopY));
     profile.push_back(ImVec2(shaftRightX, plateTopY));
     profile.push_back(ImVec2(shaftRightX, shaftTopY));
+    
+    std::cout << "[ShockAbsorberBottomEnd] Generated profile with " << profile.size() << " points" << std::endl;
+    
     return profile;
 }
 

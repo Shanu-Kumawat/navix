@@ -43,25 +43,17 @@ void BellowsModel3D::generateBellowsGeometry(const Drawing::Bellows* bellows) {
     const std::vector<ImVec2>& profile = bellows->getCachedProfile();
     if (profile.empty()) return;
     
-    // Normalize profile to fit in [-1, 1] range for consistent rendering
-    float maxRadius = 0.0f;
-    float maxHeight = 0.0f;
-    
+    // Convert bellows profile to 3D revolve format for horizontal orientation
+    // The bellows profile has: x = axial position, y = radius
+    // For horizontal bellows: x = axial position (along X-axis), y = radius (for revolution around X-axis)
+    std::vector<ImVec2> bellowsProfile;
     for (const auto& point : profile) {
-        maxRadius = std::max(maxRadius, std::abs(point.x));
-        maxHeight = std::max(maxHeight, std::abs(point.y));
+        // Keep x as axial position (horizontal axis), y as radius
+        // Scale down by a reasonable factor to fit in the 3D viewport
+        bellowsProfile.push_back(ImVec2(point.y / 100.0f, point.x / 100.0f));
     }
     
-    float maxDimension = std::max(maxRadius, maxHeight);
-    float scale = 1.0f / (maxDimension > 0 ? maxDimension : 1.0f);
-    
-    // Scale profile points
-    std::vector<ImVec2> scaledProfile;
-    for (const auto& point : profile) {
-        scaledProfile.push_back(ImVec2(point.x * scale, point.y * scale));
-    }
-    
-    // Revolve profile around Y-axis to create 3D geometry
+    // Revolve profile around X-axis to create horizontal 3D geometry
     // Use higher segment count for bellows (72 segments for smooth curves)
-    revolveProfile(scaledProfile, 72);
+    revolveProfileAroundX(bellowsProfile, 72);
 }

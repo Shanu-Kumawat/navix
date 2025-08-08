@@ -230,6 +230,7 @@ void Canvas::render(ImDrawList* drawList) {
                     drawList->AddLine(p1, p2, selectionColor, bellows->thickness + 2.0f);
                 }
                 break;
+            }
             case ShapeType::SPRING2D: {
                 const auto& spring = static_cast<const Spring2D&>(*selectedShape);
                 float halfLength = spring.freeLength / 2.0f;
@@ -2095,6 +2096,89 @@ void Canvas::drawShape(const Shape& shape) const {
             bottomEnd.draw(drawList, this);
             break;
         }
+        case ShapeType::BELLOWS: {
+            const auto& bellows = static_cast<const Bellows&>(shape);
+            
+            // Skip if not valid
+            if (!bellows.isValid()) break;
+            
+            // Get profile points and transform them
+            const std::vector<ImVec2>& profilePoints = bellows.getCachedProfile();
+            std::vector<ImVec2> transformedPoints;
+            transformedPoints.reserve(profilePoints.size());
+            
+            float s = sin(bellows.angle);
+            float c = cos(bellows.angle);
+            
+            for (const auto& point : profilePoints) {
+                float rotatedX = point.x * c - point.y * s;
+                float rotatedY = point.x * s + point.y * c;
+                ImVec2 translatedPoint(
+                    bellows.position.x + rotatedX,
+                    bellows.position.y + rotatedY
+                );
+                transformedPoints.push_back(translatedPoint);
+            }
+            
+            // Use appropriate color and thickness
+            ImU32 profileColor = bellows.isSelected ? IM_COL32(255, 255, 0, 255) : color;
+            float profileThickness = std::max(bellows.thickness * zoomLevel, 2.0f);
+            
+            // Draw the bellows profile
+            for (size_t i = 0; i < transformedPoints.size() - 1; ++i) {
+                ImVec2 p1 = transformCoordinates(transformedPoints[i]);
+                ImVec2 p2 = transformCoordinates(transformedPoints[i + 1]);
+                drawList->AddLine(p1, p2, profileColor, profileThickness);
+            }
+            break;
+        }
+        case ShapeType::BALL_BEARING: {
+            const auto& ballBearing = static_cast<const BallBearing&>(shape);
+            
+            // Skip if not valid
+            if (!ballBearing.isValid()) break;
+            
+            // Transform center position
+            ImVec2 transformedCenter = transformCoordinates(ballBearing.position);
+            
+            float outerRadius = (ballBearing.outerDiameter / 2.0f) * zoomLevel;
+            float innerRadius = (ballBearing.innerDiameter / 2.0f) * zoomLevel;
+            
+            // Determine colors based on selection
+            ImU32 outerColor = ballBearing.isSelected ? IM_COL32(255, 255, 0, 255) : color;
+            ImU32 innerColor = ballBearing.isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(100, 100, 100, 255);
+            
+            // Draw outer race
+            drawList->AddCircle(transformedCenter, outerRadius, outerColor, 64, std::max(ballBearing.thickness * zoomLevel, 2.0f));
+            
+            // Draw inner race
+            drawList->AddCircle(transformedCenter, innerRadius, innerColor, 64, std::max(ballBearing.thickness * zoomLevel, 1.0f));
+            
+            // Draw balls if enabled
+            if (ballBearing.showBalls) {
+                float pitchRadius = (outerRadius + innerRadius) / 2.0f;
+                float ballRadius = (ballBearing.ballDiameter / 2.0f) * zoomLevel;
+                
+                ImU32 ballColor = ballBearing.isSelected ? IM_COL32(255, 255, 150, 255) : IM_COL32(150, 150, 150, 255);
+                
+                for (int i = 0; i < ballBearing.numBalls; ++i) {
+                    float ballAngle = (float)i / ballBearing.numBalls * 2.0f * M_PI;
+                    ImVec2 ballPos = ImVec2(
+                        transformedCenter.x + pitchRadius * cos(ballAngle),
+                        transformedCenter.y + pitchRadius * sin(ballAngle)
+                    );
+                    drawList->AddCircleFilled(ballPos, ballRadius, ballColor);
+                }
+            }
+            
+            // Draw cage if enabled
+            if (ballBearing.showCage) {
+                float cageRadius = (outerRadius + innerRadius) / 2.0f;
+                ImU32 cageColor = ballBearing.isSelected ? IM_COL32(255, 255, 100, 180) : IM_COL32(200, 200, 200, 180);
+                drawList->AddCircle(transformedCenter, cageRadius, cageColor, 32, 1.0f);
+            }
+            break;
+        }
         default:
             break;
     }
@@ -3249,6 +3333,63 @@ void Canvas::updateShockAbsorberEndsForSpring(const Drawing::Spring2D* spring) {
             }
         }
     }
+}
+
+std::vector<Canvas::ShockAbsorberAssembly> Canvas::findShockAbsorberAssemblies() const {
+    std::vector<ShockAbsorberAssembly> assemblies;
+    
+    // Find all springs first
+    std::vector<const Spring2D*> springs;
+    for (const auto& shape : shapes) {
+        if (shape->type == ShapeType::SPRING2D) {
+            springs.push_back(static_cast<const Spring2D*>(shape.get()));
+        }
+    }
+    
+    // For each spring, try to find matching ends
+    for (const auto* spring : springs) {
+        ShockAbsorberAssembly assembly;
+        assembly.spring = spring;
+        assembly.topEnd = nullptr;
+        assembly.bottomEnd = nullptr;
+        
+        // Find shock absorber ends that are positioned correctly relative to this spring
+        float springCenterY = spring->centerY;
+        float springCenterX = spring->centerX;
+        float tolerance = 200.0f; // Large tolerance for alignment
+        
+        for (const auto& shape : shapes) {
+            if (shape->type == ShapeType::SHOCK_ABSORBER_END_2D) {
+                const auto* end = static_cast<const ShockAbsorberEnd2D*>(shape.get());
+                // Check if this end belongs to this spring (by parent reference or proximity)
+                if (end->parentSpring == spring || 
+                    (std::abs(end->baseCenter.x - springCenterX) < tolerance &&
+                     std::abs(end->baseCenter.y - springCenterY) < tolerance)) {
+                    assembly.topEnd = end;
+                }
+            }
+            else if (shape->type == ShapeType::SHOCK_ABSORBER_BOTTOM_END) {
+                const auto* bottomEnd = static_cast<const ShockAbsorberBottomEnd*>(shape.get());
+                // Check if this bottom end is near the spring
+                if (std::abs(bottomEnd->baseCenter.x - springCenterX) < tolerance &&
+                    std::abs(bottomEnd->baseCenter.y - springCenterY) < tolerance) {
+                    assembly.bottomEnd = bottomEnd;
+                }
+            }
+        }
+        
+        // Only add assemblies that have all components
+        if (assembly.isComplete()) {
+            assemblies.push_back(assembly);
+        }
+    }
+    
+    return assemblies;
+}
+
+bool Canvas::hasCompleteShockAbsorberAssembly() const {
+    auto assemblies = findShockAbsorberAssemblies();
+    return !assemblies.empty();
 }
 
 } // namespace Drawing 

@@ -1,6 +1,7 @@
 #include "ShockAbsorberModel3D.hpp"
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 
 ShockAbsorberModel3D::ShockAbsorberModel3D() : Base3DModel(), 
     currentSpring(nullptr), currentEnd(nullptr), currentBottomEnd(nullptr) {
@@ -20,8 +21,12 @@ void ShockAbsorberModel3D::generateMesh() {
 
 void ShockAbsorberModel3D::generateMesh(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 
                                         const Drawing::ShockAbsorberBottomEnd* bottomEnd) {
+    std::cout << "[ShockAbsorberModel3D] generateMesh called with spring=" << (spring ? "valid" : "null") 
+              << ", end=" << (end ? "valid" : "null") 
+              << ", bottomEnd=" << (bottomEnd ? "valid" : "null") << std::endl;
+              
     if (!spring || !end || !bottomEnd) {
-        std::cerr << "[ShockAbsorberModel3D] Missing component(s) for shock absorber generation!" << std::endl;
+        std::cout << "[ShockAbsorberModel3D] ERROR: One or more components are null!" << std::endl;
         return;
     }
     
@@ -32,6 +37,8 @@ void ShockAbsorberModel3D::generateMesh(const Drawing::Spring2D* spring, const D
     
     // Clear existing mesh data
     clearMesh();
+    
+    std::cout << "[ShockAbsorberModel3D] Generating geometry..." << std::endl;
     
     // Generate shock absorber-specific geometry
     generateShockAbsorberGeometry();
@@ -45,7 +52,7 @@ void ShockAbsorberModel3D::generateMesh(const Drawing::Spring2D* spring, const D
     // Reset view to default
     resetView();
     
-    std::cerr << "[ShockAbsorberModel3D] Mesh generation complete with standardized architecture." << std::endl;
+    std::cout << "[ShockAbsorberModel3D] Mesh generation complete with " << vertices.size() << " vertices." << std::endl;
 }
 
 void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
@@ -59,49 +66,86 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
         return;
     }
     
-    // Calculate Y offsets to position components correctly
-    float springLength = currentSpring->freeLength;
-    float endLength = currentEnd->shaftLength;
-    float bottomLength = currentBottomEnd->height + currentBottomEnd->plateThickness;
+    // Calculate proper scaling - convert from mm to reasonable 3D units
+    float scale = 1.0f / 100.0f; // Convert mm to centimeters
     
-    float yTopEnd = currentSpring->centerY + springLength / 2.0f + endLength / 2.0f;
-    float ySpring = currentSpring->centerY;
-    float yBottomEnd = currentSpring->centerY - springLength / 2.0f - bottomLength / 2.0f;
+    // Calculate Y offsets to position components correctly
+    float springLength = currentSpring->freeLength * scale;
+    float endLength = currentEnd->shaftLength * scale;
+    float bottomLength = (currentBottomEnd->height + currentBottomEnd->plateThickness) * scale;
+    
+    float yTopEnd = currentSpring->centerY * scale + springLength / 2.0f + endLength / 2.0f;
+    float ySpring = currentSpring->centerY * scale;
+    float yBottomEnd = currentSpring->centerY * scale - springLength / 2.0f - bottomLength / 2.0f;
     
     std::cerr << "[ShockAbsorberModel3D] Component offsets: yTopEnd=" << yTopEnd << ", ySpring=" << ySpring << ", yBottomEnd=" << yBottomEnd << std::endl;
     
-    // Revolve each profile at the correct Y offset using standardized method
-    revolveProfile(endProfile, 36, yTopEnd - currentEnd->baseCenter.y, 1.0f);
-    revolveProfile(springProfile, 36, ySpring - currentSpring->centerY, 1.0f);
-    revolveProfile(bottomProfile, 36, yBottomEnd - currentBottomEnd->baseCenter.y, 1.0f);
+    // Convert profiles to proper format for revolution (x = radius, y = axial position)
+    // Scale profiles appropriately
+    std::vector<ImVec2> scaledEndProfile, scaledSpringProfile, scaledBottomProfile;
     
-    // Normalize the entire geometry to fit in reasonable bounds
-    if (!vertices.empty()) {
-        // Find bounds
-        float minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
-        for (size_t i = 0; i < vertices.size() / 6; ++i) {
-            float x = vertices[i * 6 + 0];
-            float y = vertices[i * 6 + 1];
-            float z = vertices[i * 6 + 2];
-            minX = std::min(minX, x); maxX = std::max(maxX, x);
-            minY = std::min(minY, y); maxY = std::max(maxY, y);
-            minZ = std::min(minZ, z); maxZ = std::max(maxZ, z);
-        }
-        
-        // Calculate center and scale
-        float centerX = (minX + maxX) / 2.0f;
-        float centerY = (minY + maxY) / 2.0f;
-        float centerZ = (minZ + maxZ) / 2.0f;
-        float maxExtent = std::max({maxX - minX, maxY - minY, maxZ - minZ});
-        float scale = 2.0f / (maxExtent > 0 ? maxExtent : 1.0f); // fit in [-1,1]
-        
-        // Apply centering and scaling to all vertices
-        for (size_t i = 0; i < vertices.size() / 6; ++i) {
-            vertices[i * 6 + 0] = (vertices[i * 6 + 0] - centerX) * scale;
-            vertices[i * 6 + 1] = (vertices[i * 6 + 1] - centerY) * scale;
-            vertices[i * 6 + 2] = (vertices[i * 6 + 2] - centerZ) * scale;
-        }
-        
-        std::cerr << "[ShockAbsorberModel3D] Normalized geometry: center(" << centerX << ", " << centerY << ", " << centerZ << "), scale=" << scale << std::endl;
+    // Scale end profile
+    for (const auto& point : endProfile) {
+        scaledEndProfile.push_back(ImVec2(std::abs(point.x - currentEnd->baseCenter.x) * scale, 
+                                         (point.y - currentEnd->baseCenter.y) * scale));
     }
+    
+    // Generate enhanced spring profile with visible coils
+    scaledSpringProfile = generateEnhancedSpringProfile();
+    
+    // Scale bottom profile  
+    for (const auto& point : bottomProfile) {
+        scaledBottomProfile.push_back(ImVec2(std::abs(point.x - currentBottomEnd->baseCenter.x) * scale,
+                                            (point.y - currentBottomEnd->baseCenter.y) * scale));
+    }
+    
+    // Revolve each profile with higher segment count for better quality
+    revolveProfile(scaledEndProfile, 72, yTopEnd, 1.0f);
+    revolveProfile(scaledSpringProfile, 72, ySpring, 1.0f);
+    revolveProfile(scaledBottomProfile, 72, yBottomEnd, 1.0f);
+    
+    std::cerr << "[ShockAbsorberModel3D] Generated " << vertices.size()/6 << " vertices and " << indices.size()/3 << " triangles" << std::endl;
+}
+
+std::vector<ImVec2> ShockAbsorberModel3D::generateEnhancedSpringProfile() const {
+    std::vector<ImVec2> profile;
+    
+    // Spring parameters (scaled)
+    float scale = 1.0f / 100.0f;
+    float outerRadius = (currentSpring->outerDiameter / 2.0f) * scale;
+    float wireRadius = (currentSpring->wireDiameter / 2.0f) * scale;
+    float innerRadius = outerRadius - wireRadius;
+    float springLength = currentSpring->freeLength * scale;
+    
+    std::cout << "[ShockAbsorberModel3D] Spring profile: outerRadius=" << outerRadius 
+              << ", wireRadius=" << wireRadius << ", springLength=" << springLength << std::endl;
+    
+    // Generate a more detailed spring profile that shows the wire cross-section
+    int profilePoints = 20; // Points around the wire cross-section
+    float pitchHeight = springLength / currentSpring->numCoils;
+    
+    // Define PI if not available
+    const float PI = 3.14159265358979323846f;
+    
+    // Generate one complete coil profile with wire detail
+    for (int i = 0; i < profilePoints; ++i) {
+        float angle = (float)i / profilePoints * 2.0f * PI;
+        
+        // Wire cross-section: create a circular cross-section
+        float wireOffset = wireRadius * cos(angle);
+        float heightOffset = wireRadius * sin(angle);
+        
+        // Create profile points that will show the wire when revolved
+        float radius = outerRadius + wireOffset;
+        float height = heightOffset; // Relative to spring center
+        
+        profile.push_back(ImVec2(radius, height));
+    }
+    
+    // Close the profile
+    if (!profile.empty()) {
+        profile.push_back(profile[0]);
+    }
+    
+    return profile;
 }

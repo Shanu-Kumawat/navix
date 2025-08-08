@@ -230,7 +230,7 @@ void SetupImGuiStyle() {
 void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Professional style ribbon at the top
   ImGui::SetNextWindowPos(ImVec2(0, 0));
-  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 110));
+  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 130)); // Increased from 110 to accommodate taller panels
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
   ImGui::Begin("Ribbon", nullptr,
@@ -245,7 +245,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   const float panelWidth = (availWidth - 130 - panelSpacing*2) / 3;
   
   // Calculate button sizes based on panel width and content
-  const float panelHeight = 120.0f;
+  const float panelHeight = 140.0f; // Increased from 120.0f to show more buttons
   
   // Measure standard text size for a button
   const float textWidth = ImGui::CalcTextSize("Rectangle").x;
@@ -262,7 +262,9 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Draw Panel
   ImGui::BeginGroup();
   ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
-  ImGui::BeginChild("DrawPanel", ImVec2(panelWidth, panelHeight), true);
+  // Enable vertical scrolling for the drawing tools panel when content overflows
+  ImGui::BeginChild("DrawPanel", ImVec2(panelWidth, panelHeight), true, 
+                    ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_NavFlattened);
   
   ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
   ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
@@ -648,11 +650,42 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     if (ImGui::Button("3D View")) {
       UIState::showSpring3DView = true;
     }
-    // Add the new 3D Shock Absorber button
-    if (ImGui::Button("3D Shock Absorber")) {
+    // Add the new 3D Shock Absorber button (only enabled if there's a complete assembly)
+    bool hasCompleteAssembly = canvas.hasCompleteShockAbsorberAssembly();
+    
+    // Debug output (remove this later)
+    auto assemblies = canvas.findShockAbsorberAssemblies();
+    static int debugCounter = 0;
+    if (debugCounter % 60 == 0) { // Print every 60 frames (~1 second)
+        printf("Debug: Found %d assemblies, hasComplete=%d\n", (int)assemblies.size(), hasCompleteAssembly);
+    }
+    debugCounter++;
+    
+    if (!hasCompleteAssembly) {
+      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));  // Gray out the button
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));     // Gray out text
+    }
+    
+    if (ImGui::Button("3D Shock Absorber") && hasCompleteAssembly) {
       UIState::showShockAbsorber3DView = true;
     }
+    
+    if (!hasCompleteAssembly) {
+      ImGui::PopStyleColor(2);  // Pop both colors
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Create a complete shock absorber assembly (spring + top end + bottom end) to enable 3D view");
+      }
+    }
   }
+
+  // Add some spacing before the scrollable content
+  ImGui::Spacing();
+  
+  // Create a scrollable region for all the properties content
+  // Use the remaining space after the Spring2D actions section
+  float remainingHeight = ImGui::GetContentRegionAvail().y - 10.0f; // Leave some padding
+  ImGui::BeginChild("PropertiesScrollRegion", ImVec2(0, remainingHeight), false, 
+                    ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_NavFlattened);
 
   ImGui::PushStyleColor(ImGuiCol_Header, UIColors::HEADER);
   
@@ -1441,6 +1474,9 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     ImGui::PopStyleColor();
   }
   
+  // End the scrollable child region
+  ImGui::EndChild();
+  
   ImGui::End();
 
   // Always show Add ShockAbsorberEnd2D and 3D View buttons for Spring2D selection
@@ -1460,9 +1496,22 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     if (ImGui::Button("3D View")) {
       UIState::showSpring3DView = true;
     }
-    // Add the new 3D Shock Absorber button
-    if (ImGui::Button("3D Shock Absorber")) {
+    // Add the new 3D Shock Absorber button (only enabled if there's a complete assembly)
+    bool hasCompleteAssembly = canvas.hasCompleteShockAbsorberAssembly();
+    if (!hasCompleteAssembly) {
+      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));  // Gray out the button
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));     // Gray out text
+    }
+    
+    if (ImGui::Button("3D Shock Absorber") && hasCompleteAssembly) {
       UIState::showShockAbsorber3DView = true;
+    }
+    
+    if (!hasCompleteAssembly) {
+      ImGui::PopStyleColor(2);  // Pop both colors
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Create a complete shock absorber assembly (spring + top end + bottom end) to enable 3D view");
+      }
     }
     
     // Unified 3D Shock Absorber button using the new manager
@@ -1476,7 +1525,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
 void RenderCanvas(Drawing::Canvas &canvas) {
   // Adjust canvas position and size to account for the ribbon and status bar
   // Using simplified UI layout (no tabs, single row of tools)
-  const float ribbonHeight = 95.0f; // Updated height for our more compact ribbon
+  const float ribbonHeight = 130.0f; // Updated height for taller ribbon with scrollable panels
   const float statusBarHeight = 28.0f; // Just status bar now, no command line
   
   // Calculate property panel width - make it responsive
@@ -1851,7 +1900,7 @@ int main(int, char **) {
         bool isOverCanvas = false;
         
         // Calculate dimensions matching those in RenderCanvas
-        const float ribbonHeight = 95.0f;
+        const float ribbonHeight = 130.0f;
         const float statusBarHeight = 28.0f; // Just status bar height
         const float screenWidth = ImGui::GetIO().DisplaySize.x;
         const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f);
@@ -1892,7 +1941,7 @@ int main(int, char **) {
       // Handle middle mouse button panning (AutoCAD-like)
       if (event.type == SDL_MOUSEMOTION && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(SDL_BUTTON_MIDDLE))) {
         // Calculate dimensions matching those in RenderCanvas
-        const float ribbonHeight = 95.0f;
+        const float ribbonHeight = 130.0f;
         const float statusBarHeight = 28.0f; // Just status bar height
         const float screenWidth = ImGui::GetIO().DisplaySize.x;
         const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f);

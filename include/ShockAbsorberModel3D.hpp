@@ -29,6 +29,7 @@ private:
     
     // Shock absorber-specific helper methods
     void generateShockAbsorberGeometry();
+    std::vector<ImVec2> generateEnhancedSpringProfile() const;
 };
 
 #endif 

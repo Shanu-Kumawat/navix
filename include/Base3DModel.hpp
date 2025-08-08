@@ -57,6 +57,7 @@ protected:
     
     // Mesh generation helpers (common patterns)
     void revolveProfile(const std::vector<ImVec2>& profile, int segments, float yOffset = 0.0f, float yScale = 1.0f);
+    void revolveProfileAroundX(const std::vector<ImVec2>& profile, int segments, float xOffset = 0.0f, float xScale = 1.0f);
     void generateNormals();
     void clearMesh();
     

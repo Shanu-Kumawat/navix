@@ -14,8 +14,8 @@ ShockAbsorberViewer3D::ShockAbsorberViewer3D() : Base3DViewer() {
 void ShockAbsorberViewer3D::initialize() {
     std::cout << "Initializing ShockAbsorberViewer3D with standardized architecture..." << std::endl;
     
-    // Initialize camera with shock absorber-specific positioning
-    camera = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+    // Initialize camera with shock absorber-specific positioning (use same as Spring3D which works)
+    camera = std::make_unique<Camera>(glm::vec3(2.0f, 1.5f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -110.0f, -15.0f);
     
     // Create shader (reuse bellows shader)
     shader = std::make_unique<Shader>("shaders/bellows.vs", "shaders/bellows.fs");
@@ -26,16 +26,25 @@ void ShockAbsorberViewer3D::initialize() {
     
     // Setup initial framebuffer
     setupFramebuffer(viewportWidth, viewportHeight);
+    
+    std::cout << "ShockAbsorberViewer3D initialization complete." << std::endl;
 }
 
 void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 
                                    const Drawing::ShockAbsorberBottomEnd* bottomEnd, ImVec2 windowSize) {
-    if (!shockAbsorberModel || !camera || !shader) return;
+    if (!shockAbsorberModel || !camera || !shader) {
+        std::cout << "ShockAbsorberViewer3D::render - Missing components: "
+                  << "model=" << (shockAbsorberModel ? "OK" : "NULL") 
+                  << ", camera=" << (camera ? "OK" : "NULL")
+                  << ", shader=" << (shader ? "OK" : "NULL") << std::endl;
+        return;
+    }
     
     // Update framebuffer if window size changed
     resizeFramebuffer(static_cast<int>(windowSize.x), static_cast<int>(windowSize.y));
     
     // Generate/update 3D mesh
+    std::cout << "Generating mesh for shock absorber..." << std::endl;
     shockAbsorberModel->generateMesh(spring, end, bottomEnd);
     
     // Set material and lighting properties
@@ -51,6 +60,9 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
     glm::mat4 projection = createProjectionMatrix(aspectRatio);
     glm::mat4 view = camera->GetViewMatrix();
     
+    std::cout << "Rendering 3D model - viewport: " << viewportWidth << "x" << viewportHeight 
+              << ", aspect: " << aspectRatio << std::endl;
+    
     // Render the 3D model
     shockAbsorberModel->render(projection, view, camera->Position);
     
@@ -58,6 +70,7 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
     unbindFramebuffer();
     
     // Display the rendered texture
+    std::cout << "Displaying rendered texture..." << std::endl;
     displayRenderedTexture(windowSize);
 }
 
