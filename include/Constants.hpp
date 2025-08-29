@@ -18,9 +18,9 @@ namespace Colors {
     const ImU32 PREVIEW_LIGHT = IM_COL32(150, 150, 150, 180); // Medium-light gray
     const ImU32 CONTROL_POINT = IM_COL32(45, 175, 175, 255);  // Teal control points
     const ImU32 CONTROL_LINE = IM_COL32(100, 100, 100, 180);  // Medium gray for control lines
-    const ImU32 GRID_MINOR = IM_COL32(220, 220, 220, 180);    // Light gray for minor grid lines
-    const ImU32 GRID_MAJOR = IM_COL32(180, 180, 180, 200);    // Medium gray for major grid lines
-    const ImU32 GRID = IM_COL32(200, 200, 200, 200);          // General grid color
+    const ImU32 GRID_MINOR = IM_COL32(205, 180, 140, 120);    // Light wood/beige for minor grid lines
+    const ImU32 GRID_MAJOR = IM_COL32(160, 120, 80, 180);     // Medium brown for major grid lines (abacus frame)
+    const ImU32 GRID = IM_COL32(180, 140, 100, 150);          // General warm brown grid color
 }
 
 // Common constants

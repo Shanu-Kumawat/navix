@@ -633,7 +633,7 @@ void Canvas::renderGrid(ImDrawList* drawList) {
     
     // Add axes lines at (0,0) if visible
     ImVec2 origin = transformCoordinates(ImVec2(0, 0));
-    ImU32 axisColor = IM_COL32(180, 180, 180, 220);
+    ImU32 axisColor = IM_COL32(140, 100, 60, 240);  // Darker brown for axes (abacus frame)
     
     if (origin.x >= startX && origin.x <= endX) {
         drawList->AddLine(

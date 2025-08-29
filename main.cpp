@@ -12,22 +12,46 @@
 #include "ShockAbsorberViewer3D.hpp"
 #include "ComplexShape3DManager.hpp"
 
-// Replace icon definitions with text labels
-#define ICON_LINE "Line"
-#define ICON_CIRCLE "Circle"
-#define ICON_RECTANGLE "Rect"
-#define ICON_POINT "Point"
-#define ICON_TRIANGLE "Tri"
-#define ICON_SQUARE "Square"
-#define ICON_SPLINE "Spline"
-#define ICON_BEZIER "Bezier"
-#define ICON_SELECT "Select"
-#define ICON_UNDO "Undo"
-#define ICON_REDO "Redo"
-#define ICON_PAN "Pan"
-#define ICON_ZOOM "Zoom"
-#define ICON_MEASURE "Measure"
-#define ICON_ANNOTATION "Text"
+// Font Awesome icon definitions (using actual Font Awesome codes)
+// These will be redefined if no icon font is available
+static const char* ICON_LINE = "\uf068";          // fa-minus (line)
+static const char* ICON_CIRCLE = "\uf111";        // fa-circle
+static const char* ICON_RECTANGLE = "\uf2d2";     // fa-window-maximize (wide rectangle)
+static const char* ICON_POINT = "\uf192";         // fa-dot-circle-o
+static const char* ICON_TRIANGLE = "\uf0d8";      // fa-caret-up
+static const char* ICON_SQUARE = "\uf0c8";        // fa-square-o
+static const char* ICON_SPLINE = "\uf1e2";        // fa-share (curved line/path)
+static const char* ICON_BEZIER = "\uf201";        // fa-line-chart (curve)
+static const char* ICON_SELECT = "\uf245";        // fa-hand-pointer-o
+static const char* ICON_UNDO = "\uf0e2";          // fa-undo
+static const char* ICON_REDO = "\uf01e";          // fa-repeat
+static const char* ICON_PAN = "\uf047";           // fa-arrows
+static const char* ICON_ZOOM = "\uf00e";          // fa-search-plus
+static const char* ICON_MEASURE = "\uf1de";       // fa-sliders
+static const char* ICON_ANNOTATION = "\uf031";    // fa-font
+
+// Function to set fallback icons if font loading fails
+void SetFallbackIcons() {
+  ICON_LINE = "-";           // simple minus for line
+  ICON_CIRCLE = "O";         // capital O for circle
+  ICON_RECTANGLE = "[]";     // brackets for rectangle  
+  ICON_POINT = ".";          // period for point
+  ICON_TRIANGLE = "^";       // caret for triangle
+  ICON_SQUARE = "#";         // hash for square
+  ICON_SPLINE = "/";         // slash for curved path/spline
+  ICON_BEZIER = "S";         // S curve for bezier
+  ICON_SELECT = ">";         // arrow for select
+  ICON_UNDO = "<";           // left arrow for undo
+  ICON_REDO = ">";           // right arrow for redo
+  ICON_PAN = "+";            // plus for pan
+  ICON_ZOOM = "*";           // asterisk for zoom
+  ICON_MEASURE = "|";        // pipe for ruler
+  ICON_ANNOTATION = "T";     // simple T for text
+}
+
+// Font pointers
+static ImFont* iconFont = nullptr;
+static ImFont* regularFont = nullptr;
 
 
 // Window dimensions
@@ -51,7 +75,7 @@ const ImVec4 BUTTON_TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);            // Dark
 const ImVec4 ACCENT = ImVec4(0.18f, 0.69f, 0.69f, 1.0f);                 // Teal accent color
 const ImVec4 TAB_ACTIVE = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);                // White active tab background
 
-const ImVec4 GRID_BACKGROUND = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);        // Very light background for grid area
+const ImVec4 GRID_BACKGROUND = ImVec4(0.98f, 0.95f, 0.88f, 1.0f);        // Warm cream background for abacus theme
 const ImVec4 COMMAND_BG = ImVec4(0.90f, 0.90f, 0.90f, 1.0f);             // Light gray command line background
 const ImVec4 COMMAND_TEXT = ImVec4(0.12f, 0.12f, 0.12f, 1.0f);           // Dark command line text
 const ImVec4 SUCCESS = ImVec4(0.20f, 0.70f, 0.50f, 1.0f);                // Green-teal for success/confirmation
@@ -118,7 +142,66 @@ static bool showBallBearing3DView = false;
 static bool showShockAbsorber3DViewUnified = false;
 } // namespace UIState
 
+// Function to load fonts
+void LoadFonts() {
+  ImGuiIO& io = ImGui::GetIO();
+  
+  // Load default font first
+  regularFont = io.Fonts->AddFontDefault();
+  
+  // Try to load Font Awesome for icons
+  const char* fontPaths[] = {
+    "./fonts/fa-solid-900.ttf",
+    "/home/suyas/drawing_software/fonts/fa-solid-900.ttf",
+    "./fonts/fontawesome.ttf",
+    "/usr/share/fonts/truetype/font-awesome/fontawesome-webfont.ttf",
+    "/usr/share/fonts/TTF/Font Awesome 6 Free-Solid-900.otf",
+    nullptr
+  };
+  
+  bool fontLoaded = false;
+  
+  // Font Awesome icon ranges (correct range for Font Awesome 6)
+  static const ImWchar icon_ranges[] = { 
+    0xf000, 0xf8ff, // Font Awesome range
+    0
+  };
+  
+  for (int i = 0; fontPaths[i] != nullptr; ++i) {
+    FILE* fontFile = fopen(fontPaths[i], "rb");
+    if (fontFile) {
+      fclose(fontFile);
+      
+      ImFontConfig config;
+      config.MergeMode = false;
+      config.GlyphMinAdvanceX = 16.0f; // Ensure icons are spaced properly
+      
+      iconFont = io.Fonts->AddFontFromFileTTF(fontPaths[i], 20.0f, &config, icon_ranges);
+      if (iconFont) {
+        fontLoaded = true;
+        std::cout << "Successfully loaded icon font from: " << fontPaths[i] << std::endl;
+        break;
+      } else {
+        std::cout << "Failed to load font from: " << fontPaths[i] << std::endl;
+      }
+    } else {
+      std::cout << "Font file not found: " << fontPaths[i] << std::endl;
+    }
+  }
+  
+  if (!fontLoaded) {
+    std::cout << "No icon font found, using ASCII fallback icons" << std::endl;
+    SetFallbackIcons();
+    iconFont = regularFont; 
+  }
+  
+  // Build the font atlas
+  io.Fonts->Build();
+}
+
 // Function declaration prototypes
+void SetFallbackIcons();
+void LoadFonts();
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas, const std::string &message);
 void SetupImGuiStyle();
 void RenderTopRibbon(Drawing::Canvas &canvas);
@@ -191,8 +274,8 @@ void SetupImGuiStyle() {
 
   // Styles - Modern Light Theme
   style.WindowPadding = ImVec2(10, 10);
-  // Increase frame padding for button text to have more space around it
-  style.FramePadding = ImVec2(10, 8);
+  // Adjust frame padding for better icon centering in buttons
+  style.FramePadding = ImVec2(6, 6);
   style.CellPadding = ImVec2(6, 4);
   style.ItemSpacing = ImVec2(10, 8);
   style.ItemInnerSpacing = ImVec2(8, 6);
@@ -247,17 +330,20 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Calculate button sizes based on panel width and content
   const float panelHeight = 140.0f; // Increased from 120.0f to show more buttons
   
-  // Measure standard text size for a button
-  const float textWidth = ImGui::CalcTextSize("Rectangle").x;
-  // Ensure button width is at least text + padding
-  const float minButtonWidth = textWidth + 16.0f; 
-  // Calculate how many buttons per row based on available width
-  const int buttonsPerRow = std::max(2, static_cast<int>(panelWidth / (minButtonWidth + 8.0f)));
-  // Calculate button width based on available space and buttons per row
-  const float buttonWidth = (panelWidth - (buttonsPerRow-1)*8.0f - 16.0f) / buttonsPerRow;
-  // Fixed button height
-  const float buttonHeight = 30.0f;
-  const float buttonSpacing = 8.0f;
+  // For icon buttons, calculate size based on icon size and ensure proper centering
+  const float iconSize = 20.0f; // Size of the icon font
+  const float iconButtonPadding = 12.0f; // More padding to center icons properly
+  const float iconButtonSize = iconSize + iconButtonPadding; // Square buttons for icons (32x32)
+  
+  // Calculate how many icon buttons per row based on available width
+  const int iconsPerRow = std::max(2, static_cast<int>((panelWidth - 16.0f) / (iconButtonSize + 6.0f)));
+  // Button spacing between icon buttons
+  const float iconButtonSpacing = 6.0f;
+  
+  // For text buttons (like "Bellows", "Ball Bearing"), use larger size
+  const float textWidth = ImGui::CalcTextSize("Ball Bearing").x;
+  const float textButtonWidth = textWidth + 16.0f;
+  const float textButtonHeight = 30.0f;
   
   // Draw Panel
   ImGui::BeginGroup();
@@ -274,105 +360,157 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   
   ImGui::Dummy(ImVec2(0, 2));
   
-  // Row 1: Basic drawing tools - use buttonWidth instead of smallBtnSize
+  // Row 1: Basic drawing tools - use compact icon buttons
   float y = ImGui::GetCursorPosY();
   bool selected;
   
+  // Push style for icon buttons to ensure proper centering
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
+  
   selected = UIState::activeMode == Drawing::DrawingMode::Point;
-  if (ImGui::Button(ICON_POINT, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_POINT) + "##point_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Point, canvas, "Point Tool: Click to place points");
   }
-  
-  ImGui::SameLine(0, buttonSpacing);
-  selected = UIState::activeMode == Drawing::DrawingMode::Line;
-  if (ImGui::Button(ICON_LINE, ImVec2(buttonWidth, buttonHeight))) {
-    SelectTool(Drawing::DrawingMode::Line, canvas, "Line Tool: Click to set start and end points");
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Point Tool");
   }
   
-  if (buttonsPerRow > 2) {
-    ImGui::SameLine(0, buttonSpacing);
+  ImGui::SameLine(0, iconButtonSpacing);
+  selected = UIState::activeMode == Drawing::DrawingMode::Line;
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_LINE) + "##line_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
+    SelectTool(Drawing::DrawingMode::Line, canvas, "Line Tool: Click to set start and end points");
+  }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Line Tool");
+  }
+  
+  if (iconsPerRow > 2) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
   selected = UIState::activeMode == Drawing::DrawingMode::Circle;
-  if (ImGui::Button(ICON_CIRCLE, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_CIRCLE) + "##circle_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Circle, canvas, "Circle Tool: Click to set center and radius");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Circle Tool");
+  }
 
-  if (buttonsPerRow > 3) {
-    ImGui::SameLine(0, buttonSpacing);
+  if (iconsPerRow > 3) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
   selected = UIState::activeMode == Drawing::DrawingMode::Triangle;
-  if (ImGui::Button(ICON_TRIANGLE, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_TRIANGLE) + "##triangle_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Triangle, canvas, "Triangle Tool: Click to set point and direction (dimensions in properties)");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Triangle Tool");
+  }
 
-  if (buttonsPerRow > 4) {
-    ImGui::SameLine(0, buttonSpacing);
+  if (iconsPerRow > 4) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
   selected = UIState::activeMode == Drawing::DrawingMode::Square;
-  if (ImGui::Button(ICON_SQUARE, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_SQUARE) + "##square_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Square, canvas, "Square Tool: Click to set corner and direction (side length in properties)");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Square Tool");
+  }
 
-  if (buttonsPerRow > 5) {
-    ImGui::SameLine(0, buttonSpacing);
+  if (iconsPerRow > 5) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
   selected = UIState::activeMode == Drawing::DrawingMode::Rectangle;
-  if (ImGui::Button(ICON_RECTANGLE, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_RECTANGLE) + "##rectangle_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Rectangle, canvas, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Rectangle Tool");
+  }
+  
+  // Pop the icon button style
+  ImGui::PopStyleVar();
 
   // Start new row for additional tools
   ImGui::Dummy(ImVec2(0, 2));
   
   // Row 2: Additional drawing tools
+  // Push style for icon buttons to ensure proper centering
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
+  
   selected = UIState::activeMode == Drawing::DrawingMode::Spline;
-  if (ImGui::Button(ICON_SPLINE, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_SPLINE) + "##spline_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Spline, canvas, "Spline Tool: Click to add control points, double-click to finish");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Spline Tool");
+  }
   
-  ImGui::SameLine(0, buttonSpacing);
+  ImGui::SameLine(0, iconButtonSpacing);
   selected = UIState::activeMode == Drawing::DrawingMode::BezierCurve;
-  if (ImGui::Button(ICON_BEZIER, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_BEZIER) + "##bezier_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::BezierCurve, canvas, "Bezier Tool: Click to add control points, double-click to finish");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Bezier Curve Tool");
+  }
+  
+  // Pop the icon button style
+  ImGui::PopStyleVar();
 
-  if (buttonsPerRow > 2) {
-    ImGui::SameLine(0, buttonSpacing);
+  if (iconsPerRow > 2) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
   selected = UIState::activeMode == Drawing::DrawingMode::Bellows;
-  if (ImGui::Button("Bellows", ImVec2(buttonWidth, buttonHeight))) {
+  if (ImGui::Button("Bellows", ImVec2(textButtonWidth, textButtonHeight))) {
     SelectTool(Drawing::DrawingMode::Bellows, canvas, "Bellows Tool: Click to create a parametric bellows");
   }
   
-  if (buttonsPerRow > 2) {
-    ImGui::SameLine(0, buttonSpacing);
+  if (iconsPerRow > 2) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
   selected = UIState::activeMode == Drawing::DrawingMode::BallBearing;
-  if (ImGui::Button("Ball Bearing", ImVec2(buttonWidth, buttonHeight))) {
+  if (ImGui::Button("Ball Bearing", ImVec2(textButtonWidth, textButtonHeight))) {
     SelectTool(Drawing::DrawingMode::BallBearing, canvas, "Ball Bearing Tool: Click to create a parametric ball bearing");
   }
   
-  ImGui::SameLine(0, buttonSpacing);
+  ImGui::SameLine(0, iconButtonSpacing);
   selected = UIState::activeMode == Drawing::DrawingMode::Spring2D;
-  if (ImGui::Button("Spring", ImVec2(buttonWidth, buttonHeight))) {
+  if (ImGui::Button("Spring", ImVec2(textButtonWidth, textButtonHeight))) {
     SelectTool(Drawing::DrawingMode::Spring2D, canvas, "Spring Tool: Set parameters in properties panel");
   }
   
@@ -394,37 +532,58 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   
   ImGui::Dummy(ImVec2(0, 2));
   
-  // Edit tools - use buttonWidth for consistency
+  // Edit tools - use compact icon buttons
+  // Push style for icon buttons to ensure proper centering
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
+  
   selected = UIState::activeMode == Drawing::DrawingMode::Select;
-  if (ImGui::Button(ICON_SELECT, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_SELECT) + "##select_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     SelectTool(Drawing::DrawingMode::Select, canvas, "Select Tool: Click to select objects");
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Select Tool");
+  }
   
-  ImGui::SameLine(0, buttonSpacing);
-  if (ImGui::Button(ICON_UNDO, ImVec2(buttonWidth, buttonHeight))) {
+  ImGui::SameLine(0, iconButtonSpacing);
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_UNDO) + "##undo_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     canvas.undo();
     UIState::consoleMessage = "Undo";
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Undo");
+  }
   
-  if (buttonsPerRow > 2) {
-    ImGui::SameLine(0, buttonSpacing);
+  // Pop the icon button style
+  ImGui::PopStyleVar();
+  
+  if (iconsPerRow > 2) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  if (ImGui::Button(ICON_REDO, ImVec2(buttonWidth, buttonHeight))) {
+  if (iconFont) ImGui::PushFont(iconFont);
+  if (ImGui::Button((std::string(ICON_REDO) + "##redo_tool").c_str(), ImVec2(iconButtonSize, iconButtonSize))) {
     canvas.redo();
     UIState::consoleMessage = "Redo";
   }
+  if (iconFont) ImGui::PopFont();
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("Redo");
+  }
   
-  if (buttonsPerRow > 2) {
-    ImGui::SameLine(0, buttonSpacing);
+  if (iconsPerRow > 2) {
+    ImGui::SameLine(0, iconButtonSpacing);
   } else {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  // Add Clear All button without custom styling
-  if (ImGui::Button("Clear All", ImVec2(buttonWidth, buttonHeight))) {
+  // Add Clear All button using text button size
+  if (ImGui::Button("Clear All", ImVec2(textButtonWidth, textButtonHeight))) {
     canvas.clearAll();
     UIState::consoleMessage = "All shapes cleared";
   }
@@ -1864,6 +2023,9 @@ int main(int, char **) {
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Reverted: Docking not available/enabled
+
+  // Load fonts before backend initialization
+  LoadFonts();
 
   ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
   ImGui_ImplOpenGL3_Init("#version 130");
