@@ -81,10 +81,6 @@ make
 
 ---
 
-## 📸 Screenshots
-> _Add screenshots of your application here!_
-
----
 
 ## 🤝 Contributing
 Pull requests, bug reports, and feature suggestions are welcome! Please open an issue or submit a PR.
@@ -104,3 +100,4 @@ This project is licensed under the MIT License. See `imgui/LICENSE.txt` for ImGu
 ---
 
 > _Happy Modelling with Navix!_
+
