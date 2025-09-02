@@ -1,4 +1,3 @@
-
 # Navix
 
 Navix is a modern, extensible 3D modelling and visualization software built with C++ and OpenGL, featuring advanced modeling, rendering, and interactive tools. This project is designed for engineers, designers, and hobbyists who need a powerful yet user-friendly platform for creating and visualizing complex 3D mechanical components.
@@ -81,6 +80,11 @@ make
 
 ---
 
+## 🖥️ Wayland / Hyprland Support
+
+Navix includes built-in support for high-DPI rendering on Wayland compositors like Hyprland. The application automatically detects and handles fractional scaling without any additional configuration needed.
+
+---
 
 ## 🤝 Contributing
 Pull requests, bug reports, and feature suggestions are welcome! Please open an issue or submit a PR.

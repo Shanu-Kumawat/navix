@@ -50,7 +50,8 @@ else()
     
     # Find SDL2 using pkg-config on Linux
     pkg_check_modules(SDL2 REQUIRED sdl2)
-    link_directories(${SDL2_LIBRARY_DIRS})
+    pkg_check_modules(SDL2_IMAGE REQUIRED SDL2_image)
+    link_directories(${SDL2_LIBRARY_DIRS} ${SDL2_IMAGE_LIBRARY_DIRS})
 endif()
 
 # Set OpenGL preference to GLVND
@@ -64,6 +65,8 @@ message(STATUS "OpenGL libraries: ${OPENGL_LIBRARIES}")
 message(STATUS "OpenGL include dir: ${OPENGL_INCLUDE_DIR}")
 message(STATUS "SDL2 libraries: ${SDL2_LIBRARIES}")
 message(STATUS "SDL2 include dirs: ${SDL2_INCLUDE_DIRS}")
+message(STATUS "SDL2_image libraries: ${SDL2_IMAGE_LIBRARIES}")
+message(STATUS "SDL2_image include dirs: ${SDL2_IMAGE_INCLUDE_DIRS}")
 
 # Add glad
 add_library(glad STATIC ${CMAKE_CURRENT_SOURCE_DIR}/glad/src/glad.c)
@@ -168,6 +171,7 @@ target_include_directories(main PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui/backends
     ${SDL2_INCLUDE_DIRS}
+    ${SDL2_IMAGE_INCLUDE_DIRS}
     ${OPENGL_INCLUDE_DIR}
 )
 
@@ -183,6 +187,7 @@ target_link_libraries(main PRIVATE
     imgui
     drawing
     ${SDL2_LIBRARIES}
+    ${SDL2_IMAGE_LIBRARIES}
     ${OPENGL_LIBRARIES}
 )
 
