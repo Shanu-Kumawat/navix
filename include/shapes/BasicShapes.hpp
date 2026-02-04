@@ -535,12 +535,30 @@ struct ShockAbsorberEnd2D : public Shape {
         step3Diameter = od * 0.5f;
         boreDiameter = od * 0.22f;
         chamfer = step1Diameter * 0.08f;
+        
+        // baseCenter.y must be at the center of the total shaft length for isPointNear to work
+        // Drawing code uses: top = baseCenter.y - shaftLength/2, bottom = baseCenter.y + shaftLength/2
+        
+        float springTop = parentSpring->centerY - fl/2;
+        float springBottom = parentSpring->centerY + fl/2;
+        
         if (position == EndPosition::Top) {
-            // Center step1 on the top of the spring (overlap)
-            baseCenter = ImVec2(parentSpring->centerX, parentSpring->centerY - fl/2 + step1Length/2);
+            // Top end: step1 bottom sits at springTop (slight overlap into spring)
+            // Shaft spans from (springTop - shaftLength + step1Length) to (springTop + step1Length)
+            // But drawing has step1 at bottom, so y0 = springTop + step1Length (drawn bottom)
+            // Actually, let me trace drawing code more carefully...
+            // Drawing: y3=baseCenter.y-shaftLength/2 (top), y0=y3+shaftLength (bottom)
+            // Step3 drawn at y3, step1 drawn ending at y0
+            // We want step1 (bottom of shaft) to overlap spring, so y0 ≈ springTop + step1Length
+            // Therefore baseCenter.y = y0 - shaftLength/2 = springTop + step1Length - shaftLength/2
+            baseCenter = ImVec2(parentSpring->centerX, springTop + step1Length - shaftLength/2);
         } else {
-            // Center step1 on the bottom of the spring (overlap)
-            baseCenter = ImVec2(parentSpring->centerX, parentSpring->centerY + fl/2 - step1Length/2);
+            // Bottom end: step1 top sits at springBottom (slight overlap into spring)
+            // Drawing code for bottom: y0=baseCenter.y-shaftLength/2, y3=y0+shaftLength
+            // Step1 drawn starting at y0, step3 at bottom (y3)
+            // We want step1 (top of shaft) to overlap spring, so y0 ≈ springBottom - step1Length
+            // Therefore baseCenter.y = y0 + shaftLength/2 = springBottom - step1Length + shaftLength/2
+            baseCenter = ImVec2(parentSpring->centerX, springBottom - step1Length + shaftLength/2);
         }
     }
 

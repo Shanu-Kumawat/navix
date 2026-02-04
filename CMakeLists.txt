@@ -50,8 +50,16 @@ else()
     
     # Find SDL2 using pkg-config on Linux
     pkg_check_modules(SDL2 REQUIRED sdl2)
-    pkg_check_modules(SDL2_IMAGE REQUIRED SDL2_image)
-    link_directories(${SDL2_LIBRARY_DIRS} ${SDL2_IMAGE_LIBRARY_DIRS})
+    pkg_check_modules(SDL2_IMAGE SDL2_image)
+    if(SDL2_IMAGE_FOUND)
+        message(STATUS "SDL2_image found - image loading will be enabled")
+        link_directories(${SDL2_LIBRARY_DIRS} ${SDL2_IMAGE_LIBRARY_DIRS})
+        add_definitions(-DHAVE_SDL2_IMAGE)
+    else()
+        message(WARNING "SDL2_image not found - image loading will be disabled")
+        set(SDL2_IMAGE_LIBRARIES "")
+        set(SDL2_IMAGE_INCLUDE_DIRS "")
+    endif()
 endif()
 
 # Set OpenGL preference to GLVND

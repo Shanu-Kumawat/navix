@@ -9,7 +9,9 @@
 #include <algorithm> // For std::clamp
 #include <unordered_map>
 #include <string>
+#ifdef HAVE_SDL2_IMAGE
 #include <SDL2/SDL_image.h>  // For PNG loading
+#endif
 #include "BellowsViewer3D.hpp"
 #include "BallBearingViewer3D.hpp"
 #include "SpringViewer3D.hpp"
@@ -120,6 +122,14 @@ static bool spring3DViewInitialized = false;
 // Add a flag for the new 3D Shock Absorber viewer
 static bool shockAbsorber3DViewInitialized = false;
 
+// 3D Viewers for Bellows, Ball Bearing, and Shock Absorber
+static BellowsViewer3D bellowsViewer;
+static bool bellows3DViewInitialized = false;
+static BallBearingViewer3D ballBearingViewer;
+static bool ballBearing3DViewInitialized = false;
+static ShockAbsorberViewer3D shockAbsorberViewer;
+static bool shockAbsorberViewerInitialized = false;
+
 // Unified 3D Manager for all complex shapes
 static ComplexShape3DManager shape3DManager;
 static bool showBellows3DView = false;
@@ -208,6 +218,8 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas);
 // Forward declare the remaining 3D view functions (unified system handles others)
 void RenderSpring3DViewWindow(Drawing::Canvas &canvas);
 void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas);
+void RenderBellows3DViewWindow(Drawing::Canvas &canvas);
+void RenderBallBearing3DViewWindow(Drawing::Canvas &canvas);
 
 // Helper function to handle tool selection
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas,
@@ -215,6 +227,106 @@ void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas,
   UIState::activeMode = mode;
   canvas.setDrawingMode(mode);
   UIState::consoleMessage = message;
+}
+
+// Implementation of missing 3D view rendering functions
+void RenderSpring3DViewWindow(Drawing::Canvas &canvas) {
+  if (!UIState::spring3DViewInitialized) {
+    UIState::springViewer.initialize();
+    UIState::spring3DViewInitialized = true;
+  }
+  
+  if (ImGui::Begin("Spring 3D View", &UIState::showSpring3DView)) {
+    // Get available content region size for dynamic viewport
+    ImVec2 availableSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    
+    // Get the currently selected Spring2D from the canvas
+    const Drawing::Shape* selectedShape = canvas.getSelectedShape();
+    if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
+      const Drawing::Spring2D* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
+      UIState::springViewer.render(spring, viewportSize);
+    } else {
+      ImGui::Text("No Spring2D selected. Please select a Spring2D to view in 3D.");
+    }
+  }
+  ImGui::End();
+}
+
+void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas) {
+  if (!UIState::shockAbsorberViewerInitialized) {
+    UIState::shockAbsorberViewer.initialize();
+    UIState::shockAbsorberViewerInitialized = true;
+  }
+  
+  if (ImGui::Begin("Shock Absorber 3D View", &UIState::showShockAbsorber3DView)) {
+    // Get available content region size for dynamic viewport
+    ImVec2 availableSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    
+    // Find complete shock absorber assemblies
+    auto assemblies = canvas.findShockAbsorberAssemblies();
+    if (!assemblies.empty()) {
+      // Render the first complete assembly
+      const auto& assembly = assemblies[0];
+      UIState::shockAbsorberViewer.render(assembly.spring, assembly.topEnd, assembly.bottomEnd, viewportSize);
+    } else {
+      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "No complete shock absorber assembly found.");
+      ImGui::Spacing();
+      ImGui::TextWrapped("To create a shock absorber assembly:");
+      ImGui::BulletText("1. Draw a Spring (use Spring tool)");
+      ImGui::BulletText("2. Select the Spring");
+      ImGui::BulletText("3. Click 'Add Top End' button");
+      ImGui::BulletText("4. Click 'Add Bottom End' button");
+    }
+  }
+  ImGui::End();
+}
+
+void RenderBellows3DViewWindow(Drawing::Canvas &canvas) {
+  if (!UIState::bellows3DViewInitialized) {
+    UIState::bellowsViewer.initialize();
+    UIState::bellows3DViewInitialized = true;
+  }
+  
+  if (ImGui::Begin("Bellows 3D View", &UIState::showBellows3DView)) {
+    // Get available content region size for dynamic viewport
+    ImVec2 availableSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    
+    // Get the currently selected Bellows from the canvas
+    const Drawing::Shape* selectedShape = canvas.getSelectedShape();
+    if (selectedShape && selectedShape->type == Drawing::ShapeType::BELLOWS) {
+      const Drawing::Bellows* bellows = static_cast<const Drawing::Bellows*>(selectedShape);
+      UIState::bellowsViewer.render(bellows, viewportSize);
+    } else {
+      ImGui::Text("No Bellows selected. Please select a Bellows to view in 3D.");
+    }
+  }
+  ImGui::End();
+}
+
+void RenderBallBearing3DViewWindow(Drawing::Canvas &canvas) {
+  if (!UIState::ballBearing3DViewInitialized) {
+    UIState::ballBearingViewer.initialize();
+    UIState::ballBearing3DViewInitialized = true;
+  }
+  
+  if (ImGui::Begin("Ball Bearing 3D View", &UIState::showBallBearing3DView)) {
+    // Get available content region size for dynamic viewport
+    ImVec2 availableSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    
+    // Get the currently selected Ball Bearing from the canvas
+    const Drawing::Shape* selectedShape = canvas.getSelectedShape();
+    if (selectedShape && selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
+      const Drawing::BallBearing* ballBearing = static_cast<const Drawing::BallBearing*>(selectedShape);
+      UIState::ballBearingViewer.render(ballBearing, viewportSize);
+    } else {
+      ImGui::Text("No Ball Bearing selected. Please select a Ball Bearing to view in 3D.");
+    }
+  }
+  ImGui::End();
 }
 
 void SetupImGuiStyle() {
@@ -735,49 +847,164 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   // Get the selected shape
   const Drawing::Shape* selectedShape = canvas.getSelectedShape();
 
-  // Always show Add ShockAbsorberEnd2D and 3D View buttons for Spring2D selection
+  // Show Shock Absorber Assembly Builder when a Spring2D is selected
   if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
-    ImGui::Separator();
-    ImGui::Text("Spring2D Actions:");
-    if (ImGui::Button("Add ShockAbsorberEnd2D")) {
-      auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
-      auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
-      canvas.addShape(std::move(end));
-    }
-    if (ImGui::Button("Add ShockAbsorberBottomEnd")) {
-      auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
-      auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
-      canvas.addShape(std::move(bottomEnd));
-    }
-    if (ImGui::Button("3D View")) {
-      UIState::showSpring3DView = true;
-    }
-    // Add the new 3D Shock Absorber button (only enabled if there's a complete assembly)
-    bool hasCompleteAssembly = canvas.hasCompleteShockAbsorberAssembly();
+    auto* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
     
-    // Debug output (remove this later)
-    auto assemblies = canvas.findShockAbsorberAssemblies();
-    static int debugCounter = 0;
-    if (debugCounter % 60 == 0) { // Print every 60 frames (~1 second)
-        printf("Debug: Found %d assemblies, hasComplete=%d\n", (int)assemblies.size(), hasCompleteAssembly);
-    }
-    debugCounter++;
-    
-    if (!hasCompleteAssembly) {
-      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));  // Gray out the button
-      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));     // Gray out text
-    }
-    
-    if (ImGui::Button("3D Shock Absorber") && hasCompleteAssembly) {
-      UIState::showShockAbsorber3DView = true;
-    }
-    
-    if (!hasCompleteAssembly) {
-      ImGui::PopStyleColor(2);  // Pop both colors
-      if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Create a complete shock absorber assembly (spring + top end + bottom end) to enable 3D view");
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+    if (ImGui::CollapsingHeader("Shock Absorber Assembly", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::PopStyleColor();
+      ImGui::Indent(10);
+      
+      // Show current assembly status
+      auto assemblies = canvas.findShockAbsorberAssemblies();
+      bool hasTopEnd = false;
+      bool hasBottomEnd = false;
+      
+      // Check if this spring has associated ends
+      for (const auto& assembly : assemblies) {
+        if (assembly.spring == spring) {
+          hasTopEnd = (assembly.topEnd != nullptr);
+          hasBottomEnd = (assembly.bottomEnd != nullptr);
+          break;
+        }
       }
+      
+      // Also check all shapes for ends associated with this spring
+      for (const auto& shape : canvas.getShapes()) {
+        if (shape->type == Drawing::ShapeType::SHOCK_ABSORBER_END_2D) {
+          auto* end = static_cast<const Drawing::ShockAbsorberEnd2D*>(shape.get());
+          if (end->parentSpring == spring) {
+            hasTopEnd = true;
+          }
+        } else if (shape->type == Drawing::ShapeType::SHOCK_ABSORBER_BOTTOM_END) {
+          auto* bottomEnd = static_cast<const Drawing::ShockAbsorberBottomEnd*>(shape.get());
+          if (bottomEnd->parentSpring == spring) {
+            hasBottomEnd = true;
+          }
+        }
+      }
+      
+      ImGui::Text("Assembly Status:");
+      ImGui::Spacing();
+      
+      // Spring status (always present since we selected it)
+      ImGui::TextColored(ImVec4(0.0f, 0.8f, 0.0f, 1.0f), "  [OK] Spring");
+      
+      // Top End status
+      if (hasTopEnd) {
+        ImGui::TextColored(ImVec4(0.0f, 0.8f, 0.0f, 1.0f), "  [OK] Top End (Piston Rod)");
+      } else {
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "  [ ] Top End (Piston Rod)");
+      }
+      
+      // Bottom End status
+      if (hasBottomEnd) {
+        ImGui::TextColored(ImVec4(0.0f, 0.8f, 0.0f, 1.0f), "  [OK] Bottom End (Mount)");
+      } else {
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "  [ ] Bottom End (Mount)");
+      }
+      
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      
+      // Add component buttons
+      ImGui::Text("Add Components:");
+      ImGui::Spacing();
+      
+      float buttonWidth = ImGui::GetContentRegionAvail().x - 10;
+      
+      // Add Top End button
+      if (hasTopEnd) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+      }
+      if (ImGui::Button("Add Top End (Piston Rod)", ImVec2(buttonWidth, 0)) && !hasTopEnd) {
+        auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
+        canvas.addShape(std::move(end));
+        UIState::consoleMessage = "Added piston rod (top end)";
+      }
+      if (hasTopEnd) {
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Top end already added");
+        }
+      }
+      
+      // Add Bottom End button
+      if (hasBottomEnd) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+      }
+      if (ImGui::Button("Add Bottom End (Mount)", ImVec2(buttonWidth, 0)) && !hasBottomEnd) {
+        auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
+        canvas.addShape(std::move(bottomEnd));
+        UIState::consoleMessage = "Added mounting plate (bottom end)";
+      }
+      if (hasBottomEnd) {
+        ImGui::PopStyleColor(2);
+        if (ImGui::IsItemHovered()) {
+          ImGui::SetTooltip("Bottom end already added");
+        }
+      }
+      
+      // Create Complete Assembly button (adds both if missing)
+      if (!hasTopEnd || !hasBottomEnd) {
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.5f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.6f, 0.3f, 1.0f));
+        if (ImGui::Button("Create Complete Assembly", ImVec2(buttonWidth, 30))) {
+          if (!hasTopEnd) {
+            auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
+            canvas.addShape(std::move(end));
+          }
+          if (!hasBottomEnd) {
+            auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
+            canvas.addShape(std::move(bottomEnd));
+          }
+          UIState::consoleMessage = "Created complete shock absorber assembly";
+        }
+        ImGui::PopStyleColor(2);
+      }
+      
+      ImGui::Spacing();
+      ImGui::Separator();
+      ImGui::Spacing();
+      
+      // 3D View buttons
+      ImGui::Text("3D Visualization:");
+      ImGui::Spacing();
+      
+      if (ImGui::Button("View Spring in 3D", ImVec2(buttonWidth, 0))) {
+        UIState::showSpring3DView = true;
+      }
+      
+      bool hasCompleteAssembly = hasTopEnd && hasBottomEnd;
+      if (!hasCompleteAssembly) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+      } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.7f, 1.0f));
+      }
+      
+      if (ImGui::Button("View Shock Absorber in 3D", ImVec2(buttonWidth, 30)) && hasCompleteAssembly) {
+        UIState::showShockAbsorber3DView = true;
+        UIState::consoleMessage = "Opening 3D Shock Absorber View";
+      }
+      
+      ImGui::PopStyleColor(2);
+      if (!hasCompleteAssembly && ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Add both top and bottom ends to enable 3D view");
+      }
+      
+      ImGui::Unindent(10);
+    } else {
+      ImGui::PopStyleColor();
     }
+    
+    ImGui::Separator();
   }
 
   // Add some spacing before the scrollable content
@@ -1933,13 +2160,19 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
 
 // Function to load a PNG icon into an OpenGL texture
 GLuint LoadIconTexture(const std::string& iconPath, ImVec2& outSize) {
+#ifdef HAVE_SDL2_IMAGE
   // Try to load the image using SDL_image
   SDL_Surface* surface = IMG_Load(iconPath.c_str());
   if (!surface) {
     std::cout << "Failed to load icon: " << iconPath << " - " << IMG_GetError() << std::endl;
     return 0;
   }
+#else
+  std::cout << "SDL2_image not available - cannot load icon: " << iconPath << std::endl;
+  return 0;
+#endif
   
+#ifdef HAVE_SDL2_IMAGE
   // Convert to RGBA if necessary
   SDL_Surface* rgba_surface = nullptr;
   if (surface->format->format != SDL_PIXELFORMAT_RGBA32) {
@@ -1973,10 +2206,12 @@ GLuint LoadIconTexture(const std::string& iconPath, ImVec2& outSize) {
   
   std::cout << "Successfully loaded icon: " << iconPath << " (" << outSize.x << "x" << outSize.y << ")" << std::endl;
   return texture;
+#endif
 }
 
 // Function to load all icon textures
 void LoadIconTextures() {
+#ifdef HAVE_SDL2_IMAGE
   // Initialize SDL_image if not already done
   static bool sdl_image_initialized = false;
   if (!sdl_image_initialized) {
@@ -1987,6 +2222,10 @@ void LoadIconTextures() {
     }
     sdl_image_initialized = true;
   }
+#else
+  std::cout << "SDL2_image not available - icon loading disabled" << std::endl;
+  return;
+#endif
   
   // Define icon files and their names based on converted PNG files
   std::vector<std::pair<std::string, std::string>> iconFiles = {
@@ -2116,6 +2355,7 @@ int main(int argc, char* argv[]) {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigWindowsMoveFromTitleBarOnly = true;  // Only allow window dragging from title bar
 
     // Setup Dear ImGui style
     SetupImGuiStyle();
@@ -2163,6 +2403,24 @@ int main(int argc, char* argv[]) {
         RenderCanvas(canvas);
         RenderPropertyPanel(canvas);
         RenderStatusBar(canvas);
+
+        // Render 3D views if enabled
+        if (UIState::showBellows3DView) {
+          RenderBellows3DViewWindow(canvas);
+        }
+        
+        if (UIState::showBallBearing3DView) {
+          RenderBallBearing3DViewWindow(canvas);
+        }
+        
+        // Note: The 3D views need to be implemented to work with the canvas shapes
+        // For now, the 3D view flags are being set but the rendering needs shape data
+        if (UIState::showSpring3DView) {
+            RenderSpring3DViewWindow(canvas);
+        }
+        if (UIState::showShockAbsorber3DView) {
+            RenderShockAbsorber3DViewWindow(canvas);
+        }
 
         // Rendering
         ImGui::Render();

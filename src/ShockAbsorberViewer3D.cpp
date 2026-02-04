@@ -72,6 +72,33 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
     // Display the rendered texture
     std::cout << "Displaying rendered texture..." << std::endl;
     displayRenderedTexture(windowSize);
+    
+    // Handle mouse interactions for camera control using ImGui
+    if (ImGui::IsWindowHovered()) {
+        ImGuiIO& io = ImGui::GetIO();
+        
+        // Handle mouse drag for camera rotation
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            if (delta.x != 0.0f || delta.y != 0.0f) {
+                camera->ProcessMouseMovement(delta.x, -delta.y);
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+            }
+        }
+        
+        // Handle mouse wheel for zoom
+        if (io.MouseWheel != 0.0f) {
+            camera->ProcessMouseScroll(io.MouseWheel);
+        }
+        
+        // Handle keyboard input for camera movement
+        float deltaTime = 0.1f;
+        if (ImGui::IsKeyDown(ImGuiKey_W)) camera->ProcessKeyboard(FORWARD, deltaTime);
+        if (ImGui::IsKeyDown(ImGuiKey_S)) camera->ProcessKeyboard(BACKWARD, deltaTime);
+        if (ImGui::IsKeyDown(ImGuiKey_A)) camera->ProcessKeyboard(LEFT, deltaTime);
+        if (ImGui::IsKeyDown(ImGuiKey_D)) camera->ProcessKeyboard(RIGHT, deltaTime);
+        if (ImGui::IsKeyPressed(ImGuiKey_R)) camera->Reset();
+    }
 }
 
 void ShockAbsorberViewer3D::handleInput(const SDL_Event& event) {

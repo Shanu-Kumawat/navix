@@ -123,8 +123,18 @@ void Base3DViewer::processStandardMouseInput(const SDL_Event& event) {
     } else if (event.type == SDL_MOUSEMOTION && mousePressed) {
         float xpos = static_cast<float>(event.motion.x);
         float ypos = static_cast<float>(event.motion.y);
+        
+        // Calculate mouse movement offsets
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; // Reversed since y-coordinates range from bottom to top
+        
         lastX = xpos;
         lastY = ypos;
+        
+        // Apply camera rotation
+        if (camera) {
+            camera->ProcessMouseMovement(xoffset, yoffset);
+        }
     } else if (event.type == SDL_MOUSEWHEEL) {
         camera->ProcessMouseScroll(static_cast<float>(event.wheel.y));
     }

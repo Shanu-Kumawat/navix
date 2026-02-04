@@ -105,6 +105,8 @@ void Canvas::handleSelection(const ImVec2& mousePos) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         clearSelection(); // Use our new method to properly clear selection
         
+        std::cout << "Selection click at: (" << mousePos.x << ", " << mousePos.y << ")\n";
+        
         // First check specifically for bellows shapes as they can be harder to select
         bool bellowsSelected = false;
         for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
@@ -121,23 +123,36 @@ void Canvas::handleSelection(const ImVec2& mousePos) {
         
         // If no bellows was selected, try other shapes
         if (!bellowsSelected) {
-            // Check all shapes for selection
+            // Check all shapes for selection - prioritize Spring2D and shock absorber components
+            // First pass: check Spring2D specifically (they should be selectable even when overlapped by ends)
             for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
                 auto& shape = *it;
                 if (shape->type == ShapeType::SPRING2D) {
                     auto* spring = static_cast<Spring2D*>(shape.get());
                     if (spring->isPointInBoundingBox(mousePos, Constants::SNAP_THRESHOLD / zoomLevel)) {
                         selectedShape = shape.get();
-                        std::cout << "Spring2D selected!\n";
+                        std::cout << "Spring2D selected at (" << spring->centerX << ", " << spring->centerY << ")!\n";
                         break;
                     }
-                } else if (shape->isPointNear(mousePos, Constants::SNAP_THRESHOLD / zoomLevel)) {
-                    selectedShape = shape.get();
-                    // Set specific selection state for bellows
-                    if (selectedShape->type == ShapeType::BELLOWS) {
-                        static_cast<Bellows*>(selectedShape)->isSelected = true;
+                }
+            }
+            
+            // If no spring was selected, try shock absorber ends and other shapes
+            if (!selectedShape) {
+                for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
+                    auto& shape = *it;
+                    if (shape->type == ShapeType::SPRING2D) {
+                        continue; // Already checked
                     }
-                    break;
+                    if (shape->isPointNear(mousePos, Constants::SNAP_THRESHOLD / zoomLevel)) {
+                        selectedShape = shape.get();
+                        std::cout << "Shape selected, type: " << static_cast<int>(shape->type) << "\n";
+                        // Set specific selection state for bellows
+                        if (selectedShape->type == ShapeType::BELLOWS) {
+                            static_cast<Bellows*>(selectedShape)->isSelected = true;
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -223,10 +238,23 @@ void Canvas::render(ImDrawList* drawList) {
                 // Generate profile points
                 std::vector<ImVec2> profilePoints = bellows->generateProfile();
                 
+                // Apply rotation and translation (same as rendering code)
+                float s = sin(bellows->angle);
+                float c = cos(bellows->angle);
+                
                 // Draw selection outline around the bellows
                 for (size_t i = 0; i < profilePoints.size() - 1; ++i) {
-                    ImVec2 p1 = transformCoordinates(profilePoints[i]);
-                    ImVec2 p2 = transformCoordinates(profilePoints[i + 1]);
+                    // Rotate and translate points
+                    float rotatedX1 = profilePoints[i].x * c - profilePoints[i].y * s;
+                    float rotatedY1 = profilePoints[i].x * s + profilePoints[i].y * c;
+                    float rotatedX2 = profilePoints[i+1].x * c - profilePoints[i+1].y * s;
+                    float rotatedY2 = profilePoints[i+1].x * s + profilePoints[i+1].y * c;
+                    
+                    ImVec2 worldP1(bellows->position.x + rotatedX1, bellows->position.y + rotatedY1);
+                    ImVec2 worldP2(bellows->position.x + rotatedX2, bellows->position.y + rotatedY2);
+                    
+                    ImVec2 p1 = transformCoordinates(worldP1);
+                    ImVec2 p2 = transformCoordinates(worldP2);
                     drawList->AddLine(p1, p2, selectionColor, bellows->thickness + 2.0f);
                 }
                 break;

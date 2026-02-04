@@ -59,79 +59,81 @@ void SpringViewer3D::resizeFramebuffer(int width, int height) {
     }
 }
 
-void SpringViewer3D::render(const Drawing::Spring2D* spring, ImVec2 /*windowSize*/) {
-    ImGui::Text("3D Spring Viewport Active");
-
+void SpringViewer3D::render(const Drawing::Spring2D* spring, ImVec2 windowSize) {
     if (!springModel || !camera || !shader) {
         ImGui::Text("Spring model, camera, or shader not initialized!");
         return;
     }
 
-    // Debug panel: show spring parameters
-    if (spring) {
-        ImGui::Text("Spring2D parameters:");
-        ImGui::Text("centerX: %.2f", spring->centerX);
-        ImGui::Text("centerY: %.2f", spring->centerY);
-        ImGui::Text("outerDiameter: %.2f", spring->outerDiameter);
-        ImGui::Text("wireDiameter: %.2f", spring->wireDiameter);
-        ImGui::Text("freeLength: %.2f", spring->freeLength);
-        ImGui::Text("numCoils: %d", spring->numCoils);
-    } else {
-        ImGui::Text("No 2D spring selected! Showing default spring.");
-    }
-
-    // Use a fixed framebuffer size
-    int fixedWidth = 800;
-    int fixedHeight = 600;
-    resizeFramebuffer(fixedWidth, fixedHeight);
+    // Update framebuffer if window size changed
+    int width = static_cast<int>(windowSize.x);
+    int height = static_cast<int>(windowSize.y);
+    if (width <= 0) width = 800;
+    if (height <= 0) height = 600;
+    resizeFramebuffer(width, height);
 
     // Use selected spring or a default visible spring
     Drawing::Spring2D defaultSpring(0.0f, 0.0f, 100.0f, 10.0f, 200.0f, 8);
     const Drawing::Spring2D* springToRender = spring ? spring : &defaultSpring;
-    bool usedDefault = false;
     if (!spring || spring->outerDiameter <= 0.0f || spring->wireDiameter <= 0.0f ||
         spring->freeLength <= 0.0f || spring->numCoils <= 0 ||
         spring->outerDiameter <= spring->wireDiameter) {
         springToRender = &defaultSpring;
-        usedDefault = true;
     }
+    
     springModel->generateMesh(springToRender);
     springModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);
     springModel->setLight(glm::vec3(2.0f, 3.0f, 2.0f), lightColor);
     springModel->setRenderMode(renderMode);
 
-    if (usedDefault) {
-        ImGui::TextColored(ImVec4(1,0.5,0.5,1), "Invalid spring parameters! Showing default spring.");
-    }
-
+    // Bind framebuffer and render
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-        ImGui::Text("Framebuffer incomplete! (width: %d, height: %d)", fixedWidth, fixedHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        ImGui::Text("Framebuffer error!");
         return;
     }
-    if (!springModel || !springModel->hasMesh()) {
-        ImGui::Text("No mesh to display!");
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        return;
-    }
+    
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, fixedWidth, fixedHeight);
-    float aspectRatio = static_cast<float>(fixedWidth) / static_cast<float>(fixedHeight);
+    glViewport(0, 0, width, height);
+    
+    float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
     glm::mat4 projection = glm::perspective(glm::radians(camera->Zoom), aspectRatio, 0.1f, 100.0f);
     glm::mat4 view = camera->GetViewMatrix();
     springModel->render(projection, view, camera->Position);
+    
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    ImGui::Image((ImTextureID)(intptr_t)textureColorBuffer, ImVec2(fixedWidth, fixedHeight), ImVec2(0, 1), ImVec2(1, 0));
+    
+    // Display the rendered texture
+    ImGui::Image((ImTextureID)(intptr_t)textureColorBuffer, windowSize, ImVec2(0, 1), ImVec2(1, 0));
 
-    ImVec2 mousePos = ImGui::GetIO().MousePos;
-    ImVec2 windowPos = ImGui::GetWindowPos();
-    if (ImGui::IsWindowHovered() && mousePressed) {
-        float mouseX = mousePos.x - windowPos.x;
-        float mouseY = mousePos.y - windowPos.y;
-        springModel->processMouseMovement(mouseX, mouseY);
+    // Handle mouse interactions for camera control using ImGui
+    if (ImGui::IsWindowHovered()) {
+        ImGuiIO& io = ImGui::GetIO();
+        
+        // Handle mouse drag for camera rotation
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            if (delta.x != 0.0f || delta.y != 0.0f) {
+                camera->ProcessMouseMovement(delta.x, -delta.y);
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+            }
+        }
+        
+        // Handle mouse wheel for zoom
+        if (io.MouseWheel != 0.0f) {
+            camera->ProcessMouseScroll(io.MouseWheel);
+        }
+        
+        // Handle keyboard input for camera movement
+        float deltaTime = 0.1f;
+        if (ImGui::IsKeyDown(ImGuiKey_W)) camera->ProcessKeyboard(FORWARD, deltaTime);
+        if (ImGui::IsKeyDown(ImGuiKey_S)) camera->ProcessKeyboard(BACKWARD, deltaTime);
+        if (ImGui::IsKeyDown(ImGuiKey_A)) camera->ProcessKeyboard(LEFT, deltaTime);
+        if (ImGui::IsKeyDown(ImGuiKey_D)) camera->ProcessKeyboard(RIGHT, deltaTime);
+        if (ImGui::IsKeyPressed(ImGuiKey_R)) camera->Reset();
     }
 }
 

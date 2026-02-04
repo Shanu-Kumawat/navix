@@ -35,10 +35,12 @@ void SpringModel3D::generateMesh(const Drawing::Spring2D* spring) {
 }
 
 void SpringModel3D::generateHelicalMesh(const Drawing::Spring2D* spring, int radialSegments, int helixSegments) {
-    float R = spring->outerDiameter / 2.0f - spring->wireDiameter / 2.0f; // Helix radius
-    float r = spring->wireDiameter / 2.0f; // Wire radius
-    float pitch = spring->freeLength / spring->numCoils;
-    float totalLength = spring->freeLength;
+    // Scale factor to convert from mm/pixels to reasonable 3D units
+    float scale = 1.0f / 100.0f;
+    
+    float R = (spring->outerDiameter / 2.0f - spring->wireDiameter / 2.0f) * scale; // Helix radius
+    float r = (spring->wireDiameter / 2.0f) * scale; // Wire radius
+    float totalLength = spring->freeLength * scale;
     int coils = spring->numCoils;
     float centerY = 0.0f;
     // Generate vertices
