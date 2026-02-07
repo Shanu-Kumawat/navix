@@ -150,6 +150,8 @@ void Canvas::handleSelection(const ImVec2& mousePos) {
                         // Set specific selection state for bellows
                         if (selectedShape->type == ShapeType::BELLOWS) {
                             static_cast<Bellows*>(selectedShape)->isSelected = true;
+                        } else if (selectedShape->type == ShapeType::BALL_BEARING) {
+                            static_cast<BallBearing*>(selectedShape)->isSelected = true;
                         }
                         break;
                     }
@@ -2042,44 +2044,98 @@ void Canvas::drawShape(const Shape& shape) const {
         case ShapeType::SHOCK_ABSORBER_END_2D: {
             const auto& end = static_cast<const ShockAbsorberEnd2D&>(shape);
             float x = end.baseCenter.x;
+            float od = end.parentSpring->outerDiameter;
+            float wd = end.parentSpring->wireDiameter;
+            float fl = end.parentSpring->freeLength;
+            
+            // New dimensions matching the 3D model reference
+            float damperTubeWidth = wd * 1.2f;  // Thicker outer tube from top
+            float pistonRodWidth = wd * 0.5f;  // Thin central rod from bottom
+            float collarHeight = fl * 0.05f;
+            float collarWidth = od * 0.5f;
+            float nutHeight = fl * 0.08f;
+            float nutWidth = od * 0.4f;
+            float capHeight = fl * 0.06f;
+            float capWidth = od * 0.35f;
+            float springSeatWidth = od * 1.05f;
+            float springSeatThickness = fl * 0.035f;
+            
             if (end.position == EndPosition::Top) {
-                // Draw stepped shaft (section view, inverted: extends upward from top of spring)
-                float y3 = end.baseCenter.y - end.shaftLength / 2.0f;
-                float y2 = y3 + end.step3Length;
-                float y1 = y2 + end.step2Length;
-                float y0 = y1 + end.step1Length;
-                // Step 3 (top, smallest)
-                ImVec2 s3L(x - end.step3Diameter/2, y3);
-                ImVec2 s3R(x + end.step3Diameter/2, y3);
-                ImVec2 s3L2(x - end.step3Diameter/2, y2);
-                ImVec2 s3R2(x + end.step3Diameter/2, y2);
-                drawList->AddRect(transformCoordinates(s3L), transformCoordinates(s3R2), end.color, 0, 0, end.thickness);
-                // Step 2 (middle, spring seat)
-                ImVec2 s2L(x - end.step2Diameter/2, y2);
-                ImVec2 s2R(x + end.step2Diameter/2, y2);
-                ImVec2 s2L2(x - end.step2Diameter/2, y1);
-                ImVec2 s2R2(x + end.step2Diameter/2, y1);
-                drawList->AddRect(transformCoordinates(s2L), transformCoordinates(s2R2), end.color, 0, 0, end.thickness);
-                // Step 1 (bottom, largest)
-                ImVec2 s1L(x - end.step1Diameter/2, y1);
-                ImVec2 s1R(x + end.step1Diameter/2, y1);
-                ImVec2 s1L2(x - end.step1Diameter/2, y0);
-                ImVec2 s1R2(x + end.step1Diameter/2, y0);
-                drawList->AddRect(transformCoordinates(s1L), transformCoordinates(s1R2), end.color, 0, 0, end.thickness);
-                // Central bore (section view: vertical rectangle)
-                float boreX1 = x - end.boreDiameter/2;
-                float boreX2 = x + end.boreDiameter/2;
-                ImVec2 boreL(boreX1, y3);
-                ImVec2 boreR(boreX2, y0);
-                drawList->AddRect(transformCoordinates(boreL), transformCoordinates(boreR), IM_COL32(200,200,200,255), 0, 0, end.thickness);
-                // Chamfers (draw as lines at ends)
-                ImVec2 chamferL1(x - end.step1Diameter/2, y0);
-                ImVec2 chamferL2(x - end.step1Diameter/2 + end.chamfer, y0 - end.chamfer);
-                ImVec2 chamferR1(x + end.step1Diameter/2, y0);
-                ImVec2 chamferR2(x + end.step1Diameter/2 - end.chamfer, y0 - end.chamfer);
-                drawList->AddLine(transformCoordinates(chamferL1), transformCoordinates(chamferL2), end.color, end.thickness);
-                drawList->AddLine(transformCoordinates(chamferR1), transformCoordinates(chamferR2), end.color, end.thickness);
+                // Top end: spring seat, damper tube going down into spring, collar, nut, and cap going upward
+                float springTop = end.parentSpring->centerY - fl / 2;
+                float springBottom = end.parentSpring->centerY + fl / 2;
+                
+                // Spring seat (wide flange at top of spring)
+                float seatBottom = springTop;
+                float seatTop = seatBottom - springSeatThickness;
+                ImVec2 seatL(x - springSeatWidth/2, seatTop);
+                ImVec2 seatR(x + springSeatWidth/2, seatBottom);
+                drawList->AddRect(transformCoordinates(seatL), transformCoordinates(seatR), end.color, 0, 0, end.thickness);
+                
+                // Damper tube (thicker tube extending DOWN into spring area - 70% into spring)
+                float tubeTop = seatBottom;
+                float tubeBottom = springTop + fl * 0.7f;  // Goes 70% down into spring
+                ImVec2 tubeL(x - damperTubeWidth/2, tubeTop);
+                ImVec2 tubeR(x + damperTubeWidth/2, tubeBottom);
+                drawList->AddRect(transformCoordinates(tubeL), transformCoordinates(tubeR), IM_COL32(160,160,160,255), 0, 0, end.thickness);
+                
+                // Piston rod from bottom (thinner rod extending UP into spring area - shown as dashed or different color)
+                // This represents the rod coming from the bottom mount
+                float rodBottom = springBottom;
+                float rodTop = springTop + fl * 0.3f;  // Goes 70% up into spring (overlaps with tube)
+                ImVec2 rodL(x - pistonRodWidth/2, rodTop);
+                ImVec2 rodR(x + pistonRodWidth/2, rodBottom);
+                drawList->AddRect(transformCoordinates(rodL), transformCoordinates(rodR), IM_COL32(200,200,200,255), 0, 0, end.thickness);
+                
+                // Collar (wider section above spring seat, below nut)
+                float collarBottom = seatTop;
+                float collarTop = collarBottom - collarHeight;
+                ImVec2 collarL(x - collarWidth/2, collarTop);
+                ImVec2 collarR(x + collarWidth/2, collarBottom);
+                drawList->AddRect(transformCoordinates(collarL), transformCoordinates(collarR), end.color, 0, 0, end.thickness);
+                
+                // Nut (hexagonal shape - in 2D shown as rectangle with diagonal lines)
+                float nutBottom = collarTop;
+                float nutTop = nutBottom - nutHeight;
+                ImVec2 nutL(x - nutWidth/2, nutTop);
+                ImVec2 nutR(x + nutWidth/2, nutBottom);
+                drawList->AddRect(transformCoordinates(nutL), transformCoordinates(nutR), end.color, 0, 0, end.thickness);
+                // Draw diagonal lines to indicate hex nut (cross-hatch pattern)
+                float hexOffset = nutWidth * 0.3f;
+                ImVec2 hexL1(x - hexOffset, nutTop);
+                ImVec2 hexL2(x - nutWidth/2, nutTop + nutHeight * 0.3f);
+                ImVec2 hexR1(x + hexOffset, nutTop);
+                ImVec2 hexR2(x + nutWidth/2, nutTop + nutHeight * 0.3f);
+                drawList->AddLine(transformCoordinates(hexL1), transformCoordinates(hexL2), end.color, end.thickness);
+                drawList->AddLine(transformCoordinates(hexR1), transformCoordinates(hexR2), end.color, end.thickness);
+                ImVec2 hexL3(x - hexOffset, nutBottom);
+                ImVec2 hexL4(x - nutWidth/2, nutBottom - nutHeight * 0.3f);
+                ImVec2 hexR3(x + hexOffset, nutBottom);
+                ImVec2 hexR4(x + nutWidth/2, nutBottom - nutHeight * 0.3f);
+                drawList->AddLine(transformCoordinates(hexL3), transformCoordinates(hexL4), end.color, end.thickness);
+                drawList->AddLine(transformCoordinates(hexR3), transformCoordinates(hexR4), end.color, end.thickness);
+                
+                // Cross-bars/handles extending from nut (horizontal mounting points)
+                float nutMid = (nutTop + nutBottom) / 2.0f;
+                float barExtend = nutWidth * 1.5f;  // How far bars extend
+                float barThick = nutHeight * 0.15f;
+                // Left bar
+                ImVec2 barLL(x - barExtend, nutMid - barThick);
+                ImVec2 barLR(x - nutWidth/2, nutMid + barThick);
+                drawList->AddRect(transformCoordinates(barLL), transformCoordinates(barLR), end.color, 0, 0, end.thickness);
+                // Right bar
+                ImVec2 barRL(x + nutWidth/2, nutMid - barThick);
+                ImVec2 barRR(x + barExtend, nutMid + barThick);
+                drawList->AddRect(transformCoordinates(barRL), transformCoordinates(barRR), end.color, 0, 0, end.thickness);
+                
+                // Cap (small cylinder on top)
+                float capBottom = nutTop;
+                float capTop = capBottom - capHeight;
+                ImVec2 capL(x - capWidth/2, capTop);
+                ImVec2 capR(x + capWidth/2, capBottom);
+                drawList->AddRect(transformCoordinates(capL), transformCoordinates(capR), end.color, 0, 0, end.thickness);
             } else {
+                // Bottom end: currently handled by ShockAbsorberBottomEnd
                 // Draw stepped shaft (section view, extends downward from bottom of spring)
                 float y0 = end.baseCenter.y - end.shaftLength / 2.0f;
                 float y1 = y0 + end.step1Length;
@@ -2999,6 +3055,9 @@ void Canvas::clearSelection() {
         } else if (selectedShape->type == ShapeType::BELLOWS) {
             auto* bellows = static_cast<Bellows*>(selectedShape);
             bellows->isSelected = false;
+        } else if (selectedShape->type == ShapeType::BALL_BEARING) {
+            auto* ballBearing = static_cast<BallBearing*>(selectedShape);
+            ballBearing->isSelected = false;
         }
         
         // Clear the main selection pointer

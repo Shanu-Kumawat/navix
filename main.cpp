@@ -99,6 +99,9 @@ static bool showCoordinates = true;
 static float zoomLevel = 1.0f;
 static ImVec2 panOffset = ImVec2(0.0f, 0.0f);
 
+// Resizable property panel width (user can drag to resize)
+static float userPropertyPanelWidth = 280.0f;
+
 // Layer system
 static int activeLayer = 0;
 static std::vector<std::string> layerNames = {"Layer 0"};
@@ -420,7 +423,7 @@ void SetupImGuiStyle() {
 void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Professional style ribbon at the top
   ImGui::SetNextWindowPos(ImVec2(0, 0));
-  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 130)); // Increased from 110 to accommodate taller panels
+  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 145)); // Increased to fit View panel with slider
 
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
   ImGui::Begin("Ribbon", nullptr,
@@ -435,7 +438,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   const float panelWidth = (availWidth - 130 - panelSpacing*2) / 3;
   
   // Calculate button sizes based on panel width and content
-  const float panelHeight = 140.0f; // Increased from 120.0f to show more buttons
+  const float panelHeight = 125.0f; // Height to fit View panel contents
   
   // For icon buttons, calculate size based on icon size and ensure proper centering
   const float iconSize = 20.0f; // Size of the icon font
@@ -663,7 +666,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   
   // Grid and snap toggles with reduced width elements
   bool showGrid = canvas.isGridVisible();
-  ImGui::PushItemWidth(panelWidth * 0.7f);
+  ImGui::PushItemWidth(80.0f); // Fixed width for slider that fits in panel
   if (ImGui::Checkbox("Grid", &showGrid)) {
     canvas.setShowGrid(showGrid);
     UIState::consoleMessage = showGrid ? "Grid: ON" : "Grid: OFF";
@@ -833,16 +836,28 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
 }
 
 void RenderPropertyPanel(Drawing::Canvas &canvas) {
-  // Calculate property panel width - make it responsive
+  // Calculate property panel width - user can resize horizontally
   const float screenWidth = ImGui::GetIO().DisplaySize.x;
-  const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f); // Increased from 300.0f and 0.2f for wider panel
-  const float propertyPanelMinWidth = 300.0f; // Increased from 250.0f for better text accommodation
-  const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
-  ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - actualPanelWidth, 95));
-  ImGui::SetNextWindowSize(ImVec2(actualPanelWidth, ImGui::GetIO().DisplaySize.y - 150));
+  const float propertyPanelMinWidth = 220.0f; // Minimum width
+  const float propertyPanelMaxWidth = screenWidth * 0.4f; // Maximum 40% of screen
+  const float ribbonHeight = 145.0f; // Match ribbon height
+  const float statusBarHeight = 28.0f;
+  
+  // Clamp user width to valid range
+  UIState::userPropertyPanelWidth = std::max(propertyPanelMinWidth, std::min(propertyPanelMaxWidth, UIState::userPropertyPanelWidth));
+  
+  ImGui::SetNextWindowPos(ImVec2(screenWidth - UIState::userPropertyPanelWidth, ribbonHeight), ImGuiCond_Always);
+  ImGui::SetNextWindowSize(ImVec2(UIState::userPropertyPanelWidth, ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight), ImGuiCond_Always);
+  
+  // Allow horizontal resize only (NoMove keeps vertical position fixed)
   ImGui::Begin("Properties", nullptr,
-               ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                   ImGuiWindowFlags_NoCollapse);
+               ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+  
+  // Update stored width if user resized the window
+  ImVec2 currentSize = ImGui::GetWindowSize();
+  if (currentSize.x != UIState::userPropertyPanelWidth) {
+    UIState::userPropertyPanelWidth = currentSize.x;
+  }
 
   // Get the selected shape
   const Drawing::Shape* selectedShape = canvas.getSelectedShape();
@@ -1415,8 +1430,8 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         // Overall dimensions with validation
         float overallLength = bellows->calculateOverallLength();
         
-        // Calculate available width for each control
-        const float availWidth = ImGui::GetContentRegionAvail().x * 0.85f;
+        // Calculate available width for each control - use 55% to leave room for labels
+        const float availWidth = ImGui::GetContentRegionAvail().x * 0.55f;
         ImGui::PushItemWidth(availWidth);
         
         if (ImGui::DragFloat("Overall Length (mm)", &overallLength, 1.0f, 20.0f, 1000.0f, "%.1f")) {
@@ -1608,14 +1623,14 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         
         ImGui::SeparatorText("Ball Bearing Design Module");
         
-        // Calculate available width for each control
-        const float availWidth = ImGui::GetContentRegionAvail().x * 0.85f;
+        // Calculate available width for each control - use 55% to leave room for labels
+        const float availWidth = ImGui::GetContentRegionAvail().x * 0.55f;
         ImGui::PushItemWidth(availWidth);
         
         // Overall dimensions with validation
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.2f, 0.3f, 0.7f));
         if (ImGui::CollapsingHeader("Main Dimensions", ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::PushItemWidth(availWidth);
+          ImGui::PushItemWidth(availWidth * 0.95f);
           
           bool validDiameters = ballBearing->innerDiameter < ballBearing->outerDiameter &&
                                ballBearing->ballDiameter < (ballBearing->outerDiameter - ballBearing->innerDiameter) / 2.0f;
@@ -1647,7 +1662,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         // Ball parameters
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.1f, 0.3f, 0.2f, 0.7f));
         if (ImGui::CollapsingHeader("Ball Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::PushItemWidth(availWidth);
+          ImGui::PushItemWidth(availWidth * 0.95f);
           
           float maxBallDiameter = (ballBearing->outerDiameter - ballBearing->innerDiameter) / 2.5f;
           if (ImGui::DragFloat("Ball Diameter (mm)", &ballBearing->ballDiameter, 0.5f, 1.0f, maxBallDiameter, "%.1f")) {
@@ -1854,18 +1869,13 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
 void RenderCanvas(Drawing::Canvas &canvas) {
   // Adjust canvas position and size to account for the ribbon and status bar
   // Using simplified UI layout (no tabs, single row of tools)
-  const float ribbonHeight = 130.0f; // Updated height for taller ribbon with scrollable panels
+  const float ribbonHeight = 145.0f; // Updated height to match ribbon with View slider
   const float statusBarHeight = 28.0f; // Just status bar now, no command line
   
-  // Calculate property panel width - make it responsive
-  const float screenWidth = ImGui::GetIO().DisplaySize.x;
-  const float propertyPanelWidth = std::min(350.0f, screenWidth * 0.25f); // Increased from 300.0f and 0.2f for wider panel
-  const float propertyPanelMinWidth = 300.0f; // Increased from 250.0f for better text accommodation
-  const float actualPanelWidth = std::max(propertyPanelMinWidth, propertyPanelWidth);
-  
+  // Use the user-resizable property panel width
   float canvasX = 0.0f;
   float canvasY = ribbonHeight;
-  float canvasWidth = ImGui::GetIO().DisplaySize.x - actualPanelWidth;
+  float canvasWidth = ImGui::GetIO().DisplaySize.x - UIState::userPropertyPanelWidth;
   float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight;
 
   ImGui::SetNextWindowPos(ImVec2(canvasX, canvasY));

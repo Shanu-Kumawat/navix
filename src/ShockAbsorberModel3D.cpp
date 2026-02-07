@@ -61,29 +61,38 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
     float springLength = currentSpring->freeLength * scale;
     int numCoils = currentSpring->numCoils;
     
-    // Shock absorber dimensions based on spring
-    float damperTubeOuterRadius = springHelixRadius * 0.5f;  // Inner tube the spring wraps around
-    float damperTubeInnerRadius = damperTubeOuterRadius * 0.8f;
-    float pistonRodRadius = damperTubeInnerRadius * 0.6f;
+    // Shock absorber dimensions based on spring (matching reference image)
+    float pistonRodRadius = springWireRadius * 0.8f;  // Thin central rod
+    float damperTubeOuterRadius = springHelixRadius * 0.35f;  // Thin inner tube
+    float damperTubeInnerRadius = damperTubeOuterRadius * 0.7f;
     
     // Total assembly dimensions
-    float totalLength = springLength * 1.8f;  // Total shock absorber length
-    float springStartY = -springLength * 0.4f;  // Where spring starts (from center)
+    float totalLength = springLength * 2.0f;  // Total shock absorber length
+    float springStartY = -springLength * 0.5f;  // Spring starts at bottom half
     float springEndY = springStartY + springLength;  // Where spring ends
     
-    // Top mount dimensions
-    float topMountHeight = totalLength * 0.15f;
-    float topMountRadius = springOuterRadius * 0.6f;
-    float topMountY = totalLength / 2.0f;
+    // Top mount dimensions (nut-like structure with cap)
+    float topNutHeight = springLength * 0.08f;
+    float topNutRadius = springOuterRadius * 0.4f;
+    float topCapHeight = springLength * 0.06f;
+    float topCapRadius = springOuterRadius * 0.35f;
+    float topCollarHeight = springLength * 0.05f;
+    float topCollarRadius = springOuterRadius * 0.5f;
     
-    // Bottom mount dimensions  
-    float bottomMountHeight = totalLength * 0.12f;
-    float bottomMountRadius = springOuterRadius * 1.1f;
-    float bottomMountY = -totalLength / 2.0f;
+    // Upper spring seat (flange where spring top sits)
+    float upperSeatThickness = springLength * 0.035f;
+    float upperSeatRadius = springOuterRadius * 1.05f;
     
-    // Spring seat (flange) dimensions
-    float springSeaTthickness = springLength * 0.03f;
-    float springSeatRadius = springOuterRadius * 1.05f;
+    // Lower spring seat (flange where spring bottom sits)  
+    float lowerSeatThickness = springLength * 0.035f;
+    float lowerSeatRadius = springOuterRadius * 1.05f;
+    
+    // Bottom mount dimensions (U-shaped clevis with hole)
+    float bottomMountHeight = springLength * 0.35f;
+    float bottomMountWidth = springOuterRadius * 0.9f;
+    float bottomMountThickness = springWireRadius * 0.6f;
+    float bottomHoleRadius = springWireRadius * 0.8f;
+    float bottomPlateThickness = springWireRadius * 0.7f;
     
     int radialSegments = 32;
     int helixSegments = numCoils * 24;
@@ -291,18 +300,311 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
         }
     };
     
-    // ============ 1. BOTTOM MOUNT (Eye/Clevis mount) ============
-    generateCylinder(bottomMountY, bottomMountY + bottomMountHeight, bottomMountRadius, bottomMountRadius * 0.3f, true);
+    // Lambda to generate top mount with rectangular block and 2 horizontal bars (left-right only)
+    auto generateTopMountWithBars = [&](float bottomY, float topY, float blockWidth, float barLength, float barHeight) {
+        // Central rectangular block (not hexagonal - just a cylinder for the main body)
+        float blockRadius = blockWidth / 2.0f;
+        generateCylinder(bottomY, topY, blockRadius, 0.0f, false);
+        
+        // Two horizontal rectangular bars extending left and right
+        float barBottom = bottomY + (topY - bottomY) * 0.3f;
+        float barTop = bottomY + (topY - bottomY) * 0.7f;
+        float barDepth = blockWidth * 0.5f;  // Thickness in Z direction
+        
+        // Helper to add a box
+        auto addBox = [&](float x1, float x2, float y1, float y2, float z1, float z2) {
+            unsigned int base = vertices.size() / 6;
+            
+            // 8 vertices of the box
+            float verts[8][3] = {
+                {x1, y1, z1}, {x2, y1, z1}, {x2, y2, z1}, {x1, y2, z1},  // front face
+                {x1, y1, z2}, {x2, y1, z2}, {x2, y2, z2}, {x1, y2, z2}   // back face
+            };
+            float norms[6][3] = {
+                {0, 0, 1}, {0, 0, -1}, {-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}
+            };
+            
+            // Front face (z1)
+            for (int i = 0; i < 4; ++i) {
+                vertices.push_back(verts[i][0]); vertices.push_back(verts[i][1]); vertices.push_back(verts[i][2]);
+                vertices.push_back(0); vertices.push_back(0); vertices.push_back(-1);
+            }
+            indices.push_back(base); indices.push_back(base+1); indices.push_back(base+2);
+            indices.push_back(base); indices.push_back(base+2); indices.push_back(base+3);
+            
+            // Back face (z2)
+            base = vertices.size() / 6;
+            for (int i = 4; i < 8; ++i) {
+                vertices.push_back(verts[i][0]); vertices.push_back(verts[i][1]); vertices.push_back(verts[i][2]);
+                vertices.push_back(0); vertices.push_back(0); vertices.push_back(1);
+            }
+            indices.push_back(base); indices.push_back(base+2); indices.push_back(base+1);
+            indices.push_back(base); indices.push_back(base+3); indices.push_back(base+2);
+            
+            // Left face (x1)
+            base = vertices.size() / 6;
+            int leftIdx[4] = {0, 4, 7, 3};
+            for (int i = 0; i < 4; ++i) {
+                vertices.push_back(verts[leftIdx[i]][0]); vertices.push_back(verts[leftIdx[i]][1]); vertices.push_back(verts[leftIdx[i]][2]);
+                vertices.push_back(-1); vertices.push_back(0); vertices.push_back(0);
+            }
+            indices.push_back(base); indices.push_back(base+1); indices.push_back(base+2);
+            indices.push_back(base); indices.push_back(base+2); indices.push_back(base+3);
+            
+            // Right face (x2)
+            base = vertices.size() / 6;
+            int rightIdx[4] = {1, 5, 6, 2};
+            for (int i = 0; i < 4; ++i) {
+                vertices.push_back(verts[rightIdx[i]][0]); vertices.push_back(verts[rightIdx[i]][1]); vertices.push_back(verts[rightIdx[i]][2]);
+                vertices.push_back(1); vertices.push_back(0); vertices.push_back(0);
+            }
+            indices.push_back(base); indices.push_back(base+2); indices.push_back(base+1);
+            indices.push_back(base); indices.push_back(base+3); indices.push_back(base+2);
+            
+            // Bottom face (y1)
+            base = vertices.size() / 6;
+            int botIdx[4] = {0, 1, 5, 4};
+            for (int i = 0; i < 4; ++i) {
+                vertices.push_back(verts[botIdx[i]][0]); vertices.push_back(verts[botIdx[i]][1]); vertices.push_back(verts[botIdx[i]][2]);
+                vertices.push_back(0); vertices.push_back(-1); vertices.push_back(0);
+            }
+            indices.push_back(base); indices.push_back(base+1); indices.push_back(base+2);
+            indices.push_back(base); indices.push_back(base+2); indices.push_back(base+3);
+            
+            // Top face (y2)
+            base = vertices.size() / 6;
+            int topIdx[4] = {3, 2, 6, 7};
+            for (int i = 0; i < 4; ++i) {
+                vertices.push_back(verts[topIdx[i]][0]); vertices.push_back(verts[topIdx[i]][1]); vertices.push_back(verts[topIdx[i]][2]);
+                vertices.push_back(0); vertices.push_back(1); vertices.push_back(0);
+            }
+            indices.push_back(base); indices.push_back(base+1); indices.push_back(base+2);
+            indices.push_back(base); indices.push_back(base+2); indices.push_back(base+3);
+        };
+        
+        // Left bar (extends from -blockRadius to -barLength)
+        addBox(-barLength, -blockRadius * 0.8f, barBottom, barTop, -barDepth/2, barDepth/2);
+        
+        // Right bar (extends from blockRadius to barLength)
+        addBox(blockRadius * 0.8f, barLength, barBottom, barTop, -barDepth/2, barDepth/2);
+    };
     
-    // ============ 2. DAMPER TUBE (Outer cylinder that spring wraps around) ============
-    float damperTubeBottom = bottomMountY + bottomMountHeight;
-    float damperTubeTop = springEndY + springSeaTthickness;
-    generateCylinder(damperTubeBottom, damperTubeTop, damperTubeOuterRadius, damperTubeInnerRadius, true);
+    // Lambda to generate U-shaped bottom mount (clevis) - improved version
+    auto generateUMount = [&](float topY, float mountHeight, float mountWidth, float legThickness) {
+        // The U-mount consists of: a plate at top, two solid legs going down, connected by a curved bottom with a hole
+        float plateTop = topY + bottomPlateThickness;
+        float plateBottom = topY;
+        float legBottom = topY - mountHeight;
+        float halfWidth = mountWidth / 2.0f;
+        float legWidth = legThickness * 2.0f;  // Width of each leg
+        float holeY = legBottom + mountHeight * 0.4f;  // Hole position
+        float holeR = mountHeight * 0.15f;  // Hole radius
+        
+        // Generate the plate at top (wider disc)
+        generateCylinder(plateBottom, plateTop, mountWidth * 0.7f, pistonRodRadius, true);
+        
+        // Generate left leg as a solid box
+        float leftOuterX = -halfWidth;
+        float leftInnerX = -halfWidth + legWidth;
+        float legDepth = legThickness * 1.5f;
+        
+        // Left leg - 8 vertices for a box
+        unsigned int leftBase = vertices.size() / 6;
+        // Front face vertices (4)
+        vertices.push_back(leftOuterX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(leftOuterX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        // Front face
+        indices.push_back(leftBase); indices.push_back(leftBase+1); indices.push_back(leftBase+2);
+        indices.push_back(leftBase); indices.push_back(leftBase+2); indices.push_back(leftBase+3);
+        
+        // Back face vertices (4)
+        unsigned int leftBackBase = vertices.size() / 6;
+        vertices.push_back(leftOuterX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(leftOuterX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        // Back face (reversed winding)
+        indices.push_back(leftBackBase); indices.push_back(leftBackBase+2); indices.push_back(leftBackBase+1);
+        indices.push_back(leftBackBase); indices.push_back(leftBackBase+3); indices.push_back(leftBackBase+2);
+        
+        // Left outer face
+        unsigned int leftOuterBase = vertices.size() / 6;
+        vertices.push_back(leftOuterX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftOuterX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftOuterX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftOuterX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        indices.push_back(leftOuterBase); indices.push_back(leftOuterBase+1); indices.push_back(leftOuterBase+2);
+        indices.push_back(leftOuterBase); indices.push_back(leftOuterBase+2); indices.push_back(leftOuterBase+3);
+        
+        // Left inner face
+        unsigned int leftInnerBase = vertices.size() / 6;
+        vertices.push_back(leftInnerX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        indices.push_back(leftInnerBase); indices.push_back(leftInnerBase+2); indices.push_back(leftInnerBase+1);
+        indices.push_back(leftInnerBase); indices.push_back(leftInnerBase+3); indices.push_back(leftInnerBase+2);
+        
+        // Left bottom face
+        unsigned int leftBotBase = vertices.size() / 6;
+        vertices.push_back(leftOuterX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftOuterX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        indices.push_back(leftBotBase); indices.push_back(leftBotBase+2); indices.push_back(leftBotBase+1);
+        indices.push_back(leftBotBase); indices.push_back(leftBotBase+3); indices.push_back(leftBotBase+2);
+        
+        // Right leg - mirror of left
+        float rightOuterX = halfWidth;
+        float rightInnerX = halfWidth - legWidth;
+        
+        // Right front face
+        unsigned int rightBase = vertices.size() / 6;
+        vertices.push_back(rightInnerX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        indices.push_back(rightBase); indices.push_back(rightBase+1); indices.push_back(rightBase+2);
+        indices.push_back(rightBase); indices.push_back(rightBase+2); indices.push_back(rightBase+3);
+        
+        // Right back face
+        unsigned int rightBackBase = vertices.size() / 6;
+        vertices.push_back(rightInnerX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        indices.push_back(rightBackBase); indices.push_back(rightBackBase+2); indices.push_back(rightBackBase+1);
+        indices.push_back(rightBackBase); indices.push_back(rightBackBase+3); indices.push_back(rightBackBase+2);
+        
+        // Right outer face
+        unsigned int rightOuterBase = vertices.size() / 6;
+        vertices.push_back(rightOuterX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        indices.push_back(rightOuterBase); indices.push_back(rightOuterBase+2); indices.push_back(rightOuterBase+1);
+        indices.push_back(rightOuterBase); indices.push_back(rightOuterBase+3); indices.push_back(rightOuterBase+2);
+        
+        // Right inner face
+        unsigned int rightInnerBase = vertices.size() / 6;
+        vertices.push_back(rightInnerX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(plateBottom); vertices.push_back(-legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(plateBottom); vertices.push_back(legDepth);
+        vertices.push_back(-1.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        indices.push_back(rightInnerBase); indices.push_back(rightInnerBase+1); indices.push_back(rightInnerBase+2);
+        indices.push_back(rightInnerBase); indices.push_back(rightInnerBase+2); indices.push_back(rightInnerBase+3);
+        
+        // Right bottom face
+        unsigned int rightBotBase = vertices.size() / 6;
+        vertices.push_back(rightInnerX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(legBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightOuterX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(legBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        indices.push_back(rightBotBase); indices.push_back(rightBotBase+2); indices.push_back(rightBotBase+1);
+        indices.push_back(rightBotBase); indices.push_back(rightBotBase+3); indices.push_back(rightBotBase+2);
+        
+        // Bottom connecting bar between legs
+        float barTop = legBottom + mountHeight * 0.25f;
+        float barBottom = legBottom;
+        unsigned int barBase = vertices.size() / 6;
+        
+        // Bar front face
+        vertices.push_back(leftInnerX); vertices.push_back(barBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(barBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(barTop); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(barTop); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(1.0f);
+        indices.push_back(barBase); indices.push_back(barBase+1); indices.push_back(barBase+2);
+        indices.push_back(barBase); indices.push_back(barBase+2); indices.push_back(barBase+3);
+        
+        // Bar back face
+        unsigned int barBackBase = vertices.size() / 6;
+        vertices.push_back(leftInnerX); vertices.push_back(barBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(barBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(barTop); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(barTop); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(-1.0f);
+        indices.push_back(barBackBase); indices.push_back(barBackBase+2); indices.push_back(barBackBase+1);
+        indices.push_back(barBackBase); indices.push_back(barBackBase+3); indices.push_back(barBackBase+2);
+        
+        // Bar bottom face
+        unsigned int barBotBase = vertices.size() / 6;
+        vertices.push_back(leftInnerX); vertices.push_back(barBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(barBottom); vertices.push_back(legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(rightInnerX); vertices.push_back(barBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        vertices.push_back(leftInnerX); vertices.push_back(barBottom); vertices.push_back(-legDepth);
+        vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+        indices.push_back(barBotBase); indices.push_back(barBotBase+2); indices.push_back(barBotBase+1);
+        indices.push_back(barBotBase); indices.push_back(barBotBase+3); indices.push_back(barBotBase+2);
+    };
     
-    // ============ 3. BOTTOM SPRING SEAT (Flange for spring to sit on) ============
-    generateCylinder(springStartY - springSeaTthickness, springStartY, springSeatRadius, damperTubeOuterRadius, true);
+    // ============ 1. LOWER SPRING SEAT (Flange for spring to sit on) ============
+    generateCylinder(springStartY - lowerSeatThickness, springStartY, lowerSeatRadius, damperTubeOuterRadius, true);
     
-    // ============ 4. COIL SPRING (Helical spring around the damper tube) ============
+    // ============ 2. UPPER DAMPER TUBE (Thicker tube coming down from top into spring area) ============
+    // This is the outer tube that the piston rod slides into
+    float upperTubeBottom = springStartY + springLength * 0.3f;  // Extends down to 30% into spring
+    float upperTubeTop = springEndY + upperSeatThickness + topCollarHeight + topNutHeight + topCapHeight;
+    generateCylinder(upperTubeBottom, upperTubeTop, damperTubeOuterRadius, damperTubeInnerRadius, true);
+    
+    // ============ 3. LOWER PISTON ROD (Thinner rod coming up from bottom into spring area) ============
+    // This is the inner rod that slides into the damper tube
+    float lowerRodTop = springEndY - springLength * 0.3f;  // Extends up to 70% into spring (overlaps with tube)
+    float lowerRodBottom = springStartY - lowerSeatThickness - bottomMountHeight - bottomPlateThickness;
+    generateCylinder(lowerRodBottom, lowerRodTop, pistonRodRadius, 0.0f, false);
+    
+    // ============ 3. COIL SPRING (Helical spring around the piston rod) ============
     for (int i = 0; i <= helixSegments; ++i) {
         float t = (float)i / helixSegments;
         float theta = t * numCoils * 2.0f * M_PI;
@@ -324,11 +626,6 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
         // Generate ring of vertices around wire cross-section
         for (int j = 0; j < radialSegments; ++j) {
             float phi = (float)j / radialSegments * 2.0f * M_PI;
-            
-            // Binormal and normal for the helix
-            float binormalX = -std::sin(theta);
-            float binormalY = 0.0f;
-            float binormalZ = -std::cos(theta);
             
             // Normal points outward from helix center
             float helixNormalX = std::sin(theta);
@@ -381,16 +678,35 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
         }
     }
     
-    // ============ 5. TOP SPRING SEAT ============
-    generateCylinder(springEndY, springEndY + springSeaTthickness, springSeatRadius, damperTubeOuterRadius, true);
+    // ============ 4. UPPER SPRING SEAT ============
+    generateCylinder(springEndY, springEndY + upperSeatThickness, upperSeatRadius, pistonRodRadius, true);
     
-    // ============ 6. PISTON ROD (Extends from top) ============
-    float pistonRodBottom = damperTubeTop;
-    float pistonRodTop = topMountY - topMountHeight * 0.5f;
-    generateCylinder(pistonRodBottom, pistonRodTop, pistonRodRadius, 0.0f, false);
+    // ============ 5. TOP COLLAR (below the nut) ============
+    float collarBottom = springEndY + upperSeatThickness;
+    float collarTop = collarBottom + topCollarHeight;
+    generateCylinder(collarBottom, collarTop, topCollarRadius, pistonRodRadius, true);
     
-    // ============ 7. TOP MOUNT (Bushing/eye mount) ============
-    generateCylinder(pistonRodTop, topMountY, topMountRadius, topMountRadius * 0.3f, true);
+    // ============ 6. TOP NUT WITH HORIZONTAL BARS (2 bars: left and right only) ============
+    float nutBottom = collarTop;
+    float nutTop = nutBottom + topNutHeight;
+    float barLength = topNutRadius * 2.5f;  // Bars extend out left and right
+    generateTopMountWithBars(nutBottom, nutTop, topNutRadius * 2.0f, barLength, topNutHeight * 0.6f);
+    
+    // ============ 7. TOP CAP (Small cylinder on top) ============
+    float capBottom = nutTop;
+    float capTop = capBottom + topCapHeight;
+    generateCylinder(capBottom, capTop, topCapRadius, 0.0f, false);
+    
+    // ============ 8. BOTTOM DISC (Large circular plate before U-mount) ============
+    float discHeight = springLength * 0.04f;
+    float discRadius = lowerSeatRadius * 1.3f;  // Larger than spring seat
+    float discTop = springStartY - lowerSeatThickness;
+    float discBottom = discTop - discHeight;
+    generateCylinder(discBottom, discTop, discRadius, pistonRodRadius, true);
+    
+    // ============ 9. BOTTOM U-MOUNT (Clevis/fork mount below disc) ============
+    float uMountTop = discBottom;
+    generateUMount(uMountTop, bottomMountHeight, bottomMountWidth, bottomMountThickness);
 }
 
 std::vector<ImVec2> ShockAbsorberModel3D::generateEnhancedSpringProfile() const {
