@@ -156,9 +156,9 @@ public:
 
 // Enhanced UI helper functions
 namespace CurveUI {
-    void drawControlPoint(ImDrawList* drawList, const glm::dvec2& pos, bool isSelected, float size = 5.0f);
-    void drawControlPolygon(ImDrawList* drawList, const std::vector<glm::dvec2>& points, bool isSelected);
-    void drawTangentHandles(ImDrawList* drawList, const glm::dvec2& point, const glm::dvec2& tangent, bool isSelected);
+    void drawControlPoint(ImDrawList* drawList, const ImVec2& pos, bool isSelected, float size = 5.0f);
+    void drawControlPolygon(ImDrawList* drawList, const std::vector<ImVec2>& points, bool isSelected);
+    void drawTangentHandles(ImDrawList* drawList, const ImVec2& point, const ImVec2& tangent, bool isSelected);
     void drawCurveManipulator(ImDrawList* drawList, const glm::dvec2& pos, float size, bool isSelected);
     void drawTangentVector(ImDrawList* drawList, const glm::dvec2& point, const glm::dvec2& tangent, 
                           bool isSelected, float scale = 1.0f);
@@ -265,10 +265,10 @@ public:
         const std::vector<glm::dvec2>& profile = getCachedProfile();
         
         // Find min/max coordinates
-        float minX = profile[0].x;
-        float minY = profile[0].y;
-        float maxX = profile[0].x;
-        float maxY = profile[0].y;
+        double minX = profile[0].x;
+        double minY = profile[0].y;
+        double maxX = profile[0].x;
+        double maxY = profile[0].y;
         
         for (const auto& point : profile) {
             minX = std::min(minX, point.x);
@@ -452,10 +452,10 @@ public:
         float radius = outerDiameter / 2.0f;
         
         // Add margin for dimensions
-        float minX = -radius - 20.0f;
-        float minY = -radius - 20.0f;
-        float maxX = radius + 20.0f;
-        float maxY = radius + 20.0f;
+        double minX = -radius - 20.0f;
+        double minY = -radius - 20.0f;
+        double maxX = radius + 20.0f;
+        double maxY = radius + 20.0f;
         
         return ImVec4(minX, minY, maxX, maxY);
     }

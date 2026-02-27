@@ -1,3 +1,4 @@
+#include "utils/VectorMath.hpp"
 #include <glm/glm.hpp>
 #include "BellowsViewer3D.hpp"
 #include <iostream>
@@ -69,7 +70,7 @@ void BellowsViewer3D::render(const Drawing::Bellows* bellows, glm::dvec2 windowS
         
         // Handle mouse drag for camera rotation
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            glm::dvec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            glm::dvec2 delta = Drawing::Math::toDVec2(ImGui::GetMouseDragDelta(ImGuiMouseButton_Left));
             if (delta.x != 0.0f || delta.y != 0.0f) {
                 camera->ProcessMouseMovement(delta.x, -delta.y);
                 ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);

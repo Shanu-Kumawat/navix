@@ -41,25 +41,25 @@ public:
     void renderBallBearings(ImDrawList* drawList, const Drawing::BallBearing* bearing, bool isSelected);
 
     // Preview rendering (during drawing)
-    void renderPreview(ImDrawList* drawList, const ImVec2& currentPos, Drawing::DrawingMode mode);
+    void renderPreview(ImDrawList* drawList, const glm::dvec2& currentPos, Drawing::DrawingMode mode);
     
     // Specific preview methods
-    void previewPoint(ImDrawList* drawList, const ImVec2& pos);
-    void previewLine(ImDrawList* drawList, const ImVec2& start, const ImVec2& end);
-    void previewCircle(ImDrawList* drawList, const ImVec2& center, float radius);
-    void previewTriangle(ImDrawList* drawList, const std::array<ImVec2, 3>& points, int count);
-    void previewSquare(ImDrawList* drawList, const ImVec2& start, const ImVec2& end);
-    void previewRectangle(ImDrawList* drawList, const ImVec2& start, const ImVec2& end);
-    void previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points);
-    void previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points);
-    void previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end);
-    void previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius);
-    void previewSpring2D(ImDrawList* drawList, const ImVec2& center);
+    void previewPoint(ImDrawList* drawList, const glm::dvec2& pos);
+    void previewLine(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end);
+    void previewCircle(ImDrawList* drawList, const glm::dvec2& center, float radius);
+    void previewTriangle(ImDrawList* drawList, const std::array<glm::dvec2, 3>& points, int count);
+    void previewSquare(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end);
+    void previewRectangle(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end);
+    void previewSpline(ImDrawList* drawList, const std::vector<glm::dvec2>& points);
+    void previewBezier(ImDrawList* drawList, const std::vector<glm::dvec2>& points);
+    void previewBellows(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end);
+    void previewBallBearing(ImDrawList* drawList, const glm::dvec2& center, float radius);
+    void previewSpring2D(ImDrawList* drawList, const glm::dvec2& center);
 
     // Helpers
     void drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
                        ImU32 color, float thickness, float dash_length);
-    void renderSnapIndicator(ImDrawList* drawList, const ImVec2& pos, const std::string& type);
+    void renderSnapIndicator(ImDrawList* drawList, const glm::dvec2& pos, const std::string& type);
 
 private:
     Drawing::Canvas* canvas; // Reference to canvas for view state (zoom, pan, transforms)

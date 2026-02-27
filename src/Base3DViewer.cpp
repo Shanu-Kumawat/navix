@@ -1,3 +1,4 @@
+#include "utils/VectorMath.hpp"
 #include <glm/glm.hpp>
 #include "Base3DViewer.hpp"
 #include <iostream>
@@ -107,7 +108,7 @@ glm::mat4 Base3DViewer::createProjectionMatrix(float aspectRatio) const {
 }
 
 void Base3DViewer::displayRenderedTexture(glm::dvec2 windowSize) {
-    ImGui::Image((ImTextureID)(intptr_t)textureColorBuffer, windowSize, glm::dvec2(0, 1), glm::dvec2(1, 0));
+    ImGui::Image((ImTextureID)(intptr_t)textureColorBuffer, Drawing::Math::toImVec2(windowSize), ImVec2(0, 1), ImVec2(1, 0));
 }
 
 void Base3DViewer::processStandardMouseInput(const SDL_Event& event) {

@@ -312,8 +312,8 @@ struct Rectangle : public Shape {
              ImU32 color = Colors::RECTANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::RECTANGLE, color, thickness) {
         // Calculate the corners based on the points
-        std::vector<float> xCoords = {p1.x, p2.x, p3.x, p4.x};
-        std::vector<float> yCoords = {p1.y, p2.y, p3.y, p4.y};
+        std::vector<double> xCoords = {p1.x, p2.x, p3.x, p4.x};
+        std::vector<double> yCoords = {p1.y, p2.y, p3.y, p4.y};
         
         auto [minXIt, maxXIt] = std::minmax_element(xCoords.begin(), xCoords.end());
         auto [minYIt, maxYIt] = std::minmax_element(yCoords.begin(), yCoords.end());

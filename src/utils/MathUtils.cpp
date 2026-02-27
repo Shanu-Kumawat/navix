@@ -10,7 +10,7 @@ float calculateDistance(const glm::dvec2& p1, const glm::dvec2& p2) {
     return distance(p1, p2);
 }
 
-float calculateDistanceToLine(const glm::dvec2& point, const glm::dvec2& lineStart, const glm::dvec2& lineEnd) {
+double calculateDistanceToLine(const glm::dvec2& point, const glm::dvec2& lineStart, const glm::dvec2& lineEnd) {
     float lineLength = distance(lineStart, lineEnd);
     if (lineLength < 0.0001f) return distance(point, lineStart);
 

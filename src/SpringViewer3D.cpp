@@ -107,7 +107,7 @@ void SpringViewer3D::render(const Drawing::Spring2D* spring, glm::dvec2 windowSi
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     
     // Display the rendered texture
-    ImGui::Image((ImTextureID)(intptr_t)textureColorBuffer, windowSize, glm::dvec2(0, 1), glm::dvec2(1, 0));
+    ImGui::Image((ImTextureID)(intptr_t)textureColorBuffer, ImVec2(windowSize.x, windowSize.y), ImVec2(0, 1), ImVec2(1, 0));
 
     // Handle mouse interactions for camera control using ImGui
     if (ImGui::IsWindowHovered()) {
@@ -115,7 +115,7 @@ void SpringViewer3D::render(const Drawing::Spring2D* spring, glm::dvec2 windowSi
         
         // Handle mouse drag for camera rotation
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            glm::dvec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            glm::dvec2 delta = glm::dvec2(ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).x, ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y);
             if (delta.x != 0.0f || delta.y != 0.0f) {
                 camera->ProcessMouseMovement(delta.x, -delta.y);
                 ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);

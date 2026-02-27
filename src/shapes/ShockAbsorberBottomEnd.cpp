@@ -66,38 +66,38 @@ void ShockAbsorberBottomEnd::draw(ImDrawList* drawList, const Canvas* canvas) co
     float shaftTopY = parentSpring->centerY - fl / 2 + step1Length; // bottom of step1
     glm::dvec2 shaftTop(baseCenter.x - shaftWidth / 2, shaftTopY);
     glm::dvec2 shaftBot(baseCenter.x + shaftWidth / 2, plateTopY);
-    glm::dvec2 shaftPts[4] = {tx(shaftTop), tx(glm::dvec2(shaftBot.x, shaftTop.y)), tx(shaftBot), tx(glm::dvec2(shaftTop.x, shaftBot.y))};
+    ImVec2 shaftPts[4] = {Drawing::Math::toImVec2(tx(shaftTop)), Drawing::Math::toImVec2(tx(glm::dvec2(shaftBot.x, shaftTop.y))), Drawing::Math::toImVec2(tx(shaftBot)), Drawing::Math::toImVec2(tx(glm::dvec2(shaftTop.x, shaftBot.y)))};
     drawList->AddPolyline(shaftPts, 4, c, ImDrawFlags_Closed, t);
     // Plate
     glm::dvec2 plateMin(baseCenter.x - width / 2, plateTopY);
     glm::dvec2 plateMax(baseCenter.x + width / 2, plateTopY + plateThickness);
     glm::dvec2 p1 = tx(plateMin), p2 = tx(glm::dvec2(plateMax.x, plateMin.y)), p3 = tx(plateMax), p4 = tx(glm::dvec2(plateMin.x, plateMax.y));
-    glm::dvec2 platePts[4] = {p1, p2, p3, p4};
+    ImVec2 platePts[4] = {Drawing::Math::toImVec2(p1), Drawing::Math::toImVec2(p2), Drawing::Math::toImVec2(p3), Drawing::Math::toImVec2(p4)};
     drawList->AddPolyline(platePts, 4, c, ImDrawFlags_Closed, t);
     // U-bracket legs
     float legTop = plateTopY + plateThickness;
     float legBottom = legTop + height;
     // Left leg
     glm::dvec2 l1 = tx(glm::dvec2(plateMin.x, legTop)), l2 = tx(glm::dvec2(plateMin.x, legBottom));
-    drawList->AddLine(l1, l2, c, t);
+    drawList->AddLine(Drawing::Math::toImVec2(l1), Drawing::Math::toImVec2(l2), c, t);
     // Right leg
     glm::dvec2 r1 = tx(glm::dvec2(plateMax.x, legTop)), r2 = tx(glm::dvec2(plateMax.x, legBottom));
-    drawList->AddLine(r1, r2, c, t);
+    drawList->AddLine(Drawing::Math::toImVec2(r1), Drawing::Math::toImVec2(r2), c, t);
     // Bottom arc (semi-circle at the very bottom)
     glm::dvec2 arcCenter = tx(glm::dvec2(baseCenter.x, legBottom));
     float arcRadius = (width - 2 * thickness) / 2 * canvas->getZoomLevel();
     int arcSegments = 32;
-    std::vector<glm::dvec2> arcPts;
+    std::vector<ImVec2> arcPts;
     for (int i = 0; i <= arcSegments; ++i) {
         float theta = (float(i) / arcSegments) * PI;
         float x = arcCenter.x + arcRadius * cosf(theta);
         float y = arcCenter.y + arcRadius * sinf(theta);
-        arcPts.emplace_back(x, y);
+    arcPts.push_back(ImVec2(x, y));
     }
     drawList->AddPolyline(arcPts.data(), arcPts.size(), c, 0, t);
     // Hole
     glm::dvec2 holeCenter = tx(glm::dvec2(baseCenter.x, legTop + height / 2));
-    drawList->AddCircle(holeCenter, holeRadius * canvas->getZoomLevel(), c, 0, t);
+    drawList->AddCircle(Drawing::Math::toImVec2(holeCenter), holeRadius * canvas->getZoomLevel(), c, 0, t);
 }
 
 std::vector<glm::dvec2> ShockAbsorberBottomEnd::generateProfile() const {

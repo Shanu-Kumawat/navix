@@ -25,15 +25,11 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
     switch (dimType) {
         case DimensionType::Linear: {
             // Draw the dimension line
-            drawList->AddLine(transformedStart, transformedEnd, color, thickness * canvas->getZoomLevel());
+            drawList->AddLine(Drawing::Math::toImVec2(transformedStart), Drawing::Math::toImVec2(transformedEnd), color, thickness * canvas->getZoomLevel());
             
             // Draw extension lines perpendicular to the main dimension line
-            drawList->AddLine(transformedStart, 
-                            glm::dvec2(transformedStart.x + offsetVec.x, transformedStart.y + offsetVec.y), 
-                            color, thickness * 0.5f * canvas->getZoomLevel());
-            drawList->AddLine(transformedEnd, 
-                            glm::dvec2(transformedEnd.x + offsetVec.x, transformedEnd.y + offsetVec.y), 
-                            color, thickness * 0.5f * canvas->getZoomLevel());
+            drawList->AddLine(Drawing::Math::toImVec2(transformedStart), Drawing::Math::toImVec2(glm::dvec2(transformedStart.x + offsetVec.x, transformedStart.y + offsetVec.y)), color, thickness * 0.5f * canvas->getZoomLevel());
+            drawList->AddLine(Drawing::Math::toImVec2(transformedEnd), Drawing::Math::toImVec2(glm::dvec2(transformedEnd.x + offsetVec.x, transformedEnd.y + offsetVec.y)), color, thickness * 0.5f * canvas->getZoomLevel());
             
             break;
         }
@@ -45,12 +41,11 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
             float radius = std::sqrt(dx * dx + dy * dy);
             
             // Draw the circle
-            drawList->AddCircle(transformedStart, radius * canvas->getZoomLevel(), 
+            drawList->AddCircle(Drawing::Math::toImVec2(transformedStart), radius * canvas->getZoomLevel(), 
                               color, 48, thickness * canvas->getZoomLevel());
             
             // Draw a line from center to the edge
-            drawList->AddLine(transformedStart, transformedEnd, 
-                            color, thickness * 0.5f * canvas->getZoomLevel());
+            drawList->AddLine(Drawing::Math::toImVec2(transformedStart), Drawing::Math::toImVec2(transformedEnd), color, thickness * 0.5f * canvas->getZoomLevel());
             
             break;
         }
@@ -62,20 +57,18 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
             float radius = std::sqrt(dx * dx + dy * dy);
             
             // Draw the circle
-            drawList->AddCircle(transformedStart, radius * canvas->getZoomLevel(), 
+            drawList->AddCircle(Drawing::Math::toImVec2(transformedStart), radius * canvas->getZoomLevel(), 
                               color, 48, thickness * canvas->getZoomLevel());
             
             // Draw a line from center to the edge
-            drawList->AddLine(transformedStart, transformedEnd, 
-                            color, thickness * 0.5f * canvas->getZoomLevel());
+            drawList->AddLine(Drawing::Math::toImVec2(transformedStart), Drawing::Math::toImVec2(transformedEnd), color, thickness * 0.5f * canvas->getZoomLevel());
             
             break;
         }
         
         case DimensionType::Angular: {
             // Not fully implemented - just draw a line for now
-            drawList->AddLine(transformedStart, transformedEnd, 
-                            color, thickness * canvas->getZoomLevel());
+            drawList->AddLine(Drawing::Math::toImVec2(transformedStart), Drawing::Math::toImVec2(transformedEnd), color, thickness * canvas->getZoomLevel());
             
             break;
         }
@@ -103,26 +96,19 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
     }
     
     // Draw the text
-    glm::dvec2 textSize = ImGui::CalcTextSize(displayText.c_str());
+    ImVec2 textSize = ImGui::CalcTextSize(displayText.c_str());
     
     // Background for better visibility
-    drawList->AddRectFilled(
-        glm::dvec2(transformedTextPos.x - textSize.x * 0.5f - 2.0f, transformedTextPos.y - textSize.y * 0.5f - 2.0f),
-        glm::dvec2(transformedTextPos.x + textSize.x * 0.5f + 2.0f, transformedTextPos.y + textSize.y * 0.5f + 2.0f),
-        IM_COL32(240, 240, 240, 220)
-    );
+    drawList->AddRectFilled(ImVec2(transformedTextPos.x - textSize.x * 0.5f - 2.0f, transformedTextPos.y - textSize.y * 0.5f - 2.0f), ImVec2(transformedTextPos.x + textSize.x * 0.5f + 2.0f, transformedTextPos.y + textSize.y * 0.5f + 2.0f), IM_COL32(240, 240, 240, 220));
     
     // Text
-    drawList->AddText(
-        glm::dvec2(transformedTextPos.x - textSize.x * 0.5f, transformedTextPos.y - textSize.y * 0.5f),
-        IM_COL32(0, 0, 0, 255),
-        displayText.c_str()
-    );
+    drawList->AddText(ImVec2(transformedTextPos.x - textSize.x * 0.5f, transformedTextPos.y - textSize.y * 0.5f), IM_COL32(0, 0, 0, 255),
+        displayText.c_str());
     
     // Draw points at the dimension endpoints
     if (dimType != DimensionType::Angular) {
-        drawList->AddCircleFilled(transformedStart, 3.0f * canvas->getZoomLevel(), color, 8);
-        drawList->AddCircleFilled(transformedEnd, 3.0f * canvas->getZoomLevel(), color, 8);
+        drawList->AddCircleFilled(Drawing::Math::toImVec2(transformedStart), 3.0f * canvas->getZoomLevel(), color, 8);
+        drawList->AddCircleFilled(Drawing::Math::toImVec2(transformedEnd), 3.0f * canvas->getZoomLevel(), color, 8);
     }
 }
 

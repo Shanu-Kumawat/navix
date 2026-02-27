@@ -398,7 +398,6 @@ private:
                        ImU32 color, float thickness, float dash_length) const;
 
     // Shape rendering
-    void drawShape(const Shape& shape) const;
     void renderShapes(ImDrawList* drawList) const;
     void renderPoints(ImDrawList* drawList) const;
     void renderLines(ImDrawList* drawList) const;

@@ -7,7 +7,8 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 - **Priority 1**: [COMPLETED] Eradicate global state. Move `UIState` into an `ApplicationContext` or `Project` class passed by reference.
 - **Priority 2**: [COMPLETED] Break down `Canvas.cpp`. Split it into `InputController`, `Renderer2D`, and `SceneModel`.
 - **Priority 3**: [COMPLETED] Break down `main.cpp`. Extract UI panels into separate classes (e.g., `ToolbarView`, `PropertiesPanel`).
-- **Priority 4**: Replace all custom math and `ImVec2` usage in the core logic with `glm::dvec2` / `glm::dvec3` (double precision). Keep `ImVec2` *only* in the UI rendering layer.
+- **Priority 4**: [COMPLETED] Replace all custom math and `ImVec2` usage in the core logic with `glm::dvec2` / `glm::dvec3` (double precision). Keep `ImVec2` *only* in the UI rendering layer.
+- **Priority 5**: Decouple OpenNURBS from the build process. Provide a clear boundary or evaluate if it is strictly needed at this stage.
 
 ## Phase 2: Architectural Foundation for FEM
 **Goal**: Implement the necessary data structures and patterns for robust engineering software.

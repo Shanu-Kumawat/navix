@@ -154,9 +154,9 @@ std::vector<glm::dvec2> Spline::calculatePoints(float resolution) const {
         float alpha = std::clamp<double>((1.0f - tension) * 0.5f, 0.0, 1.0);
 
         // Improved numerical stability by grouping terms
-        float c0 = -alpha * t3 + 2.0f * alpha * t2 - alpha * t;
+        float c0 = -alpha * t3 + 2.0 * alpha * t2 - alpha * t;
         float c1 = (2.0f - alpha) * t3 + (alpha - 3.0f) * t2 + 1.0f;
-        float c2 = (alpha - 2.0f) * t3 + (3.0f - 2.0f * alpha) * t2 + alpha * t;
+        float c2 = (alpha - 2.0f) * t3 + (3.0f - 2.0 * alpha) * t2 + alpha * t;
         float c3 = alpha * t3 - alpha * t2;
 
         glm::dvec2 result;
@@ -183,8 +183,8 @@ std::vector<glm::dvec2> Spline::calculatePoints(float resolution) const {
                 float mt = 1.0f - t;
                 float mt2 = mt * mt;
                 glm::dvec2 point;
-                point.x = mt2 * controlPoints[0].x + 2.0f * mt * t * controlPoints[1].x + t2 * controlPoints[2].x;
-                point.y = mt2 * controlPoints[0].y + 2.0f * mt * t * controlPoints[1].y + t2 * controlPoints[2].y;
+                point.x = mt2 * controlPoints[0].x + 2.0 * mt * t * controlPoints[1].x + t2 * controlPoints[2].x;
+                point.y = mt2 * controlPoints[0].y + 2.0 * mt * t * controlPoints[1].y + t2 * controlPoints[2].y;
                 points.push_back(point);
             }
         }
@@ -455,30 +455,30 @@ void BezierCurve::reduceOrder() {
 // UI Helper Functions
 namespace CurveUI {
 
-void drawControlPoint(ImDrawList* drawList, const glm::dvec2& pos, bool isSelected, float size) {
+void drawControlPoint(ImDrawList* drawList, const ImVec2& pos, bool isSelected, float size) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(255, 255, 255, 255);
-    drawList->AddCircleFilled(Drawing::Math::toglm::dvec2(pos), size, color);
-    drawList->AddCircle(Drawing::Math::toglm::dvec2(pos), size + 1.0f, IM_COL32(0, 0, 0, 255));
+    drawList->AddCircleFilled((pos), size, color);
+    drawList->AddCircle((pos), size + 1.0f, IM_COL32(0, 0, 0, 255));
 }
 
-void drawControlPolygon(ImDrawList* drawList, const std::vector<glm::dvec2>& points, bool isSelected) {
+void drawControlPolygon(ImDrawList* drawList, const std::vector<ImVec2>& points, bool isSelected) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 128) : IM_COL32(128, 128, 128, 128);
     for (size_t i = 1; i < points.size(); ++i) {
-        drawList->AddLine(Drawing::Math::toglm::dvec2(points[i - 1]), Drawing::Math::toglm::dvec2(points[i]), color, 1.0f);
+        drawList->AddLine((points[i - 1]), (points[i]), color, 1.0f);
     }
 }
 
-void drawTangentHandles(ImDrawList* drawList, const glm::dvec2& point, const glm::dvec2& tangent, bool isSelected) {
+void drawTangentHandles(ImDrawList* drawList, const ImVec2& point, const ImVec2& tangent, bool isSelected) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 128) : IM_COL32(128, 128, 128, 128);
-    drawList->AddLine(Drawing::Math::toglm::dvec2(point), Drawing::Math::toglm::dvec2(tangent), color, 1.0f);
-    drawList->AddCircleFilled(Drawing::Math::toglm::dvec2(tangent), 3.0f, color);
+    drawList->AddLine((point), (tangent), color, 1.0f);
+    drawList->AddCircleFilled((tangent), 3.0f, color);
 }
 
 void drawCurveManipulator(ImDrawList* drawList, const glm::dvec2& pos, float size, bool isSelected) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(255, 255, 255, 255);
     drawList->AddRect(
-        glm::dvec2(pos.x - size, pos.y - size),
-        glm::dvec2(pos.x + size, pos.y + size),
+        ImVec2(pos.x - size, pos.y - size),
+        ImVec2(pos.x + size, pos.y + size),
         color
     );
 }
@@ -684,16 +684,16 @@ glm::dvec2 Spline::catmullRomPoint(const glm::dvec2& p0, const glm::dvec2& p1,
     
     glm::dvec2 result;
     result.x = 0.5f * (
-        (2.0f * p1.x) +
+        (2.0 * p1.x) +
         (-p0.x + p2.x) * alpha * t +
-        (2.0f * p0.x - 5.0f * p1.x + 4.0f * p2.x - p3.x) * alpha * t2 +
-        (-p0.x + 3.0f * p1.x - 3.0f * p2.x + p3.x) * alpha * t3
+        (2.0 * p0.x - 5.0f * p1.x + 4.0f * p2.x - p3.x) * alpha * t2 +
+        (-p0.x + 3.0 * p1.x - 3.0 * p2.x + p3.x) * alpha * t3
     );
     result.y = 0.5f * (
-        (2.0f * p1.y) +
+        (2.0 * p1.y) +
         (-p0.y + p2.y) * alpha * t +
-        (2.0f * p0.y - 5.0f * p1.y + 4.0f * p2.y - p3.y) * alpha * t2 +
-        (-p0.y + 3.0f * p1.y - 3.0f * p2.y + p3.y) * alpha * t3
+        (2.0 * p0.y - 5.0f * p1.y + 4.0f * p2.y - p3.y) * alpha * t2 +
+        (-p0.y + 3.0 * p1.y - 3.0 * p2.y + p3.y) * alpha * t3
     );
     return result;
 }
@@ -800,9 +800,9 @@ std::vector<glm::dvec2> BezierCurve::findExtrema() const {
     // a = 3(p3 - 3p2 + 3p1 - p0)
     // b = 2(3p2 - 6p1 + 3p0)
     // c = 3(p1 - p0)
-    glm::dvec2 a = 3.0f * (p3 - 3.0f * p2 + 3.0f * p1 - p0);
-    glm::dvec2 b = 6.0f * (p2 - 2.0f * p1 + p0);
-    glm::dvec2 c = 3.0f * (p1 - p0);
+    glm::dvec2 a = 3.0 * (p3 - 3.0 * p2 + 3.0 * p1 - p0);
+    glm::dvec2 b = 6.0 * (p2 - 2.0 * p1 + p0);
+    glm::dvec2 c = 3.0 * (p1 - p0);
     
     // Solve quadratic equation for x and y components
     auto solveQuadratic = [](float a, float b, float c) -> std::vector<float> {
@@ -819,8 +819,8 @@ std::vector<glm::dvec2> BezierCurve::findExtrema() const {
         if (discriminant < 0.0f) return roots;
         
         float sqrtDisc = std::sqrt(discriminant);
-        float t1 = (-b + sqrtDisc) / (2.0f * a);
-        float t2 = (-b - sqrtDisc) / (2.0f * a);
+        float t1 = (-b + sqrtDisc) / (2.0 * a);
+        float t2 = (-b - sqrtDisc) / (2.0 * a);
         
         if (t1 >= 0.0f && t1 <= 1.0f) roots.push_back(t1);
         if (t2 >= 0.0f && t2 <= 1.0f) roots.push_back(t2);
@@ -851,8 +851,8 @@ std::vector<glm::dvec2> BezierCurve::findInflections() const {
     // For cubic Bezier, second derivative coefficients are:
     // a = 6(p3 - 3p2 + 3p1 - p0)
     // b = 6(p2 - 2p1 + p0)
-    glm::dvec2 a = 6.0f * (p3 - 3.0f * p2 + 3.0f * p1 - p0);
-    glm::dvec2 b = 6.0f * (p2 - 2.0f * p1 + p0);
+    glm::dvec2 a = 6.0 * (p3 - 3.0 * p2 + 3.0 * p1 - p0);
+    glm::dvec2 b = 6.0 * (p2 - 2.0 * p1 + p0);
     
     // Find points where curvature changes sign
     for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
@@ -880,7 +880,7 @@ glm::dvec2 BezierCurve::findNearestPoint(const glm::dvec2& point) const {
     
     for (int i = 0; i < MAX_ITERATIONS; ++i) {
         float t1 = tLeft + (tRight - tLeft) / 3.0f;
-        float t2 = tLeft + 2.0f * (tRight - tLeft) / 3.0f;
+        float t2 = tLeft + 2.0 * (tRight - tLeft) / 3.0f;
         
         glm::dvec2 p1 = calculatePoint(t1);
         glm::dvec2 p2 = calculatePoint(t2);
@@ -978,14 +978,14 @@ glm::dvec2 BezierCurve::calculateDerivative(float t) const {
     float t2 = t * t;
     
     glm::dvec2 result;
-    result.x = 3.0f * (
+    result.x = 3.0 * (
         mt2 * (controlPoints[1].x - controlPoints[0].x) +
-        2.0f * mt * t * (controlPoints[2].x - controlPoints[1].x) +
+        2.0 * mt * t * (controlPoints[2].x - controlPoints[1].x) +
         t2 * (controlPoints[3].x - controlPoints[2].x)
     );
-    result.y = 3.0f * (
+    result.y = 3.0 * (
         mt2 * (controlPoints[1].y - controlPoints[0].y) +
-        2.0f * mt * t * (controlPoints[2].y - controlPoints[1].y) +
+        2.0 * mt * t * (controlPoints[2].y - controlPoints[1].y) +
         t2 * (controlPoints[3].y - controlPoints[2].y)
     );
     
@@ -998,13 +998,13 @@ float BezierCurve::calculateCurvature(float t) const {
     // Calculate second derivative
     float mt = 1.0f - t;
     glm::dvec2 d2;
-    d2.x = 6.0f * (
-        mt * (controlPoints[2].x - 2.0f * controlPoints[1].x + controlPoints[0].x) +
-        t * (controlPoints[3].x - 2.0f * controlPoints[2].x + controlPoints[1].x)
+    d2.x = 6.0 * (
+        mt * (controlPoints[2].x - 2.0 * controlPoints[1].x + controlPoints[0].x) +
+        t * (controlPoints[3].x - 2.0 * controlPoints[2].x + controlPoints[1].x)
     );
-    d2.y = 6.0f * (
-        mt * (controlPoints[2].y - 2.0f * controlPoints[1].y + controlPoints[0].y) +
-        t * (controlPoints[3].y - 2.0f * controlPoints[2].y + controlPoints[1].y)
+    d2.y = 6.0 * (
+        mt * (controlPoints[2].y - 2.0 * controlPoints[1].y + controlPoints[0].y) +
+        t * (controlPoints[3].y - 2.0 * controlPoints[2].y + controlPoints[1].y)
     );
     
     // Calculate curvature
@@ -1025,13 +1025,13 @@ glm::dvec2 BezierCurve::calculatePoint(float t) const {
     
     glm::dvec2 result;
     result.x = mt3 * controlPoints[0].x +
-               3.0f * mt2 * t * controlPoints[1].x +
-               3.0f * mt * t2 * controlPoints[2].x +
+               3.0 * mt2 * t * controlPoints[1].x +
+               3.0 * mt * t2 * controlPoints[2].x +
                t3 * controlPoints[3].x;
                
     result.y = mt3 * controlPoints[0].y +
-               3.0f * mt2 * t * controlPoints[1].y +
-               3.0f * mt * t2 * controlPoints[2].y +
+               3.0 * mt2 * t * controlPoints[1].y +
+               3.0 * mt * t2 * controlPoints[2].y +
                t3 * controlPoints[3].y;
                
     return result;
