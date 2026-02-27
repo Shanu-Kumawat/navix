@@ -2,15 +2,15 @@
 
 This document outlines the phased approach to refactoring NAVIX and preparing it for meshing and FEA solver integration.
 
-## Phase 1: Stabilization & Decoupling (Current Focus)
+## Phase 1: Stabilization & Decoupling (COMPLETED)
 **Goal**: Establish a clean, modular architecture and eliminate technical debt.
 - **Priority 1**: [COMPLETED] Eradicate global state. Move `UIState` into an `ApplicationContext` or `Project` class passed by reference.
 - **Priority 2**: [COMPLETED] Break down `Canvas.cpp`. Split it into `InputController`, `Renderer2D`, and `SceneModel`.
 - **Priority 3**: [COMPLETED] Break down `main.cpp`. Extract UI panels into separate classes (e.g., `ToolbarView`, `PropertiesPanel`).
 - **Priority 4**: [COMPLETED] Replace all custom math and `ImVec2` usage in the core logic with `glm::dvec2` / `glm::dvec3` (double precision). Keep `ImVec2` *only* in the UI rendering layer.
-- **Priority 5**: Decouple OpenNURBS from the build process. Provide a clear boundary or evaluate if it is strictly needed at this stage.
+- **Priority 5**: [COMPLETED] Decouple OpenNURBS from the build process. Provide a clear boundary or evaluate if it is strictly needed at this stage.
 
-## Phase 2: Architectural Foundation for FEM
+## Phase 2: Architectural Foundation for FEM (Current Focus)
 **Goal**: Implement the necessary data structures and patterns for robust engineering software.
 - **Priority 1**: Implement the Command Pattern for all user actions to ensure robust Undo/Redo and state management.
 - **Priority 2**: Replace the flat `std::vector<Shape>` with a topological data structure. Define `Node`, `Edge`, and `Face` classes.

@@ -19,3 +19,15 @@ This document logs all major architectural decisions, design changes, and subsys
 - **Context**: `main.cpp` and `Canvas.cpp` are God objects tightly coupled with ImGui and SDL2. Global state (`UIState`) is used extensively.
 - **Decision**: Adopt a strict separation of concerns. The core Model (geometry, physics) must have zero knowledge of ImGui or OpenGL. Controllers will handle input, and Views will handle rendering. Global state will be encapsulated in an `ApplicationContext` or `Project` class.
 - **Implications**: Requires breaking down `main.cpp` and `Canvas.cpp` into smaller, focused classes.
+
+## ADR-006: Removal of OpenNURBS Dependency
+- **Date**: February 28, 2026
+- **Context**: The  library was present in the external directory but currently unused within the codebase or the build loop. As the focus shifts to internal topological representations prior to Gmsh injection, keeping an unused massive library adds unnecessary complexity.
+- **Decision**: Remove the  submodule reference entirely to clean up the architecture (). If NURBS are required later, a leaner or better-integrated solution will be evaluated.
+- **Implications**: Reduces repository weight and simplifies the build/vendor dependencies.
+
+## ADR-006: Removal of OpenNURBS Dependency
+- **Date**: February 28, 2026
+- **Context**: The `OpenNURBS` library was present in the external directory but currently unused within the codebase or the build loop. As the focus shifts to internal topological representations prior to Gmsh injection, keeping an unused massive library adds unnecessary complexity.
+- **Decision**: Remove the `OpenNURBS` submodule reference entirely to clean up the architecture (Phase 1, Priority 5). If NURBS are required later, a leaner or better-integrated solution will be evaluated.
+- **Implications**: Reduces repository weight and simplifies the build/vendor dependencies.
