@@ -130,6 +130,7 @@ add_library(drawing STATIC
     src/InputController.cpp
     src/Canvas.cpp
     src/commands/CommandManager.cpp
+    src/topology/TopologyManager.cpp
     src/ui/TopRibbon.cpp
     src/ui/UIState.cpp
     src/ui/UIHelpers.cpp

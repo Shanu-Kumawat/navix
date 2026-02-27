@@ -13,7 +13,7 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 ## Phase 2: Architectural Foundation for FEM (Current Focus)
 **Goal**: Implement the necessary data structures and patterns for robust engineering software.
 - **Priority 1**: [COMPLETED] Implement the Command Pattern for all user actions to ensure robust Undo/Redo and state management.
-- **Priority 2**: Replace the flat `std::vector<Shape>` with a topological data structure. Define `Node`, `Edge`, and `Face` classes.
+- **Priority 2**: [COMPLETED] Replace the flat `std::vector<Shape>` with a topological data structure. Define `Node`, `Edge`, and `Face` classes.
 - **Priority 3**: Abstract the OpenGL rendering into a `Renderer` interface so that drawing a "Shape" or a "Finite Element" uses the same pipeline.
 
 ## Phase 3: Meshing Integration

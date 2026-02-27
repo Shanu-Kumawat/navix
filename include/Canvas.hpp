@@ -10,6 +10,7 @@
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
 #include "commands/CommandManager.hpp"
+#include "topology/TopologyManager.hpp"
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "utils/MathUtils.hpp"
 #include "Constants.hpp"
@@ -335,6 +336,7 @@ private:
     
     // History management
     Core::Commands::CommandManager commandManager;
+    std::unique_ptr<Core::Topology::TopologyManager> topologyManager;
     
     glm::dvec2 mousePos;
     glm::dvec2 lastMousePos;

@@ -40,6 +40,7 @@ Canvas::Canvas() :
     showControlPoints(true),
     selectedShape(nullptr),
     isDraggingCanvas(false),
+    topologyManager(std::make_unique<Core::Topology::TopologyManager>()),
     showGrid(true)
 {
     // Add initial state with current view settings
