@@ -43,4 +43,20 @@ enum class UnitSystem {
     Inches
 };
 
+enum class DrawingMode {
+    None,
+    Select,
+    Point,
+    Line,
+    Circle,
+    Triangle,
+    Square,
+    Rectangle,
+    Spline,
+    BezierCurve,
+    Bellows,
+    BallBearing,
+    Spring2D
+};
+
 } // namespace Drawing 

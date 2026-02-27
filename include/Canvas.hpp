@@ -11,34 +11,46 @@
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "utils/MathUtils.hpp"
 #include "Constants.hpp"
+#include "Renderer2D.hpp"
+#include "InputController.hpp"
+#include "SceneModel.hpp"
 
 namespace Drawing {
 
-enum class DrawingMode {
-    None,
-    Select,
-    Point,
-    Line,
-    Circle,
-    Triangle,
-    Square,
-    Rectangle,
-    Spline,
-    BezierCurve,
-    Bellows,
-    BallBearing,
-    Spring2D
-};
+
 
 class Canvas {
 public:
+    void render(ImDrawList* drawList) { if (renderer) renderer->render(drawList, *sceneModel); }
+    std::vector<ImVec2> calculateSplinePoints(const std::vector<ImVec2>& controlPoints, bool isClosed) const;
+
+    // Getters for Renderer2D
+    float getZoomLevel() const { return zoomLevel; }
+    ImVec2 getPanOffset() const { return panOffset; }
+    bool isGridVisible() const { return showGrid; }
+    float getGridSpacing() const { return gridSpacing; }
+    float getWindowWidth() const { return windowWidth; }
+    float getWindowHeight() const { return windowHeight; }
+    float getWindowX() const { return windowX; }
+    float getWindowY() const { return windowY; }
+    bool getIsDrawing() const { return isDrawing; }
+    ImVec2 getStartPoint() const { return startPoint; }
+    int getClickCount() const { return clickCount; }
+    const std::array<ImVec2, 3>& getTrianglePoints() const { return trianglePoints; }
+    const std::vector<ImVec2>& getCurrentSplinePoints() const { return currentSplinePoints; }
+    const std::vector<ImVec2>& getCurrentCurvePoints() const { return currentCurvePoints; }
+    bool getShowControlPoints() const { return showControlPoints; }
+    Shape* getSelectedShape() const { return selectedShape; }
+    
+    // Make these public for now
+    
+
     Canvas();
     ~Canvas() = default;
 
     // Main loop methods
     void handleInput();
     void update(const ImVec2& mousePos);
-    void render(ImDrawList* drawList);
     
     // Input handling methods
     void handleSelection(const ImVec2& mousePos);
@@ -63,9 +75,7 @@ public:
     bool isSnapToGridEnabled() const { return snapToGrid; }
     void setGridSpacing(float spacing) { gridSpacing = spacing; }
     void setShowGrid(bool show) { showGrid = show; }
-    bool isGridVisible() const { return showGrid; }
     void setShowControlPoints(bool show) { showControlPoints = show; }
-    bool getShowControlPoints() const { return showControlPoints; }
 
     // Accessors for current tool dimensions
     void setLineLength(float length) { lineLength = std::max(0.1f, length); }
@@ -98,7 +108,6 @@ public:
     // Selection methods
     void selectShape(Shape* shape) { selectedShape = shape; }
     void clearSelection();
-    Shape* getSelectedShape() const { return selectedShape; }
 
     // Shape manipulation methods
     void deleteSelectedShape();
@@ -176,7 +185,6 @@ public:
     // Unit system methods
     bool hasUnitSystem() const { return currentUnits != UnitSystem::Pixels; }
     UnitSystem getCurrentUnit() const { return currentUnits; }
-    float getZoomLevel() const { return zoomLevel; }
     
     // Unified complex shape management
     void fitBellowsToView();
@@ -261,6 +269,10 @@ public:
     bool hasCompleteShockAbsorberAssembly() const;
 
 private:
+    std::unique_ptr<Core::Renderer2D> renderer;
+    std::unique_ptr<Core::InputController> inputController;
+    std::unique_ptr<Core::SceneModel> sceneModel;
+
     // Drawing state
     DrawingMode currentMode{DrawingMode::None};
     bool isDrawing{false};
@@ -398,7 +410,7 @@ private:
 
     // Curve calculation methods
     ImVec2 calculateBezierPoint(const std::vector<ImVec2>& points, float t) const;
-    std::vector<ImVec2> calculateSplinePoints(const std::vector<ImVec2>& controlPoints, bool isClosed) const;
+    
     ImVec2 catmullRomPoint(const ImVec2& p0, const ImVec2& p1, 
                           const ImVec2& p2, const ImVec2& p3, float t) const;
 

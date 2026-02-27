@@ -24,6 +24,9 @@ using Math::rotatePoint;
 // ... existing code ...
 
 Canvas::Canvas() : 
+    renderer(std::make_unique<Core::Renderer2D>(this)),
+    sceneModel(std::make_unique<Core::SceneModel>()),
+    inputController(std::make_unique<Core::InputController>(this, sceneModel.get(), nullptr)),
     currentMode(DrawingMode::None),
     isDrawing(false),
     isFirstClick(true),
@@ -193,89 +196,6 @@ void Canvas::handleSelection(const ImVec2& mousePos) {
     }
 }
 
-void Canvas::render(ImDrawList* drawList) {
-    // Only render the grid if it's enabled
-    if (showGrid) {
-    renderGrid(drawList);
-    }
-    
-    // Render all shapes
-    renderShapes(drawList);
-    
-    // Render preview if drawing
-    if (isDrawing && currentMode != DrawingMode::None && currentMode != DrawingMode::Select && ImGui::IsWindowHovered()) {
-        ImVec2 currentPos = inverseTransformCoordinates(ImGui::GetMousePos());
-        renderPreview(drawList, currentPos);
-    }
-    
-    // Render selection indicators
-    if (selectedShape) {
-        // Render selection highlight
-        ImU32 selectionColor = IM_COL32(255, 165, 0, 200); // Orange with transparency
-        
-                switch (selectedShape->type) {
-                    case ShapeType::POINT: {
-                const auto& point = static_cast<const Point&>(*selectedShape);
-                ImVec2 transformedPos = transformCoordinates(point.position);
-                drawList->AddCircle(transformedPos, (point.size + 3.0f) * zoomLevel, selectionColor, 0, 2.0f);
-                        break;
-                    }
-                    case ShapeType::LINE: {
-                const auto& line = static_cast<const Line&>(*selectedShape);
-                ImVec2 transformedStart = transformCoordinates(line.start);
-                ImVec2 transformedEnd = transformCoordinates(line.end);
-                
-                float thickness = std::max(line.thickness * zoomLevel + 4.0f, 3.0f);
-                drawList->AddLine(transformedStart, transformedEnd, selectionColor, thickness);
-                
-                // Add selection indicators at endpoints
-                drawList->AddCircleFilled(transformedStart, 5.0f * zoomLevel, selectionColor);
-                drawList->AddCircleFilled(transformedEnd, 5.0f * zoomLevel, selectionColor);
-                        break;
-                    }
-            case ShapeType::BELLOWS: {
-                // For bellows, highlight the profile with selection color
-                const auto* bellows = static_cast<const Bellows*>(selectedShape);
-                
-                // Generate profile points
-                std::vector<ImVec2> profilePoints = bellows->generateProfile();
-                
-                // Apply rotation and translation (same as rendering code)
-                float s = sin(bellows->angle);
-                float c = cos(bellows->angle);
-                
-                // Draw selection outline around the bellows
-                for (size_t i = 0; i < profilePoints.size() - 1; ++i) {
-                    // Rotate and translate points
-                    float rotatedX1 = profilePoints[i].x * c - profilePoints[i].y * s;
-                    float rotatedY1 = profilePoints[i].x * s + profilePoints[i].y * c;
-                    float rotatedX2 = profilePoints[i+1].x * c - profilePoints[i+1].y * s;
-                    float rotatedY2 = profilePoints[i+1].x * s + profilePoints[i+1].y * c;
-                    
-                    ImVec2 worldP1(bellows->position.x + rotatedX1, bellows->position.y + rotatedY1);
-                    ImVec2 worldP2(bellows->position.x + rotatedX2, bellows->position.y + rotatedY2);
-                    
-                    ImVec2 p1 = transformCoordinates(worldP1);
-                    ImVec2 p2 = transformCoordinates(worldP2);
-                    drawList->AddLine(p1, p2, selectionColor, bellows->thickness + 2.0f);
-                }
-                break;
-            }
-            case ShapeType::SPRING2D: {
-                const auto& spring = static_cast<const Spring2D&>(*selectedShape);
-                float halfLength = spring.freeLength / 2.0f;
-                float radius = spring.outerDiameter / 2.0f;
-                ImVec2 topLeft = transformCoordinates(ImVec2(spring.centerX - radius, spring.centerY - halfLength));
-                ImVec2 bottomRight = transformCoordinates(ImVec2(spring.centerX + radius, spring.centerY + halfLength));
-                drawList->AddRect(topLeft, bottomRight, selectionColor, 0, 0, 3.0f);
-                break;
-            }
-            // Handle other shape types for selection highlight
-                    default:
-                        break;
-                }
-    }
-}
 
 void Canvas::handleDrawing(const ImVec2& mousePos) {
     if (isDraggingCanvas) return;
@@ -597,180 +517,9 @@ ImVec2 Canvas::inverseTransformCoordinates(const ImVec2& point) const {
     };
 }
 
-void Canvas::renderGrid(ImDrawList* drawList) {
-    // Get the canvas window position and size
-    float startX = windowX;
-    float startY = windowY;
-    float endX = windowX + windowWidth;
-    float endY = windowY + windowHeight;
 
-    // Only render grid if it's enabled
-    if (gridSpacing <= 0) return;
 
-    // Calculate adjusted grid spacing based on zoom level
-    float effectiveSpacing = gridSpacing * zoomLevel;
-    
-    // Ensure grid isn't too dense or sparse based on zoom level
-    if (effectiveSpacing < 10.0f) {
-        effectiveSpacing *= std::ceil(10.0f / effectiveSpacing);
-    } else if (effectiveSpacing > 200.0f) {
-        effectiveSpacing /= std::floor(effectiveSpacing / 100.0f);
-    }
 
-    // Calculate grid offset based on pan
-    float offsetX = std::fmod(panOffset.x * zoomLevel, effectiveSpacing);
-    float offsetY = std::fmod(panOffset.y * zoomLevel, effectiveSpacing);
-    
-    // Calculate number of lines needed
-    int numLinesX = static_cast<int>(windowWidth / effectiveSpacing) + 2;
-    int numLinesY = static_cast<int>(windowHeight / effectiveSpacing) + 2;
-
-    // Draw vertical grid lines
-        for (int i = 0; i <= numLinesX; i++) {
-        float x = startX + i * effectiveSpacing + offsetX;
-        if (x < startX) continue;
-        if (x > endX) break;
-        
-        bool isMajor = (i % 5 == 0);
-        ImU32 lineColor = isMajor ? Colors::GRID_MAJOR : Colors::GRID_MINOR;
-        float lineThickness = isMajor ? 1.0f : 0.5f;
-        
-        drawList->AddLine(
-            ImVec2(x, startY),
-            ImVec2(x, endY),
-            lineColor,
-            lineThickness
-        );
-    }
-
-    // Draw horizontal grid lines
-    for (int i = 0; i <= numLinesY; i++) {
-        float y = startY + i * effectiveSpacing + offsetY;
-        if (y < startY) continue;
-        if (y > endY) break;
-        
-        bool isMajor = (i % 5 == 0);
-        ImU32 lineColor = isMajor ? Colors::GRID_MAJOR : Colors::GRID_MINOR;
-        float lineThickness = isMajor ? 1.0f : 0.5f;
-        
-        drawList->AddLine(
-            ImVec2(startX, y),
-            ImVec2(endX, y),
-            lineColor,
-            lineThickness
-        );
-    }
-    
-    // Add axes lines at (0,0) if visible
-    ImVec2 origin = transformCoordinates(ImVec2(0, 0));
-    ImU32 axisColor = IM_COL32(140, 100, 60, 240);  // Darker brown for axes (abacus frame)
-    
-    if (origin.x >= startX && origin.x <= endX) {
-        drawList->AddLine(
-            ImVec2(origin.x, startY),
-            ImVec2(origin.x, endY),
-            axisColor,
-            1.5f
-        );
-    }
-    
-    if (origin.y >= startY && origin.y <= endY) {
-        drawList->AddLine(
-            ImVec2(startX, origin.y),
-            ImVec2(endX, origin.y),
-            axisColor,
-            1.5f
-        );
-    }
-}
-
-void Canvas::renderShapes(ImDrawList* drawList) const {
-    // Calculate viewport bounds in world coordinates
-    ImVec2 viewportMin = inverseTransformCoordinates(ImVec2(0, 0));
-    ImVec2 viewportMax = inverseTransformCoordinates(ImVec2(windowWidth, windowHeight));
-    
-    // Render only shapes that intersect with the viewport
-    for (const auto& shape : shapes) {
-        if (!shape) continue;
-        
-        // Get shape bounds
-        ImVec2 shapeMin, shapeMax;
-        shape->getBounds(shapeMin, shapeMax);
-        
-        // Skip shapes outside viewport
-        if (!isRectInViewport(shapeMin, shapeMax)) {
-            continue;
-        }
-        
-        // Render the shape
-        drawShape(*shape);
-    }
-}
-
-void Canvas::renderSprings2D(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::SPRING2D) {
-            drawShape(*shape);
-        }
-    }
-    renderBallBearings(drawList);
-}
-
-void Canvas::renderPreview(ImDrawList* drawList, const ImVec2& currentPos) const {
-    switch (currentMode) {
-        case DrawingMode::Point:
-            previewPoint(drawList, currentPos);
-            break;
-        case DrawingMode::Line:
-            if (isDrawing) {
-                previewLine(drawList, startPoint, currentPos);
-            }
-            break;
-        case DrawingMode::Circle:
-            if (isDrawing) {
-                float radius = calculateDistance(startPoint, currentPos);
-                previewCircle(drawList, startPoint, radius);
-            }
-            break;
-        case DrawingMode::Triangle:
-            if (isDrawing) {
-                previewTriangle(drawList, trianglePoints, clickCount);
-            }
-            break;
-        case DrawingMode::Square:
-            if (isDrawing) {
-                previewSquare(drawList, startPoint, currentPos);
-            }
-            break;
-        case DrawingMode::Rectangle:
-            if (isDrawing) {
-                previewRectangle(drawList, startPoint, currentPos);
-            }
-            break;
-        case DrawingMode::Spline:
-            previewSpline(drawList, currentSplinePoints);
-            break;
-        case DrawingMode::BezierCurve:
-            previewBezier(drawList, currentCurvePoints);
-            break;
-        case DrawingMode::Bellows:
-            if (isDrawing) {
-                previewBellows(drawList, startPoint, currentPos);
-            }
-            break;
-            
-        case DrawingMode::BallBearing:
-            if (isDrawing) {
-                float dx = currentPos.x - startPoint.x;
-                float dy = currentPos.y - startPoint.y;
-                float radius = std::sqrt(dx * dx + dy * dy);
-                previewBallBearing(drawList, startPoint, radius);
-            }
-            break;
-        default:
-            break;
-    }
-}
 
 void Canvas::handleCurveManipulation(const ImVec2& mousePos) {
     if (!selectedShape) return;
@@ -836,7 +585,7 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
-        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
     }
     
     if (fixedLineLength) {
@@ -862,7 +611,7 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
                 
                 // Show snap indicator at the start point
                 if (auto snapPoint = findSnapPoint(startPoint)) {
-                    renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                    renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                 }
             }
         }
@@ -874,11 +623,11 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
                 startPoint.x + direction.x * lineLength,
                 startPoint.y + direction.y * lineLength
             );
-            previewLine(drawList, startPoint, previewEnd);
+            renderer->previewLine(drawList, startPoint, previewEnd);
             
             // Show snap indicator at the start point for continuous feedback
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     } else {
@@ -890,7 +639,7 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
             
             // Show snap indicator at the start point
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
         else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && isDrawing) {
@@ -907,11 +656,11 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
         
         if (isDrawing) {
             // Preview line while dragging
-            previewLine(drawList, startPoint, snappedPos);
+            renderer->previewLine(drawList, startPoint, snappedPos);
             
             // Show snap indicators at both the start and end points
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     }
@@ -922,7 +671,7 @@ void Canvas::handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos)
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
-        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
     }
     
     if (fixedCircleRadius) {
@@ -943,18 +692,18 @@ void Canvas::handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                 
                 // Show snap indicator at the center point
                 if (auto snapPoint = findSnapPoint(startPoint)) {
-                    renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                    renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                 }
             }
         }
         
         if (isDrawing) {
             // Preview with fixed radius
-            previewCircle(drawList, startPoint, circleRadius);
+            renderer->previewCircle(drawList, startPoint, circleRadius);
             
             // Show snap indicator at the center point for continuous feedback
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     } else {
@@ -966,7 +715,7 @@ void Canvas::handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos)
             
             // Show snap indicator at the center point
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
         else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && isDrawing) {
@@ -984,11 +733,11 @@ void Canvas::handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos)
             // Preview circle while dragging
             endPoint = snappedPos;
             float radius = calculateDistance(startPoint, endPoint);
-            previewCircle(drawList, startPoint, radius);
+            renderer->previewCircle(drawList, startPoint, radius);
             
             // Show snap indicators at both the center and current radius point
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     }
@@ -999,7 +748,7 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
-        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
     }
     
     if (!isDrawing) {
@@ -1010,7 +759,7 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
             
             // Show snap indicator at the start point
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     } else {
@@ -1057,12 +806,12 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
                     
                     // Draw preview
                     std::array<ImVec2, 3> previewPoints = {p1, p2, p3};
-                    previewTriangle(drawList, previewPoints, 3);
+                    renderer->previewTriangle(drawList, previewPoints, 3);
                     
                     // Show snap indicators at vertices and midpoints
                     for (const auto& point : {p1, p2, p3}) {
                         if (auto snapPoint = findSnapPoint(point)) {
-                            renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                            renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                         }
                     }
                     
@@ -1073,7 +822,7 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
                             (previewPoints[i].y + previewPoints[(i + 1) % 3].y) * 0.5f
                         };
                         if (auto snapPoint = findSnapPoint(midpoint)) {
-                            renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                            renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                         }
                     }
                 }
@@ -1110,7 +859,7 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
-        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
     }
     
     if (!isDrawing) {
@@ -1121,7 +870,7 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
             
             // Show snap indicator at the start point
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     } else {
@@ -1169,12 +918,12 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                 ImVec2 p4 = ImVec2(startPoint.x, startPoint.y + size * signY);
                 
                 // Draw preview
-                previewSquare(drawList, startPoint, snappedPos);
+                renderer->previewSquare(drawList, startPoint, snappedPos);
                 
                 // Show snap indicators at corners and midpoints
                 for (const auto& point : {p1, p2, p3, p4}) {
                     if (auto snapPoint = findSnapPoint(point)) {
-                        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                     }
                 }
                 
@@ -1185,7 +934,7 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                         (p1.y + p2.y) * 0.5f
                     };
                     if (auto snapPoint = findSnapPoint(midpoint)) {
-                        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                     }
                 }
             }
@@ -1222,7 +971,7 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
-        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
     }
     
     if (!isDrawing) {
@@ -1233,7 +982,7 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
             
             // Show snap indicator at the start point
             if (auto snapPoint = findSnapPoint(startPoint)) {
-                renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
             }
         }
     } else {
@@ -1279,12 +1028,12 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
                 ImVec2 p4 = ImVec2(startPoint.x, startPoint.y + height * signY);
                 
                 // Draw preview
-                previewRectangle(drawList, startPoint, snappedPos);
+                renderer->previewRectangle(drawList, startPoint, snappedPos);
                 
                 // Show snap indicators at corners and midpoints
                 for (const auto& point : {p1, p2, p3, p4}) {
                     if (auto snapPoint = findSnapPoint(point)) {
-                        renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
+                        renderer->renderSnapIndicator(drawList, snapPoint->point, snapPoint->type);
                     }
                 }
             }
@@ -1401,384 +1150,15 @@ void Canvas::handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos
     }
 }
 
-void Canvas::previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const {
-    // Calculate length and orientation for preview
-    float dx = end.x - start.x;
-    float dy = end.y - start.y;
-    float length = std::sqrt(dx * dx + dy * dy);
-    float angle = std::atan2(dy, dx);
-    
-    if (length < 1.0f) return;
-    
-    // Create temporary bellows for preview
-    Bellows previewBellows;
-    previewBellows.convolutedSectionLength = length - previewBellows.cuffALength - previewBellows.cuffBLength;
-    if (previewBellows.convolutedSectionLength < 0.0f) previewBellows.convolutedSectionLength = 0.0f;
-    
-    // Calculate sin and cos for rotation
-    float s = sin(angle);
-    float c = cos(angle);
-    
-    // Get profile points
-    std::vector<ImVec2> profilePoints = previewBellows.generateProfile();
-    
-    // Draw profile with preview color
-    for (size_t i = 0; i < profilePoints.size() - 1; ++i) {
-        // Rotate and translate the points
-        float rotatedX1 = profilePoints[i].x * c - profilePoints[i].y * s;
-        float rotatedY1 = profilePoints[i].x * s + profilePoints[i].y * c;
-        
-        float rotatedX2 = profilePoints[i+1].x * c - profilePoints[i+1].y * s;
-        float rotatedY2 = profilePoints[i+1].x * s + profilePoints[i+1].y * c;
-        
-        ImVec2 p1 = ImVec2(
-            start.x + rotatedX1,
-            start.y + rotatedY1
-        );
-        ImVec2 p2 = ImVec2(
-            start.x + rotatedX2,
-            start.y + rotatedY2
-        );
-        
-        // Convert to screen coordinates
-        p1 = transformCoordinates(p1);
-        p2 = transformCoordinates(p2);
-        
-        drawList->AddLine(p1, p2, Colors::PREVIEW, 1.0f);
-    }
-}
 
-void Canvas::previewPoint(ImDrawList* drawList, const ImVec2& pos) const {
-    ImVec2 transformedPos = transformCoordinates(pos);
-    drawList->AddCircleFilled(transformedPos, Constants::DEFAULT_POINT_SIZE * zoomLevel, Colors::PREVIEW);
-}
 
-void Canvas::previewLine(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const {
-    // Transform coordinates to screen space
-    ImVec2 transformedStart = transformCoordinates(start);
-    ImVec2 transformedEnd = transformCoordinates(end);
-    
-    // Draw the line
-    drawList->AddLine(
-        transformedStart, 
-        transformedEnd, 
-        Colors::PREVIEW, 
-        Constants::DEFAULT_LINE_THICKNESS * zoomLevel
-    );
-    
-    // Draw small circles at endpoints for better visibility
-    drawList->AddCircleFilled(
-        transformedStart,
-        4.0f * zoomLevel,
-        Colors::PREVIEW,
-        8
-    );
-    
-    drawList->AddCircleFilled(
-        transformedEnd,
-        4.0f * zoomLevel,
-        Colors::PREVIEW,
-        8
-    );
-}
 
-void Canvas::previewCircle(ImDrawList* drawList, const ImVec2& center, float radius) const {
-    // Transform coordinates to screen space
-    ImVec2 transformedCenter = transformCoordinates(center);
-    
-    // Draw the circle
-    drawList->AddCircle(
-        transformedCenter,
-        radius * zoomLevel,
-        Colors::PREVIEW,
-        128, // Increased from default to make circle smoother
-        Constants::DEFAULT_LINE_THICKNESS * zoomLevel
-    );
-    
-    // Draw the center point for better visibility
-    drawList->AddCircleFilled(
-        transformedCenter,
-        4.0f * zoomLevel,
-        Colors::PREVIEW,
-        8
-    );
-    
-    // Draw radius line for better visualization
-    ImVec2 radiusPoint = transformCoordinates(ImVec2(
-        center.x + radius, 
-        center.y
-    ));
-    
-    drawList->AddLine(
-        transformedCenter,
-        radiusPoint,
-        Colors::PREVIEW_LIGHT,
-        1.0f * zoomLevel
-    );
-    
-    // Draw a small circle at the radius point
-    drawList->AddCircleFilled(
-        radiusPoint,
-        3.0f * zoomLevel,
-        Colors::PREVIEW,
-        8
-    );
-}
 
-void Canvas::previewTriangle(ImDrawList* drawList, const std::array<ImVec2, 3>& points, int count) const {
-    // Transform all points first
-    std::array<ImVec2, 3> transformedPoints;
-    for (int i = 0; i < count; ++i) {
-        transformedPoints[i] = transformCoordinates(points[i]);
-    }
-    
-    // Draw completed lines
-    for (int i = 0; i < count - 1; ++i) {
-        drawList->AddLine(
-            transformedPoints[i],
-            transformedPoints[i + 1],
-            Colors::PREVIEW,
-            Constants::DEFAULT_LINE_THICKNESS * zoomLevel
-        );
-    }
-    
-    // Draw preview line to current mouse position if not complete
-    if (count > 0 && count < 3) {
-        ImVec2 mousePos = transformCoordinates(inverseTransformCoordinates(ImGui::GetMousePos()));
-        drawList->AddLine(
-            transformedPoints[count - 1],
-            mousePos,
-            Colors::PREVIEW_LIGHT,
-            Constants::DEFAULT_LINE_THICKNESS * zoomLevel
-        );
-    }
-    
-    // Draw closing line if all points are placed
-    if (count == 3) {
-        drawList->AddLine(
-            transformedPoints[2],
-            transformedPoints[0],
-            Colors::PREVIEW,
-            Constants::DEFAULT_LINE_THICKNESS * zoomLevel
-        );
-    }
-    
-    // Draw corner points for better visibility
-    for (int i = 0; i < count; ++i) {
-        drawList->AddCircleFilled(
-            transformedPoints[i],
-            4.0f * zoomLevel,
-            Colors::PREVIEW,
-            8
-        );
-    }
-    
-    // Draw midpoints of edges for better visualization
-    for (int i = 0; i < count; ++i) {
-        ImVec2 midpoint = {
-            (transformedPoints[i].x + transformedPoints[(i + 1) % count].x) * 0.5f,
-            (transformedPoints[i].y + transformedPoints[(i + 1) % count].y) * 0.5f
-        };
-        drawList->AddCircleFilled(
-            midpoint,
-            3.0f * zoomLevel,
-            Colors::PREVIEW_LIGHT,
-            8
-        );
-    }
-}
 
-void Canvas::previewSquare(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const {
-    // Calculate the size based on the larger of width or height
-    float size = std::max(
-        std::abs(end.x - start.x),
-        std::abs(end.y - start.y)
-    );
-    
-    // Calculate signs for direction
-    float signX = (end.x >= start.x) ? 1.0f : -1.0f;
-    float signY = (end.y >= start.y) ? 1.0f : -1.0f;
-    
-    // Calculate corners in world space
-    ImVec2 p1 = start;
-    ImVec2 p2 = ImVec2(start.x + size * signX, start.y);
-    ImVec2 p3 = ImVec2(start.x + size * signX, start.y + size * signY);
-    ImVec2 p4 = ImVec2(start.x, start.y + size * signY);
-    
-    // Transform to screen space
-    ImVec2 transformedPoints[4] = {
-        transformCoordinates(p1),
-        transformCoordinates(p2),
-        transformCoordinates(p3),
-        transformCoordinates(p4)
-    };
-    
-    // Draw the square outline
-    drawList->AddPolyline(transformedPoints, 4, Colors::PREVIEW, ImDrawFlags_Closed, 2.0f * zoomLevel);
-    
-    // Draw corner points for better visibility
-    for (const auto& point : transformedPoints) {
-        drawList->AddCircleFilled(point, 4.0f * zoomLevel, Colors::PREVIEW, 8);
-    }
-    
-    // Draw diagonal line for better visualization
-    drawList->AddLine(
-        transformedPoints[0],
-        transformedPoints[2],
-        Colors::PREVIEW_LIGHT,
-        1.0f * zoomLevel
-    );
-}
 
-void Canvas::previewRectangle(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const {
-    // Calculate width and height
-    float width = std::abs(end.x - start.x);
-    float height = std::abs(end.y - start.y);
-    
-    // Calculate signs for direction
-    float signX = (end.x >= start.x) ? 1.0f : -1.0f;
-    float signY = (end.y >= start.y) ? 1.0f : -1.0f;
-    
-    // Calculate corners in world space
-    ImVec2 p1 = start;
-    ImVec2 p2 = ImVec2(start.x + width * signX, start.y);
-    ImVec2 p3 = ImVec2(start.x + width * signX, start.y + height * signY);
-    ImVec2 p4 = ImVec2(start.x, start.y + height * signY);
-    
-    // Transform to screen space
-    ImVec2 transformedPoints[4] = {
-        transformCoordinates(p1),
-        transformCoordinates(p2),
-        transformCoordinates(p3),
-        transformCoordinates(p4)
-    };
-    
-    // Draw the rectangle outline
-    drawList->AddPolyline(transformedPoints, 4, Colors::PREVIEW, ImDrawFlags_Closed, 2.0f * zoomLevel);
-    
-    // Draw corner points for better visibility
-    for (const auto& point : transformedPoints) {
-        drawList->AddCircleFilled(point, 4.0f * zoomLevel, Colors::PREVIEW, 8);
-    }
-    
-    // Draw diagonal line for better visualization
-    drawList->AddLine(
-        transformedPoints[0],
-        transformedPoints[2],
-        Colors::PREVIEW_LIGHT,
-        1.0f * zoomLevel
-    );
-}
 
-void Canvas::previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) const {
-    if (points.empty()) return;
 
-    // Draw control points
-    for (const auto& point : points) {
-        ImVec2 transformed = transformCoordinates(point);
-        drawList->AddCircleFilled(transformed, 4.0f, IM_COL32(255, 255, 255, 255));
-        drawList->AddCircle(transformed, 5.0f, IM_COL32(0, 0, 0, 255));
-    }
-    
-    // Draw control polygon with dashed lines
-    for (size_t i = 0; i < points.size() - 1; ++i) {
-        ImVec2 transformed1 = transformCoordinates(points[i]);
-        ImVec2 transformed2 = transformCoordinates(points[i + 1]);
-        drawDashedLine(drawList, transformed1, transformed2, IM_COL32(128, 128, 128, 200), 
-                      1.0f, 5.0f);
-    }
-    
-    // Draw spline preview if we have enough points
-    if (points.size() >= 2) {
-        // Create temporary points array including current mouse position
-        std::vector<ImVec2> previewPoints = points;
-        ImVec2 mousePos = inverseTransformCoordinates(ImGui::GetMousePos());
-        previewPoints.push_back(mousePos);
-        
-        // Calculate and draw the preview curve
-        std::vector<ImVec2> curvePoints = calculateSplinePoints(previewPoints, false);
-        for (size_t i = 1; i < curvePoints.size(); ++i) {
-            ImVec2 transformed1 = transformCoordinates(curvePoints[i-1]);
-            ImVec2 transformed2 = transformCoordinates(curvePoints[i]);
-            drawList->AddLine(transformed1, transformed2, 
-                            IM_COL32(255, 255, 255, 200), 
-                            2.0f * zoomLevel);
-        }
-    }
-}
 
-void Canvas::previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) const {
-    // Draw control points
-    for (const auto& point : points) {
-        ImVec2 transformed = transformCoordinates(point);
-        CurveUI::drawControlPoint(drawList, transformed, false);
-    }
-    
-    // Draw control polygon with dashed lines
-    for (size_t i = 0; i < points.size() - 1; ++i) {
-        ImVec2 transformed1 = transformCoordinates(points[i]);
-        ImVec2 transformed2 = transformCoordinates(points[i + 1]);
-        drawDashedLine(drawList, transformed1, transformed2, Colors::PREVIEW_LIGHT, 
-                      1.0f * zoomLevel, 5.0f * zoomLevel);
-    }
-    
-    // Draw curve preview
-    if (points.size() >= 2) {
-        std::vector<ImVec2> previewPoints = points;
-        if (points.size() < 4) {
-            // Add current mouse position and any needed extra points for preview
-            ImVec2 mousePos = inverseTransformCoordinates(ImGui::GetMousePos());
-            previewPoints.push_back(mousePos);
-            
-            // For incomplete Bezier curves, duplicate last point as needed
-            while (previewPoints.size() < 4) {
-                previewPoints.push_back(previewPoints.back());
-            }
-        }
-        
-        // Calculate and draw the preview curve
-        BezierCurve tempBezier(previewPoints);
-        std::vector<ImVec2> curvePoints = tempBezier.calculatePoints();
-        
-        for (size_t i = 0; i < curvePoints.size() - 1; ++i) {
-            ImVec2 transformed1 = transformCoordinates(curvePoints[i]);
-            ImVec2 transformed2 = transformCoordinates(curvePoints[i + 1]);
-            drawList->AddLine(transformed1, transformed2, Colors::PREVIEW, 
-                            Constants::DEFAULT_LINE_THICKNESS * zoomLevel);
-        }
-    }
-}
-
-void Canvas::drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
-                          ImU32 color, float thickness, float dash_length) const {
-    ImVec2 direction = {p2.x - p1.x, p2.y - p1.y};
-    float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-    
-    if (length < 0.0001f) return;
-    
-    direction.x /= length;
-    direction.y /= length;
-    
-    bool draw = true;
-    ImVec2 current = p1;
-    float remaining = length;
-    
-    while (remaining > 0) {
-        float segment = std::min(dash_length, remaining);
-        ImVec2 next = {
-            current.x + direction.x * segment,
-            current.y + direction.y * segment
-        };
-        
-        if (draw) {
-            drawList->AddLine(current, next, color, thickness);
-        }
-        
-        current = next;
-        remaining -= segment;
-        draw = !draw;
-    }
-}
 
 void Canvas::drawShape(const Shape& shape) const {
     ImDrawList* drawList = ImGui::GetWindowDrawList();
@@ -2646,123 +2026,6 @@ std::optional<ImVec2> Canvas::findCenter(const ImVec2& mousePos) const {
     return result;
 }
 
-void Canvas::renderSnapIndicator(ImDrawList* drawList, const ImVec2& pos, const std::string& type) const {
-    ImVec2 transformed = transformCoordinates(pos);
-    float size = 5.0f * zoomLevel;
-    
-    // Choose color based on snap point type
-    ImU32 color;
-    if (type == "Grid") {
-        color = IM_COL32(100, 200, 100, 255); // Green for grid snaps
-    } else if (type.find("Endpoint") != std::string::npos || 
-               type.find("Vertex") != std::string::npos || 
-               type.find("Point") != std::string::npos) {
-        color = IM_COL32(240, 200, 40, 255);  // Yellow/gold for points
-    } else if (type.find("Midpoint") != std::string::npos) {
-        color = IM_COL32(80, 180, 240, 255);  // Blue for midpoints
-    } else if (type.find("Center") != std::string::npos) {
-        color = IM_COL32(240, 100, 240, 255); // Purple for centers
-    } else if (type.find("North") != std::string::npos || 
-               type.find("South") != std::string::npos || 
-               type.find("East") != std::string::npos || 
-               type.find("West") != std::string::npos) {
-        color = IM_COL32(240, 120, 80, 255);  // Orange for cardinal points
-    } else {
-        color = IM_COL32(200, 200, 200, 255); // Default white for other types
-    }
-    
-    // Draw different visual indicators based on type
-    if (type == "Grid") {
-        // Grid snap: rectangular marker
-        drawList->AddRect(
-            ImVec2(transformed.x - size, transformed.y - size),
-            ImVec2(transformed.x + size, transformed.y + size),
-            color,
-            0.0f,
-            ImDrawFlags_None,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-    } else if (type.find("Endpoint") != std::string::npos || 
-               type.find("Vertex") != std::string::npos || 
-               type.find("Point") != std::string::npos) {
-        // Point snap: diamond marker
-        float diamondSize = size * 1.2f;
-        drawList->AddQuad(
-            ImVec2(transformed.x, transformed.y - diamondSize),
-            ImVec2(transformed.x + diamondSize, transformed.y),
-            ImVec2(transformed.x, transformed.y + diamondSize),
-            ImVec2(transformed.x - diamondSize, transformed.y),
-            color,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-    } else if (type.find("Midpoint") != std::string::npos) {
-        // Midpoint snap: cross in circle
-        drawList->AddCircle(
-            transformed,
-            size * 1.2f,
-            color,
-            0,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-        // Add cross inside
-    drawList->AddLine(
-        ImVec2(transformed.x - size, transformed.y),
-        ImVec2(transformed.x + size, transformed.y),
-            color,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-    );
-    drawList->AddLine(
-        ImVec2(transformed.x, transformed.y - size),
-        ImVec2(transformed.x, transformed.y + size),
-            color,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-    } else if (type.find("Center") != std::string::npos) {
-        // Center snap: concentric circles
-        drawList->AddCircle(
-            transformed,
-            size * 1.5f,
-            color,
-            0,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-        drawList->AddCircle(
-            transformed,
-            size * 0.7f,
-            color,
-            0,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-    } else {
-        // Default: cross
-        drawList->AddLine(
-            ImVec2(transformed.x - size, transformed.y),
-            ImVec2(transformed.x + size, transformed.y),
-            color,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-        drawList->AddLine(
-            ImVec2(transformed.x, transformed.y - size),
-            ImVec2(transformed.x, transformed.y + size),
-            color,
-            2.0f * (zoomLevel > 1.0f ? 1.0f : zoomLevel)
-        );
-    }
-    
-    // Add a semi-transparent background for better text readability
-    ImVec2 textSize = ImGui::CalcTextSize(type.c_str());
-    ImVec2 textPos = ImVec2(transformed.x + size + 5.0f, transformed.y - textSize.y/2);
-    
-    drawList->AddRectFilled(
-        ImVec2(textPos.x - 2, textPos.y - 2),
-        ImVec2(textPos.x + textSize.x + 2, textPos.y + textSize.y + 2),
-        IM_COL32(40, 40, 40, 180), // Dark semi-transparent background
-        3.0f
-    );
-    
-    // Draw the type text with the same color as the indicator
-    drawList->AddText(textPos, color, type.c_str());
-}
 
 ImVec2 Canvas::getSnappedPoint(const ImVec2& point) const {
     if (!snapToGrid) return point;
@@ -2841,69 +2104,13 @@ std::optional<ImVec2> Canvas::findNearestPoint(const ImVec2& point, float thresh
 }
 
 // Individual render methods
-void Canvas::renderPoints(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::POINT) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderLines(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::LINE) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderCircles(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::CIRCLE) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderTriangles(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::TRIANGLE) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderSquares(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::SQUARE) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderRectangles(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::RECTANGLE) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderSplines(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::SPLINE) {
-            drawShape(*shape);
-        }
-    }
-}
 
-void Canvas::renderBezierCurves(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::BEZIER) {
-            drawShape(*shape);
-        }
-    }
-}
 
 // Curve calculation methods
 ImVec2 Canvas::calculateBezierPoint(const std::vector<ImVec2>& points, float t) const {
@@ -2995,51 +2202,6 @@ ImVec2 Canvas::findNearestSnapPoint(const ImVec2& pos) const {
     return result;
 }
 
-void Canvas::renderBellows(ImDrawList* drawList) const {
-    int bellowsCount = 0;
-    std::cout << "[DEBUG] Total shapes in vector: " << shapes.size() << std::endl;
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::BELLOWS) {
-            ++bellowsCount;
-            const Bellows* bellows = static_cast<const Bellows*>(shape.get());
-            
-            // Debug: Check bellows validity and parameters
-            bool valid = bellows->isValid();
-            std::cout << "[DEBUG] Bellows #" << bellowsCount 
-                      << " valid=" << valid 
-                      << " convolutedSectionLength=" << bellows->convolutedSectionLength
-                      << " numConvolutions=" << bellows->numConvolutions
-                      << " cuffALength=" << bellows->cuffALength 
-                      << " cuffBLength=" << bellows->cuffBLength << std::endl;
-            
-            if (!valid) continue;
-            
-            const std::vector<ImVec2>& profilePoints = bellows->getCachedProfile();
-            std::vector<ImVec2> transformedPoints;
-            transformedPoints.reserve(profilePoints.size());
-            float s = sin(bellows->angle);
-            float c = cos(bellows->angle);
-            for (const auto& point : profilePoints) {
-                float rotatedX = point.x * c - point.y * s;
-                float rotatedY = point.x * s + point.y * c;
-                ImVec2 translatedPoint(
-                    bellows->position.x + rotatedX,
-                    bellows->position.y + rotatedY
-                );
-                transformedPoints.push_back(translatedPoint);
-            }
-            // Always use a strong visible color and thickness
-            ImU32 profileColor = bellows->isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(0, 0, 255, 255);
-            float profileThickness = bellows->isSelected ? (bellows->thickness * 2.0f) : (bellows->thickness * 1.5f);
-            for (size_t i = 0; i < transformedPoints.size() - 1; ++i) {
-                ImVec2 p1 = transformCoordinates(transformedPoints[i]);
-                ImVec2 p2 = transformCoordinates(transformedPoints[i + 1]);
-                drawList->AddLine(p1, p2, profileColor, profileThickness);
-            }
-            // ... (rest of dimension rendering code) ...
-        }
-    }
-}
 
 void Canvas::clearSelection() {
     // Clear selection state for special shape types
@@ -3215,139 +2377,7 @@ void Canvas::handleBallBearingDrawing(ImDrawList* drawList, const ImVec2& curren
     }
 }
 
-void Canvas::previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius) const {
-    if (!isDrawing || radius <= 0.0f) return;
-    
-    ImVec2 transformedCenter = transformCoordinates(center);
-    float transformedRadius = radius * zoomLevel;
-    
-    // Draw preview of outer circle
-    drawList->AddCircle(transformedCenter, transformedRadius, Colors::PREVIEW, 32, 2.0f);
-    
-    // Draw preview of inner circle
-    float innerRadius = transformedRadius * 0.6f;
-    drawList->AddCircle(transformedCenter, innerRadius, Colors::PREVIEW, 32, 1.0f);
-    
-    // Draw preview balls
-    int numBalls = 8;
-    float pitchRadius = (transformedRadius + innerRadius) / 2.0f;
-    float ballRadius = (transformedRadius - innerRadius) / 8.0f;
-    
-    for (int i = 0; i < numBalls; ++i) {
-        float ballAngle = (float)i / numBalls * 2.0f * M_PI;
-        ImVec2 ballPos = ImVec2(
-            transformedCenter.x + pitchRadius * cos(ballAngle),
-            transformedCenter.y + pitchRadius * sin(ballAngle)
-        );
-        drawList->AddCircleFilled(ballPos, ballRadius, Colors::PREVIEW);
-    }
-}
 
-void Canvas::renderBallBearings(ImDrawList* drawList) const {
-    for (const auto& shape : shapes) {
-        if (shape->type == ShapeType::BALL_BEARING) {
-            const BallBearing* ballBearing = static_cast<const BallBearing*>(shape.get());
-            
-            // Skip if not valid
-            if (!ballBearing->isValid()) continue;
-            
-            // Transform center position
-            ImVec2 transformedCenter = transformCoordinates(ballBearing->position);
-            
-            float outerRadius = (ballBearing->outerDiameter / 2.0f) * zoomLevel;
-            float innerRadius = (ballBearing->innerDiameter / 2.0f) * zoomLevel;
-            
-            // Determine colors based on selection
-            ImU32 outerColor = ballBearing->isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(0, 0, 0, 255);
-            ImU32 innerColor = ballBearing->isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(100, 100, 100, 255);
-            
-            // Draw outer race
-            drawList->AddCircle(transformedCenter, outerRadius, outerColor, 64, ballBearing->thickness * 1.5f);
-            
-            // Draw inner race
-            drawList->AddCircle(transformedCenter, innerRadius, innerColor, 64, ballBearing->thickness);
-            
-            // Draw balls if enabled
-            if (ballBearing->showBalls) {
-                float pitchRadius = (outerRadius + innerRadius) / 2.0f;
-                float ballRadius = (ballBearing->ballDiameter / 2.0f) * zoomLevel;
-                
-                ImU32 ballColor = ballBearing->isSelected ? IM_COL32(255, 255, 150, 255) : IM_COL32(150, 150, 150, 255);
-                
-                for (int i = 0; i < ballBearing->numBalls; ++i) {
-                    float ballAngle = (float)i / ballBearing->numBalls * 2.0f * M_PI;
-                    ImVec2 ballPos = ImVec2(
-                        transformedCenter.x + pitchRadius * cos(ballAngle),
-                        transformedCenter.y + pitchRadius * sin(ballAngle)
-                    );
-                    drawList->AddCircleFilled(ballPos, ballRadius, ballColor);
-                }
-            }
-            
-            // Draw cage if enabled
-            if (ballBearing->showCage) {
-                float cageRadius = (outerRadius + innerRadius) / 2.0f;
-                ImU32 cageColor = ballBearing->isSelected ? IM_COL32(255, 255, 100, 180) : IM_COL32(200, 200, 200, 180);
-                drawList->AddCircle(transformedCenter, cageRadius, cageColor, 32, 1.0f);
-            }
-            
-            // Draw dimension lines if needed
-            if (ballBearing->showDimensions) {
-                std::vector<std::pair<ImVec2, ImVec2>> dimensions = ballBearing->generateDimensionLines();
-                
-                // Dimension line style
-                ImU32 dimensionColor = IM_COL32(0, 120, 215, 200); // Blue for dimension lines
-                
-                for (auto& dim : dimensions) {
-                    // Rotate and translate dimension lines
-                    ImVec2 p1, p2;
-                    
-                    // Rotate and translate first point
-                    float s = sin(ballBearing->angle);
-                    float c = cos(ballBearing->angle);
-                    p1.x = dim.first.x * c - dim.first.y * s + ballBearing->position.x;
-                    p1.y = dim.first.x * s + dim.first.y * c + ballBearing->position.y;
-                    
-                    // Rotate and translate second point
-                    p2.x = dim.second.x * c - dim.second.y * s + ballBearing->position.x;
-                    p2.y = dim.second.x * s + dim.second.y * c + ballBearing->position.y;
-                    
-                    // Transform to screen coordinates
-                    p1 = transformCoordinates(p1);
-                    p2 = transformCoordinates(p2);
-                    
-                    // Draw dimension line
-                    drawDashedLine(drawList, p1, p2, dimensionColor, 1.0f, 5.0f);
-                    
-                    // Draw small perpendicular end ticks
-                    ImVec2 direction = ImVec2(p2.x - p1.x, p2.y - p1.y);
-                    float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-                    
-                    if (length > 0.1f) {
-                        direction.x /= length;
-                        direction.y /= length;
-                        
-                        // Perpendicular vector
-                        ImVec2 perp = ImVec2(-direction.y, direction.x);
-                        float tickSize = 5.0f;
-                        
-                        // Draw end ticks
-                        drawList->AddLine(
-                            ImVec2(p1.x - perp.x * tickSize, p1.y - perp.y * tickSize),
-                            ImVec2(p1.x + perp.x * tickSize, p1.y + perp.y * tickSize),
-                            dimensionColor, 1.0f
-                        );
-                        drawList->AddLine(
-                            ImVec2(p2.x - perp.x * tickSize, p2.y - perp.y * tickSize),
-                            ImVec2(p2.x + perp.x * tickSize, p2.y + perp.y * tickSize),
-                            dimensionColor, 1.0f
-                        );
-                    }
-                }
-            }
-        }
-    }
-}
 
 void Canvas::setSpring2DShape(std::unique_ptr<Shape> spring) {
     // Remove any existing Spring2D shape
@@ -3372,7 +2402,7 @@ void Canvas::handleSpring2DDrawing(ImDrawList* drawList, const ImVec2& mousePos)
 
     if (isDrawing) {
         // Show preview
-        previewSpring2D(drawList, snappedPos);
+        renderer->previewSpring2D(drawList, snappedPos);
 
         // Place spring on click
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
@@ -3388,28 +2418,6 @@ void Canvas::handleSpring2DDrawing(ImDrawList* drawList, const ImVec2& mousePos)
     }
 }
 
-void Canvas::previewSpring2D(ImDrawList* drawList, const ImVec2& center) const {
-    // Draw a preview of the spring at the given center using current parameters
-    int pointsPerCoil = 40;
-    int totalPoints = springNumCoils * pointsPerCoil;
-    float halfLength = springFreeLength / 2.0f;
-    float radius = springOuterDiameter / 2.0f - springWireDiameter / 2.0f;
-    std::vector<ImVec2> points;
-    points.reserve(totalPoints);
-    for (int i = 0; i < totalPoints; ++i) {
-        float t = (float)i / (totalPoints - 1);
-        float y = center.y - halfLength + t * springFreeLength;
-        float angle = t * springNumCoils * 2.0f * M_PI;
-        float x = center.x + radius * std::sin(angle);
-        points.emplace_back(x, y);
-    }
-    for (int i = 0; i < (int)points.size() - 1; ++i) {
-        ImVec2 p1 = transformCoordinates(points[i]);
-        ImVec2 p2 = transformCoordinates(points[i + 1]);
-        drawList->AddLine(p1, p2, Colors::PREVIEW, std::max(springWireDiameter * zoomLevel, 2.0f));
-    }
-    // Removed top and bottom arcs for a cleaner preview
-}
 
 void Canvas::updateShockAbsorberEndsForSpring(const Drawing::Spring2D* spring) {
     for (auto& shape : shapes) {

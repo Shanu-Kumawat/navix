@@ -125,7 +125,17 @@ target_link_libraries(imgui PUBLIC ${OPENGL_LIBRARIES})
 # Add Drawing library
 add_library(drawing STATIC
     src/ApplicationContext.cpp
+    src/SceneModel.cpp
+    src/Renderer2D.cpp
+    src/InputController.cpp
     src/Canvas.cpp
+    src/ui/TopRibbon.cpp
+    src/ui/UIState.cpp
+    src/ui/UIHelpers.cpp
+    src/ui/PropertyPanel.cpp
+    src/ui/StatusBar.cpp
+    src/ui/CanvasView.cpp
+    src/ui/Viewers3DUI.cpp
     src/shapes/ComplexShapes.cpp
     src/shapes/Bellows.cpp
     src/shapes/BallBearing.cpp

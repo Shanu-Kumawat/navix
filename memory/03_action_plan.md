@@ -4,9 +4,9 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 
 ## Phase 1: Stabilization & Decoupling (Current Focus)
 **Goal**: Establish a clean, modular architecture and eliminate technical debt.
-- **Priority 1**: Eradicate global state. Move `UIState` into an `ApplicationContext` or `Project` class passed by reference.
-- **Priority 2**: Break down `Canvas.cpp`. Split it into `InputController`, `Renderer2D`, and `SceneModel`.
-- **Priority 3**: Break down `main.cpp`. Extract UI panels into separate classes (e.g., `ToolbarView`, `PropertiesPanel`).
+- **Priority 1**: [COMPLETED] Eradicate global state. Move `UIState` into an `ApplicationContext` or `Project` class passed by reference.
+- **Priority 2**: [COMPLETED] Break down `Canvas.cpp`. Split it into `InputController`, `Renderer2D`, and `SceneModel`.
+- **Priority 3**: [COMPLETED] Break down `main.cpp`. Extract UI panels into separate classes (e.g., `ToolbarView`, `PropertiesPanel`).
 - **Priority 4**: Replace all custom math and `ImVec2` usage in the core logic with `glm::dvec2` / `glm::dvec3` (double precision). Keep `ImVec2` *only* in the UI rendering layer.
 
 ## Phase 2: Architectural Foundation for FEM
