@@ -131,6 +131,7 @@ add_library(drawing STATIC
     src/Canvas.cpp
     src/commands/CommandManager.cpp
     src/topology/TopologyManager.cpp
+    src/core/ImGuiRenderer.cpp
     src/ui/TopRibbon.cpp
     src/ui/UIState.cpp
     src/ui/UIHelpers.cpp

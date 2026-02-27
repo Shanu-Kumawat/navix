@@ -10,13 +10,13 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 - **Priority 4**: [COMPLETED] Replace all custom math and `ImVec2` usage in the core logic with `glm::dvec2` / `glm::dvec3` (double precision). Keep `ImVec2` *only* in the UI rendering layer.
 - **Priority 5**: [COMPLETED] Decouple OpenNURBS from the build process. Provide a clear boundary or evaluate if it is strictly needed at this stage.
 
-## Phase 2: Architectural Foundation for FEM (Current Focus)
+## Phase 2: Architectural Foundation for FEM (COMPLETED)
 **Goal**: Implement the necessary data structures and patterns for robust engineering software.
 - **Priority 1**: [COMPLETED] Implement the Command Pattern for all user actions to ensure robust Undo/Redo and state management.
 - **Priority 2**: [COMPLETED] Replace the flat `std::vector<Shape>` with a topological data structure. Define `Node`, `Edge`, and `Face` classes.
-- **Priority 3**: Abstract the OpenGL rendering into a `Renderer` interface so that drawing a "Shape" or a "Finite Element" uses the same pipeline.
+- **Priority 3**: [COMPLETED] Abstract the OpenGL rendering into a `Renderer` interface so that drawing a "Shape" or a "Finite Element" uses the same pipeline.
 
-## Phase 3: Meshing Integration
+## Phase 3: Meshing Integration (Current Focus)
 **Goal**: Enable the conversion of geometric models into finite element meshes.
 - **Priority 1**: Integrate the **Gmsh** C++ API into the build system (`CMakeLists.txt`).
 - **Priority 2**: Write a translation layer that converts the topological data structure into Gmsh's geometry format.
