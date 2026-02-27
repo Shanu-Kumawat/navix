@@ -90,5 +90,46 @@ void ImGuiRenderer::drawEdge(const Topology::Edge* edge, const Topology::Node* n
              color, 2.0f);
 }
 
+void ImGuiRenderer::drawMesh(const Core::Meshing::Mesh& mesh, const glm::dvec3& color) {
+    if (!currentDrawList) return;
+
+    const auto& nodesList = mesh.getNodes();
+    const auto& elementsList = mesh.getElements();
+
+    ImU32 pointCol = ImGui::GetColorU32(IM_COL32(
+        static_cast<int>(color.r * 255),
+        static_cast<int>(color.g * 255),
+        static_cast<int>(color.b * 255),
+        255
+    ));
+
+    for (const auto& elem : elementsList) {
+        if (elem.nodeTags.size() < 2) continue; // Skip disconnected points
+        
+        for (size_t i = 0; i < elem.nodeTags.size(); ++i) {
+            uint64_t nId1 = elem.nodeTags[i];
+            uint64_t nId2 = elem.nodeTags[(i + 1) % elem.nodeTags.size()];
+
+            const Core::Meshing::MeshNode* node1 = nullptr;
+            const Core::Meshing::MeshNode* node2 = nullptr;
+
+            for (const auto& n : nodesList) {
+                if (n.tag == nId1) node1 = &n;
+                if (n.tag == nId2) node2 = &n;
+                if (node1 && node2) break;
+            }
+            
+            if (node1 && node2) {
+                glm::dvec2 p1(node1->position.x, node1->position.y);
+                glm::dvec2 p2(node2->position.x, node2->position.y);
+                
+                auto sp1 = toScreen(p1);
+                auto sp2 = toScreen(p2);
+                
+                currentDrawList->AddLine(sp1, sp2, pointCol, 1.0f);
+            }
+        }
+    }
+}
 } // namespace Graphics
 } // namespace Core

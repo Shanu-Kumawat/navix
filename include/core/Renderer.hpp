@@ -1,5 +1,7 @@
 #pragma once
 
+#include "meshing/Mesh.hpp"
+
 #include <glm/glm.hpp>
 #include <vector>
 #include <cstdint>
@@ -41,6 +43,8 @@ public:
     // FEA / Topological Pipeline
     virtual void drawNode(const Topology::Node* node, bool isSelected = false) = 0;
     virtual void drawEdge(const Topology::Edge* edge, const Topology::Node* n1, const Topology::Node* n2, bool isSelected = false) = 0;
+    // Mesh Drawing Function
+    virtual void drawMesh(const Meshing::Mesh& mesh, const glm::dvec3& color) = 0;
 };
 
 } // namespace Core

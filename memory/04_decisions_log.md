@@ -70,3 +70,7 @@ ADR-012: Phase 3 (Meshing) Data Extraction
 Context: Standardizing outputs after meshing from Gmsh. Directly exporting native unstructured data.
 Decision: Created Core::Meshing::GmshExtractor resolving gmsh outputs dynamically back into explicit Mesh structs (MeshNode, MeshElement).
 Consequences: FEA and Rendering decoupled securely from standard Gmsh memory blocks. Meshing output is completely portable inside application topology variables.
+ADR-013: Rendering Extracted Mesh
+Context: Displaying parsed mesh data directly on the main viewport seamlessly mapped over B-REP elements.
+Decision: Extended pure abstract Core::Renderer and specifically the Graphic::ImGuiRenderer backends to accept Meshing::Mesh inputs, rendering the explicit edge bounds of parsed unstructured Gmsh 2D outputs.
+Consequences: Users can dynamically click buttons inside the active UI layout to push Topology, trigger Meshing explicitly, and retrieve the graphic outputs correctly overlaid against user shapes allowing rapid iteration/review loops directly within the Navix interface.
