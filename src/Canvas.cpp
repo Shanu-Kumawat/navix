@@ -39,16 +39,10 @@ Canvas::Canvas() :
     gridSpacing(Constants::DEFAULT_GRID_SPACING),
     showControlPoints(true),
     selectedShape(nullptr),
-    currentHistoryIndex(0),
     isDraggingCanvas(false),
     showGrid(true)
 {
     // Add initial state with current view settings
-    HistoryState initialState;
-    initialState.panOffset = panOffset;
-    initialState.zoomLevel = zoomLevel;
-    initialState.showGrid = showGrid;
-    history.push_back(std::move(initialState)); // Initial empty state
 }
 
 void Canvas::setDrawingMode(DrawingMode mode) {
@@ -424,46 +418,60 @@ void Canvas::scaleSelectedShape(float factor) {
     // For now, only implement for shapes that support scaling
 }
 
-void Canvas::saveToHistory() {
-    // If we're not at the end of the history, truncate future states
-    if (currentHistoryIndex < history.size() - 1) {
-        history.resize(currentHistoryIndex + 1);
+
+class CanvasSnapshotCommand : public Core::Commands::Command {
+public:
+    CanvasSnapshotCommand(Canvas* activeCanvas, Canvas::HistoryState state)
+        : canvas(activeCanvas), savedState(std::move(state)) {}
+
+    void execute() override {
+        swapState();
     }
-    
-    // Create a new history state with deep copy of shapes
-    HistoryState state;
+
+    void undo() override {
+        swapState();
+    }
+
+    std::string getName() const override {
+        return "Canvas Action";
+    }
+
+private:
+    void swapState() {
+        Canvas::HistoryState currentState;
+        for (const auto& shape : canvas->shapes) {
+            currentState.shapes.push_back(shape->clone());
+        }
+        currentState.panOffset = canvas->panOffset;
+        currentState.zoomLevel = canvas->zoomLevel;
+        currentState.showGrid = canvas->showGrid;
+
+        canvas->restoreHistoryState(savedState);
+        savedState = std::move(currentState);
+    }
+
+    Canvas* canvas;
+    Canvas::HistoryState savedState;
+};
+
+void Canvas::saveToHistory() {
+    Canvas::HistoryState state;
     for (const auto& shape : shapes) {
         state.shapes.push_back(shape->clone());
     }
-    
-    // Add view state to history
     state.panOffset = panOffset;
     state.zoomLevel = zoomLevel;
     state.showGrid = showGrid;
     
-    // Add to history
-    history.push_back(std::move(state));
-    if (history.size() > MAX_HISTORY_SIZE) {
-        history.erase(history.begin());
-    } else {
-        currentHistoryIndex++;
-    }
-    
-    std::cout << "Saved to history. History states: " << history.size() << ", Current index: " << currentHistoryIndex << "\n";
+    commandManager.executeCommand(std::make_unique<CanvasSnapshotCommand>(this, std::move(state)));
 }
 
 void Canvas::undo() {
-    if (currentHistoryIndex > 0) {
-        currentHistoryIndex--;
-        restoreHistoryState(history[currentHistoryIndex]);
-    }
+    commandManager.undo();
 }
 
 void Canvas::redo() {
-    if (currentHistoryIndex < history.size() - 1) {
-        currentHistoryIndex++;
-        restoreHistoryState(history[currentHistoryIndex]);
-    }
+    commandManager.redo();
 }
 
 void Canvas::restoreHistoryState(const HistoryState& state) {
@@ -473,7 +481,6 @@ void Canvas::restoreHistoryState(const HistoryState& state) {
     }
     selectedShape = nullptr;
     
-    // Restore view settings
     panOffset = state.panOffset;
     zoomLevel = state.zoomLevel;
     showGrid = state.showGrid;

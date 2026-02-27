@@ -129,6 +129,7 @@ add_library(drawing STATIC
     src/Renderer2D.cpp
     src/InputController.cpp
     src/Canvas.cpp
+    src/commands/CommandManager.cpp
     src/ui/TopRibbon.cpp
     src/ui/UIState.cpp
     src/ui/UIHelpers.cpp

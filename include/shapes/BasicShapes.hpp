@@ -34,6 +34,7 @@ enum class ShapeType {
 };
 
 struct Shape {
+    uint64_t id = 0;
     ShapeType type;
     ImU32 color;
     float thickness;

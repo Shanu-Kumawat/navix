@@ -9,6 +9,7 @@
 #include <algorithm>  
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
+#include "commands/CommandManager.hpp"
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "utils/MathUtils.hpp"
 #include "Constants.hpp"
@@ -21,8 +22,11 @@ using namespace Drawing::Math;
 
 
 
+class CanvasSnapshotCommand;
+
 class Canvas {
 public:
+    friend class CanvasSnapshotCommand;
     void render(ImDrawList* drawList) { if (renderer) renderer->render(drawList, *sceneModel); }
     std::vector<glm::dvec2> calculateSplinePoints(const std::vector<glm::dvec2>& controlPoints, bool isClosed) const;
 
@@ -330,9 +334,7 @@ private:
     int selectedShapeIndex = -1;
     
     // History management
-    std::vector<HistoryState> history;
-    size_t currentHistoryIndex{0};
-    static constexpr size_t MAX_HISTORY_SIZE = 50;
+    Core::Commands::CommandManager commandManager;
     
     glm::dvec2 mousePos;
     glm::dvec2 lastMousePos;

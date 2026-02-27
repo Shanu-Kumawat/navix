@@ -31,3 +31,8 @@ This document logs all major architectural decisions, design changes, and subsys
 - **Context**: The `OpenNURBS` library was present in the external directory but currently unused within the codebase or the build loop. As the focus shifts to internal topological representations prior to Gmsh injection, keeping an unused massive library adds unnecessary complexity.
 - **Decision**: Remove the `OpenNURBS` submodule reference entirely to clean up the architecture (Phase 1, Priority 5). If NURBS are required later, a leaner or better-integrated solution will be evaluated.
 - **Implications**: Reduces repository weight and simplifies the build/vendor dependencies.
+
+## ADR-007: Command Pattern for Undo/Redo Engine
+- **Context**: Transitioning from a primitive snapshot history list to a modular Command pattern architecture required scaffolding `CommandManager` alongside a baseline polymorphic `Command` structure.
+- **Decision**: Implemented `CommandManager` maintaining independent undo/redo `std::vector<std::unique_ptr<Core::Commands::Command>>` stacks. A bridge command named `CanvasSnapshotCommand` was injected strictly into the legacy global swap mechanism (`saveToHistory()`) to establish the architectural foundation while minimizing logical risk.
+- **Consequences**: Immediate robust structural backing for all action-based logic, allowing granular actions (e.g. `TranslateNodeCommand`) to be adopted naturally when Topological models roll-out in Phase 2. The legacy naive snapshot loop now seamlessly integrates across the new `CommandManager` ecosystem as a single `Command` variant.
