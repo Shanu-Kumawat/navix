@@ -142,6 +142,7 @@ add_library(drawing STATIC
     src/Canvas.cpp
     src/commands/CommandManager.cpp
     src/topology/TopologyManager.cpp
+    src/topology/GmshIntegration.cpp
     src/core/ImGuiRenderer.cpp
     src/ui/TopRibbon.cpp
     src/ui/UIState.cpp
@@ -266,4 +267,13 @@ target_include_directories(drawing PUBLIC
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR}) 
 if(GMSH_FOUND)
     target_link_libraries(main PRIVATE ${GMSH_LIBRARY})
+endif()
+
+# Ensure DLL/SO is copied
+if(GMSH_FOUND AND GMSH_LIBRARY MATCHES "external/gmsh/lib/libgmsh.so")
+    add_custom_command(TARGET main POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${GMSH_LIBRARY}
+        ${CMAKE_BINARY_DIR}/
+    )
 endif()

@@ -51,3 +51,8 @@ This document logs all major architectural decisions, design changes, and subsys
 - **Context**: Relying on package managers across distributions (Ubuntu `apt`, Arch `pacman`/`yay`) introduces non-deterministic outcomes and potential root/sudo requirements when linking complex finite-element SDKs.
 - **Decision**: Curated a deterministic local dependency mapping inside `cmake/FindGmsh.cmake`. We downloaded `gmsh-4.13.1-Linux64-sdk` directly and mapped `GMSH_SEARCH_PATHS` locally to `external/gmsh`. 
 - **Consequences**: Avoids corrupting system states on target machines. `USE_GMSH` configuration flag enables modular compilation, injecting the SDK precisely when the dynamic objects (`libgmsh.so`) are successfully mapped.
+
+## ADR-010: Gmsh SDK Local Fallback & CMake Integration
+- **Context**: Navix requires robust finite-element meshing. Gmsh is the industry standard open-source meshing API. Since package availability across distributions varies (e.g. Arch uses AUR), forcing `sudo apt install libgmsh-dev` makes bootstrapping difficult on certain Linux systems and Windows MSYS2 wrappers.
+- **Decision**: Curated a `FindGmsh.cmake` custom module bridging direct system-linked paths and a prioritized local `./external/gmsh` vendored SDK location. Created a generic `GmshIntegration` static singleton class binding `<gmsh.h>` dynamically to `TopologyManager` if `USE_GMSH` is present.
+- **Consequences**: Navix compiles on systems without root access instantly. Meshing behaves modularly: if the engine doesn't find Gmsh SDK headers or libraries it prints a warning and falls back gracefully strictly continuing its drawing runtime without solver states.
