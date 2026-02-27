@@ -142,6 +142,7 @@ add_library(drawing STATIC
     src/Canvas.cpp
     src/commands/CommandManager.cpp
     src/topology/TopologyManager.cpp
+    src/meshing/GmshTranslator.cpp
     src/topology/GmshIntegration.cpp
     src/core/ImGuiRenderer.cpp
     src/ui/TopRibbon.cpp
