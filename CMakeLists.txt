@@ -124,6 +124,7 @@ target_link_libraries(imgui PUBLIC ${OPENGL_LIBRARIES})
 
 # Add Drawing library
 add_library(drawing STATIC
+    src/ApplicationContext.cpp
     src/Canvas.cpp
     src/shapes/ComplexShapes.cpp
     src/shapes/Bellows.cpp

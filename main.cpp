@@ -18,6 +18,7 @@
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "ShockAbsorberViewer3D.hpp"
 #include "ComplexShape3DManager.hpp"
+#include "ApplicationContext.hpp"
 
 // Icon texture storage
 static std::unordered_map<std::string, GLuint> iconTextures;
@@ -71,34 +72,10 @@ const ImVec4 ERROR = ImVec4(0.85f, 0.25f, 0.20f, 1.0f);                  // Red 
 } // namespace UIColors
 
 // Global state for active tool and settings
+// Moved to ApplicationContext.hpp
+// We will keep the 3D viewers and UI-specific state here for now, 
+// but the core state is moved to ApplicationContext.
 namespace UIState {
-// Tool state
-static Drawing::DrawingMode activeMode = Drawing::DrawingMode::Select;
-static bool snapEnabled = true;
-static float gridSize = Drawing::Constants::DEFAULT_GRID_SPACING;
-static std::string consoleMessage = "Ready";
-static bool fixedLineLength = false;  // Set to false by default for dynamic line length
-static bool fixedCircleRadius = false;  // Set to false by default for dynamic circle radius
-static bool fixedSquareSize = false;  // Set to false by default for dynamic square size
-static bool fixedTriangleSize = false;  // Set to false by default for dynamic triangle size
-static bool fixedRectangleSize = false;  // Set to false by default for dynamic rectangle size
-
-// 3D view settings (using unified system)
-static bool showSpring3DView = false;
-static bool showShockAbsorber3DView = false;
-
-// Command line
-static char commandBuffer[256] = "";
-static bool focusCommandLine = false;
-static std::vector<std::string> commandHistory;
-static int commandHistoryPos = -1;
-
-// View settings
-static bool showRulers = true;
-static bool showCoordinates = true;
-static float zoomLevel = 1.0f;
-static ImVec2 panOffset = ImVec2(0.0f, 0.0f);
-
 // Resizable property panel width (user can drag to resize)
 static float userPropertyPanelWidth = 280.0f;
 
@@ -210,36 +187,36 @@ void LoadIconTextures();
 bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size);
 void CleanupIconTextures();
 void SetupHighDPIRendering(SDL_Window* window, ImGuiIO& io);
-void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas, const std::string &message);
+void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas, Core::ApplicationContext& appContext, const std::string &message);
 void SetupImGuiStyle();
-void RenderTopRibbon(Drawing::Canvas &canvas);
-void RenderPropertyPanel(Drawing::Canvas &canvas);
-void RenderStatusBar(Drawing::Canvas &canvas);
-void RenderCanvas(Drawing::Canvas &canvas);
-void HandleKeyboardShortcuts(Drawing::Canvas &canvas);
+void RenderTopRibbon(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
+void RenderPropertyPanel(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
+void RenderStatusBar(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
+void RenderCanvas(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
+void HandleKeyboardShortcuts(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
 
 // Forward declare the remaining 3D view functions (unified system handles others)
-void RenderSpring3DViewWindow(Drawing::Canvas &canvas);
-void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas);
+void RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
+void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext);
 void RenderBellows3DViewWindow(Drawing::Canvas &canvas);
 void RenderBallBearing3DViewWindow(Drawing::Canvas &canvas);
 
 // Helper function to handle tool selection
-void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas,
+void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas, Core::ApplicationContext& appContext,
                 const std::string &message) {
-  UIState::activeMode = mode;
+  appContext.activeMode = mode;
   canvas.setDrawingMode(mode);
-  UIState::consoleMessage = message;
+  appContext.consoleMessage = message;
 }
 
 // Implementation of missing 3D view rendering functions
-void RenderSpring3DViewWindow(Drawing::Canvas &canvas) {
+void RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   if (!UIState::spring3DViewInitialized) {
     UIState::springViewer.initialize();
     UIState::spring3DViewInitialized = true;
   }
   
-  if (ImGui::Begin("Spring 3D View", &UIState::showSpring3DView)) {
+  if (ImGui::Begin("Spring 3D View", &appContext.showSpring3DView)) {
     // Get available content region size for dynamic viewport
     ImVec2 availableSize = ImGui::GetContentRegionAvail();
     ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
@@ -256,13 +233,13 @@ void RenderSpring3DViewWindow(Drawing::Canvas &canvas) {
   ImGui::End();
 }
 
-void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas) {
+void RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   if (!UIState::shockAbsorberViewerInitialized) {
     UIState::shockAbsorberViewer.initialize();
     UIState::shockAbsorberViewerInitialized = true;
   }
   
-  if (ImGui::Begin("Shock Absorber 3D View", &UIState::showShockAbsorber3DView)) {
+  if (ImGui::Begin("Shock Absorber 3D View", &appContext.showShockAbsorber3DView)) {
     // Get available content region size for dynamic viewport
     ImVec2 availableSize = ImGui::GetContentRegionAvail();
     ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
@@ -420,7 +397,7 @@ void SetupImGuiStyle() {
   style.ButtonTextAlign = ImVec2(0.5f, 0.5f); // Center text in buttons
 }
 
-void RenderTopRibbon(Drawing::Canvas &canvas) {
+void RenderTopRibbon(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   // Professional style ribbon at the top
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 145)); // Increased to fit View panel with slider
@@ -477,15 +454,15 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Push style for icon buttons to ensure proper centering
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Point;
+  selected = appContext.activeMode == Drawing::DrawingMode::Point;
   if (IconButton("point", FALLBACK_POINT, "Point Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Point, canvas, "Point Tool: Click to place points");
+    SelectTool(Drawing::DrawingMode::Point, canvas, appContext, "Point Tool: Click to place points");
   }
   
   ImGui::SameLine(0, iconButtonSpacing);
-  selected = UIState::activeMode == Drawing::DrawingMode::Line;
+  selected = appContext.activeMode == Drawing::DrawingMode::Line;
   if (IconButton("line", FALLBACK_LINE, "Line Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Line, canvas, "Line Tool: Click to set start and end points");
+    SelectTool(Drawing::DrawingMode::Line, canvas, appContext, "Line Tool: Click to set start and end points");
   }
   
   if (iconsPerRow > 2) {
@@ -494,9 +471,9 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Circle;
+  selected = appContext.activeMode == Drawing::DrawingMode::Circle;
   if (IconButton("circle", FALLBACK_CIRCLE, "Circle Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Circle, canvas, "Circle Tool: Click to set center and radius");
+    SelectTool(Drawing::DrawingMode::Circle, canvas, appContext, "Circle Tool: Click to set center and radius");
   }
 
   if (iconsPerRow > 3) {
@@ -505,9 +482,9 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Triangle;
+  selected = appContext.activeMode == Drawing::DrawingMode::Triangle;
   if (IconButton("triangle", FALLBACK_TRIANGLE, "Triangle Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Triangle, canvas, "Triangle Tool: Click to set point and direction (dimensions in properties)");
+    SelectTool(Drawing::DrawingMode::Triangle, canvas, appContext, "Triangle Tool: Click to set point and direction (dimensions in properties)");
   }
 
   if (iconsPerRow > 4) {
@@ -516,9 +493,9 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Square;
+  selected = appContext.activeMode == Drawing::DrawingMode::Square;
   if (IconButton("square", FALLBACK_SQUARE, "Square Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Square, canvas, "Square Tool: Click to set corner and direction (side length in properties)");
+    SelectTool(Drawing::DrawingMode::Square, canvas, appContext, "Square Tool: Click to set corner and direction (side length in properties)");
   }
 
   if (iconsPerRow > 5) {
@@ -527,9 +504,9 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Rectangle;
+  selected = appContext.activeMode == Drawing::DrawingMode::Rectangle;
   if (IconButton("rectangle", FALLBACK_RECTANGLE, "Rectangle Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Rectangle, canvas, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
+    SelectTool(Drawing::DrawingMode::Rectangle, canvas, appContext, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
   }
   
   // Pop the icon button style
@@ -542,15 +519,15 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Push style for icon buttons to ensure proper centering
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Spline;
+  selected = appContext.activeMode == Drawing::DrawingMode::Spline;
   if (IconButton("spline", FALLBACK_SPLINE, "Spline Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Spline, canvas, "Spline Tool: Click to add control points, double-click to finish");
+    SelectTool(Drawing::DrawingMode::Spline, canvas, appContext, "Spline Tool: Click to add control points, double-click to finish");
   }
   
   ImGui::SameLine(0, iconButtonSpacing);
-  selected = UIState::activeMode == Drawing::DrawingMode::BezierCurve;
+  selected = appContext.activeMode == Drawing::DrawingMode::BezierCurve;
   if (IconButton("bezier", FALLBACK_BEZIER, "Bezier Curve Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::BezierCurve, canvas, "Bezier Tool: Click to add control points, double-click to finish");
+    SelectTool(Drawing::DrawingMode::BezierCurve, canvas, appContext, "Bezier Tool: Click to add control points, double-click to finish");
   }
   
   // Pop the icon button style
@@ -562,9 +539,9 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Bellows;
+  selected = appContext.activeMode == Drawing::DrawingMode::Bellows;
   if (IconButton("bellows", "Bellows", "Bellows Tool: Click to create a parametric bellows", ImVec2(textButtonWidth, textButtonHeight))) {
-    SelectTool(Drawing::DrawingMode::Bellows, canvas, "Bellows Tool: Click to create a parametric bellows");
+    SelectTool(Drawing::DrawingMode::Bellows, canvas, appContext, "Bellows Tool: Click to create a parametric bellows");
   }
   
   if (iconsPerRow > 2) {
@@ -573,15 +550,15 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     ImGui::Dummy(ImVec2(0, 3));
   }
   
-  selected = UIState::activeMode == Drawing::DrawingMode::BallBearing;
+  selected = appContext.activeMode == Drawing::DrawingMode::BallBearing;
   if (IconButton("bearing", "Ball Bearing", "Ball Bearing Tool: Click to create a parametric ball bearing", ImVec2(textButtonWidth, textButtonHeight))) {
-    SelectTool(Drawing::DrawingMode::BallBearing, canvas, "Ball Bearing Tool: Click to create a parametric ball bearing");
+    SelectTool(Drawing::DrawingMode::BallBearing, canvas, appContext, "Ball Bearing Tool: Click to create a parametric ball bearing");
   }
   
   ImGui::SameLine(0, iconButtonSpacing);
-  selected = UIState::activeMode == Drawing::DrawingMode::Spring2D;
+  selected = appContext.activeMode == Drawing::DrawingMode::Spring2D;
   if (IconButton("suspension", "Spring", "Spring Tool: Set parameters in properties panel", ImVec2(textButtonWidth, textButtonHeight))) {
-    SelectTool(Drawing::DrawingMode::Spring2D, canvas, "Spring Tool: Set parameters in properties panel");
+    SelectTool(Drawing::DrawingMode::Spring2D, canvas, appContext, "Spring Tool: Set parameters in properties panel");
   }
   
   ImGui::EndChild();
@@ -606,15 +583,15 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Push style for icon buttons to ensure proper centering
   ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
   
-  selected = UIState::activeMode == Drawing::DrawingMode::Select;
+  selected = appContext.activeMode == Drawing::DrawingMode::Select;
   if (IconButton("select", FALLBACK_SELECT, "Select Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Select, canvas, "Select Tool: Click to select objects");
+    SelectTool(Drawing::DrawingMode::Select, canvas, appContext, "Select Tool: Click to select objects");
   }
   
   ImGui::SameLine(0, iconButtonSpacing);
   if (IconButton("undo", FALLBACK_UNDO, "Undo", ImVec2(iconButtonSize, iconButtonSize))) {
     canvas.undo();
-    UIState::consoleMessage = "Undo";
+    appContext.consoleMessage = "Undo";
   }
   
   // Pop the icon button style
@@ -628,7 +605,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   
   if (IconButton("redo", FALLBACK_REDO, "##redo_tool", ImVec2(iconButtonSize, iconButtonSize))) {
     canvas.redo();
-    UIState::consoleMessage = "Redo";
+    appContext.consoleMessage = "Redo";
   }
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Redo");
@@ -643,7 +620,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   // Add Clear All button using text button size
   if (IconButton("clear", "Clear All", "Clear All: Remove all shapes from canvas", ImVec2(textButtonWidth, textButtonHeight))) {
     canvas.clearAll();
-    UIState::consoleMessage = "All shapes cleared";
+    appContext.consoleMessage = "All shapes cleared";
   }
   
   ImGui::EndChild();
@@ -669,22 +646,22 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   ImGui::PushItemWidth(80.0f); // Fixed width for slider that fits in panel
   if (ImGui::Checkbox("Grid", &showGrid)) {
     canvas.setShowGrid(showGrid);
-    UIState::consoleMessage = showGrid ? "Grid: ON" : "Grid: OFF";
+    appContext.consoleMessage = showGrid ? "Grid: ON" : "Grid: OFF";
   }
   
   bool snapToGrid = canvas.isSnapToGridEnabled();
   if (ImGui::Checkbox("Snap", &snapToGrid)) {
     canvas.setSnapToGrid(snapToGrid);
-    UIState::snapEnabled = snapToGrid;
-    UIState::consoleMessage = snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF";
+    appContext.snapEnabled = snapToGrid;
+    appContext.consoleMessage = snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF";
   }
   
   // Grid size slider
-  float gridSize = UIState::gridSize;
+  float gridSize = appContext.gridSize;
   if (ImGui::SliderFloat("Size", &gridSize, 5.0f, 50.0f, "%.0f")) {
-    UIState::gridSize = gridSize;
+    appContext.gridSize = gridSize;
     canvas.setGridSpacing(gridSize);
-    UIState::consoleMessage = "Grid Size Updated";
+    appContext.consoleMessage = "Grid Size Updated";
   }
   ImGui::PopItemWidth();
   
@@ -708,14 +685,14 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
     if (selectedShape->type == Drawing::ShapeType::BELLOWS) {
       if (ImGui::Button("3D Bellows", ImVec2(100, 30))) {
         UIState::showBellows3DView = true;
-        UIState::consoleMessage = "Opening 3D Bellows View";
+        appContext.consoleMessage = "Opening 3D Bellows View";
       }
       hasComplexShapes = true;
     }
     else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
       if (ImGui::Button("3D Ball Bearing", ImVec2(100, 30))) {
         UIState::showBallBearing3DView = true;
-        UIState::consoleMessage = "Opening 3D Ball Bearing View";
+        appContext.consoleMessage = "Opening 3D Ball Bearing View";
       }
       hasComplexShapes = true;
     }
@@ -737,7 +714,7 @@ void RenderTopRibbon(Drawing::Canvas &canvas) {
   ImGui::PopStyleVar();
 }
 
-void RenderStatusBar(Drawing::Canvas &canvas) {
+void RenderStatusBar(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   // AutoCAD-style status bar at the bottom (without command line)
   const float statusBarHeight = 28.0f;
   
@@ -795,7 +772,7 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
   // Section 2: Status message - clipped if too long
   // Calculate how much space we have for the status message
   float statusMsgWidth = statusSectionWidth - sectionPadding*2;
-  std::string statusMsg = UIState::consoleMessage;
+  std::string statusMsg = appContext.consoleMessage;
   ImVec2 textSize = ImGui::CalcTextSize(statusMsg.c_str());
   
   // If the text is too long, add ellipsis
@@ -822,20 +799,20 @@ void RenderStatusBar(Drawing::Canvas &canvas) {
   ImGui::SameLine(coordSectionWidth + statusSectionWidth + sectionPadding);
   
   // Section 3: Zoom level
-  ImGui::Text("Zoom: %.0f%%", UIState::zoomLevel * 100.0f);
+  ImGui::Text("Zoom: %.0f%%", appContext.zoomLevel * 100.0f);
   
   ImGui::SameLine(coordSectionWidth + statusSectionWidth + zoomSectionWidth);
   ImGui::Text("|");
   ImGui::SameLine(coordSectionWidth + statusSectionWidth + zoomSectionWidth + sectionPadding);
   
   // Section 4: Grid size indicator
-  ImGui::Text("Grid: %d%s", (int)UIState::gridSize, unitSuffix.c_str());
+  ImGui::Text("Grid: %d%s", (int)appContext.gridSize, unitSuffix.c_str());
 
   ImGui::End();
   ImGui::PopStyleColor();
 }
 
-void RenderPropertyPanel(Drawing::Canvas &canvas) {
+void RenderPropertyPanel(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   // Calculate property panel width - user can resize horizontally
   const float screenWidth = ImGui::GetIO().DisplaySize.x;
   const float propertyPanelMinWidth = 220.0f; // Minimum width
@@ -938,7 +915,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       if (ImGui::Button("Add Top End (Piston Rod)", ImVec2(buttonWidth, 0)) && !hasTopEnd) {
         auto end = std::make_unique<Drawing::ShockAbsorberEnd2D>(spring);
         canvas.addShape(std::move(end));
-        UIState::consoleMessage = "Added piston rod (top end)";
+        appContext.consoleMessage = "Added piston rod (top end)";
       }
       if (hasTopEnd) {
         ImGui::PopStyleColor(2);
@@ -955,7 +932,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       if (ImGui::Button("Add Bottom End (Mount)", ImVec2(buttonWidth, 0)) && !hasBottomEnd) {
         auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
         canvas.addShape(std::move(bottomEnd));
-        UIState::consoleMessage = "Added mounting plate (bottom end)";
+        appContext.consoleMessage = "Added mounting plate (bottom end)";
       }
       if (hasBottomEnd) {
         ImGui::PopStyleColor(2);
@@ -978,7 +955,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
             auto bottomEnd = std::make_unique<Drawing::ShockAbsorberBottomEnd>(spring);
             canvas.addShape(std::move(bottomEnd));
           }
-          UIState::consoleMessage = "Created complete shock absorber assembly";
+          appContext.consoleMessage = "Created complete shock absorber assembly";
         }
         ImGui::PopStyleColor(2);
       }
@@ -992,7 +969,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Spacing();
       
       if (ImGui::Button("View Spring in 3D", ImVec2(buttonWidth, 0))) {
-        UIState::showSpring3DView = true;
+        appContext.showSpring3DView = true;
       }
       
       bool hasCompleteAssembly = hasTopEnd && hasBottomEnd;
@@ -1005,8 +982,8 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       }
       
       if (ImGui::Button("View Shock Absorber in 3D", ImVec2(buttonWidth, 30)) && hasCompleteAssembly) {
-        UIState::showShockAbsorber3DView = true;
-        UIState::consoleMessage = "Opening 3D Shock Absorber View";
+        appContext.showShockAbsorber3DView = true;
+        appContext.consoleMessage = "Opening 3D Shock Absorber View";
       }
       
       ImGui::PopStyleColor(2);
@@ -1037,19 +1014,19 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   const float availableWidth = ImGui::GetContentRegionAvail().x;
   const float inputWidth = availableWidth * 0.65f;
   
-  if (UIState::activeMode == Drawing::DrawingMode::Line) {
+  if (appContext.activeMode == Drawing::DrawingMode::Line) {
     if (ImGui::CollapsingHeader("Line Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
       // Toggle for fixed/dynamic line length
-      bool fixedLength = UIState::fixedLineLength;
+      bool fixedLength = appContext.fixedLineLength;
       if (ImGui::Checkbox("Fixed Length", &fixedLength)) {
-        UIState::fixedLineLength = fixedLength;
+        appContext.fixedLineLength = fixedLength;
         canvas.setFixedLineLength(fixedLength);
-        UIState::consoleMessage = fixedLength ? "Line length: Fixed" : "Line length: Dynamic (use mouse to draw)";
+        appContext.consoleMessage = fixedLength ? "Line length: Fixed" : "Line length: Dynamic (use mouse to draw)";
       }
       
-      if (UIState::fixedLineLength) {
+      if (appContext.fixedLineLength) {
         // Get current line length from canvas
         static float lineLength = canvas.getLineLength();
         
@@ -1071,19 +1048,19 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Circle) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Circle) {
     if (ImGui::CollapsingHeader("Circle Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
       // Toggle for fixed/dynamic circle radius
-      bool fixedRadius = UIState::fixedCircleRadius;
+      bool fixedRadius = appContext.fixedCircleRadius;
       if (ImGui::Checkbox("Fixed Radius", &fixedRadius)) {
-        UIState::fixedCircleRadius = fixedRadius;
+        appContext.fixedCircleRadius = fixedRadius;
         canvas.setFixedCircleRadius(fixedRadius);
-        UIState::consoleMessage = fixedRadius ? "Circle radius: Fixed" : "Circle radius: Dynamic (use mouse to draw)";
+        appContext.consoleMessage = fixedRadius ? "Circle radius: Fixed" : "Circle radius: Dynamic (use mouse to draw)";
       }
       
-      if (UIState::fixedCircleRadius) {
+      if (appContext.fixedCircleRadius) {
         // Get current circle radius from canvas
         static float circleRadius = canvas.getCircleRadius();
         
@@ -1106,19 +1083,19 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Square) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Square) {
     if (ImGui::CollapsingHeader("Square Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
       // Toggle for fixed/dynamic square size
-      bool fixedSize = UIState::fixedSquareSize;
+      bool fixedSize = appContext.fixedSquareSize;
       if (ImGui::Checkbox("Fixed Size", &fixedSize)) {
-        UIState::fixedSquareSize = fixedSize;
+        appContext.fixedSquareSize = fixedSize;
         canvas.setFixedSquareSize(fixedSize);
-        UIState::consoleMessage = fixedSize ? "Square size: Fixed" : "Square size: Dynamic (use mouse to draw)";
+        appContext.consoleMessage = fixedSize ? "Square size: Fixed" : "Square size: Dynamic (use mouse to draw)";
       }
       
-      if (UIState::fixedSquareSize) {
+      if (appContext.fixedSquareSize) {
         // Get current square size from canvas
         static float squareSize = canvas.getSquareSize();
         
@@ -1141,19 +1118,19 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Rectangle) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Rectangle) {
     if (ImGui::CollapsingHeader("Rectangle Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
       // Toggle for fixed/dynamic rectangle size
-      bool fixedSize = UIState::fixedRectangleSize;
+      bool fixedSize = appContext.fixedRectangleSize;
       if (ImGui::Checkbox("Fixed Size", &fixedSize)) {
-        UIState::fixedRectangleSize = fixedSize;
+        appContext.fixedRectangleSize = fixedSize;
         canvas.setFixedRectangleSize(fixedSize);
-        UIState::consoleMessage = fixedSize ? "Rectangle size: Fixed" : "Rectangle size: Dynamic (use mouse to draw)";
+        appContext.consoleMessage = fixedSize ? "Rectangle size: Fixed" : "Rectangle size: Dynamic (use mouse to draw)";
       }
       
-      if (UIState::fixedRectangleSize) {
+      if (appContext.fixedRectangleSize) {
         // Get current rectangle dimensions from canvas
         static float rectangleWidth = canvas.getRectangleWidth();
         static float rectangleHeight = canvas.getRectangleHeight();
@@ -1189,19 +1166,19 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Triangle) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Triangle) {
     if (ImGui::CollapsingHeader("Triangle Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
       // Toggle for fixed/dynamic triangle size
-      bool fixedSize = UIState::fixedTriangleSize;
+      bool fixedSize = appContext.fixedTriangleSize;
       if (ImGui::Checkbox("Fixed Size", &fixedSize)) {
-        UIState::fixedTriangleSize = fixedSize;
+        appContext.fixedTriangleSize = fixedSize;
         canvas.setFixedTriangleSize(fixedSize);
-        UIState::consoleMessage = fixedSize ? "Triangle size: Fixed" : "Triangle size: Dynamic (use mouse to draw)";
+        appContext.consoleMessage = fixedSize ? "Triangle size: Fixed" : "Triangle size: Dynamic (use mouse to draw)";
       }
       
-      if (UIState::fixedTriangleSize) {
+      if (appContext.fixedTriangleSize) {
         // Get current triangle side length from canvas
         static float triangleSide = canvas.getTriangleSide();
         
@@ -1224,7 +1201,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Bellows) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Bellows) {
     if (ImGui::CollapsingHeader("Bellows Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
@@ -1238,7 +1215,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Spring2D) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Spring2D) {
     if (ImGui::CollapsingHeader("Spring Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Indent(10);
 
@@ -1290,7 +1267,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Spring2D) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Spring2D) {
     if (ImGui::CollapsingHeader("Spring Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Indent(10);
 
@@ -1342,7 +1319,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::Spring2D) {
+  else if (appContext.activeMode == Drawing::DrawingMode::Spring2D) {
     if (ImGui::CollapsingHeader("Spring Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Indent(10);
 
@@ -1394,7 +1371,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
         ImGui::Unindent(10);
     }
   }
-  else if (UIState::activeMode == Drawing::DrawingMode::BallBearing) {
+  else if (appContext.activeMode == Drawing::DrawingMode::BallBearing) {
     if (ImGui::CollapsingHeader("Ball Bearing Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::Indent(10);
       
@@ -1838,7 +1815,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
       canvas.addShape(std::move(bottomEnd));
     }
     if (ImGui::Button("3D View")) {
-      UIState::showSpring3DView = true;
+      appContext.showSpring3DView = true;
     }
     // Add the new 3D Shock Absorber button (only enabled if there's a complete assembly)
     bool hasCompleteAssembly = canvas.hasCompleteShockAbsorberAssembly();
@@ -1848,7 +1825,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
     }
     
     if (ImGui::Button("3D Shock Absorber") && hasCompleteAssembly) {
-      UIState::showShockAbsorber3DView = true;
+      appContext.showShockAbsorber3DView = true;
     }
     
     if (!hasCompleteAssembly) {
@@ -1866,7 +1843,7 @@ void RenderPropertyPanel(Drawing::Canvas &canvas) {
   }
 }
 
-void RenderCanvas(Drawing::Canvas &canvas) {
+void RenderCanvas(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   // Adjust canvas position and size to account for the ribbon and status bar
   // Using simplified UI layout (no tabs, single row of tools)
   const float ribbonHeight = 145.0f; // Updated height to match ribbon with View slider
@@ -1907,11 +1884,11 @@ void RenderCanvas(Drawing::Canvas &canvas) {
   canvas.render(drawList);
   
   // Add ruler indicators if enabled (AutoCAD has rulers)
-  if (UIState::showRulers) {
+  if (appContext.showRulers) {
     const float rulerSize = 20.0f;
     const float majorTickHeight = 10.0f;
     const float minorTickHeight = 5.0f;
-    const float tickSpacing = UIState::gridSize * UIState::zoomLevel;
+    const float tickSpacing = appContext.gridSize * appContext.zoomLevel;
     
     // Background for rulers
     drawList->AddRectFilled(
@@ -1927,7 +1904,7 @@ void RenderCanvas(Drawing::Canvas &canvas) {
     );
     
     // Horizontal ruler ticks
-    float originX = canvasPos.x + UIState::panOffset.x * UIState::zoomLevel;
+    float originX = canvasPos.x + appContext.panOffset.x * appContext.zoomLevel;
     for (float x = originX; x < canvasPos.x + canvasSize.x; x += tickSpacing) {
       int majorTick = (int)std::round((x - originX) / tickSpacing);
       if (majorTick % 5 == 0) {
@@ -1941,7 +1918,7 @@ void RenderCanvas(Drawing::Canvas &canvas) {
         
         // Label for major ticks
         char label[16];
-        int value = majorTick * UIState::gridSize / UIState::unitScale;
+        int value = majorTick * appContext.gridSize / UIState::unitScale;
         sprintf(label, "%d", value);
         drawList->AddText(
           ImVec2(x + 2, canvasPos.y + 2),
@@ -1960,7 +1937,7 @@ void RenderCanvas(Drawing::Canvas &canvas) {
     }
     
     // Vertical ruler ticks
-    float originY = canvasPos.y + UIState::panOffset.y * UIState::zoomLevel;
+    float originY = canvasPos.y + appContext.panOffset.y * appContext.zoomLevel;
     for (float y = originY; y < canvasPos.y + canvasSize.y; y += tickSpacing) {
       int majorTick = (int)std::round((y - originY) / tickSpacing);
       if (majorTick % 5 == 0) {
@@ -1974,7 +1951,7 @@ void RenderCanvas(Drawing::Canvas &canvas) {
         
         // Label for major ticks
         char label[16];
-        int value = majorTick * UIState::gridSize / UIState::unitScale;
+        int value = majorTick * appContext.gridSize / UIState::unitScale;
         sprintf(label, "%d", value);
         drawList->AddText(
           ImVec2(canvasPos.x + 2, y + 2),
@@ -2000,8 +1977,8 @@ void RenderCanvas(Drawing::Canvas &canvas) {
     );
     
     // Origin indicator
-    float originScreenX = canvasPos.x + UIState::panOffset.x * UIState::zoomLevel;
-    float originScreenY = canvasPos.y + UIState::panOffset.y * UIState::zoomLevel;
+    float originScreenX = canvasPos.x + appContext.panOffset.x * appContext.zoomLevel;
+    float originScreenY = canvasPos.y + appContext.panOffset.y * appContext.zoomLevel;
     if (originScreenX >= canvasPos.x && originScreenX <= canvasPos.x + canvasSize.x &&
         originScreenY >= canvasPos.y && originScreenY <= canvasPos.y + canvasSize.y) {
       // Draw origin indicator
@@ -2014,15 +1991,15 @@ void RenderCanvas(Drawing::Canvas &canvas) {
   }
   
   // Mouse coordinates display at cursor if enabled
-  if (UIState::showCoordinates) {
+  if (appContext.showCoordinates) {
     ImVec2 mousePos = ImGui::GetMousePos();
     if (ImGui::IsWindowHovered() && 
         mousePos.x > canvasPos.x && mousePos.x < canvasPos.x + canvasSize.x &&
         mousePos.y > canvasPos.y && mousePos.y < canvasPos.y + canvasSize.y) {
       
       // Calculate world coordinates
-      float worldX = (mousePos.x - canvasPos.x - UIState::panOffset.x * UIState::zoomLevel) / UIState::zoomLevel;
-      float worldY = (mousePos.y - canvasPos.y - UIState::panOffset.y * UIState::zoomLevel) / UIState::zoomLevel;
+      float worldX = (mousePos.x - canvasPos.x - appContext.panOffset.x * appContext.zoomLevel) / appContext.zoomLevel;
+      float worldY = (mousePos.y - canvasPos.y - appContext.panOffset.y * appContext.zoomLevel) / appContext.zoomLevel;
       
       // Apply unit scaling
       worldX /= UIState::unitScale;
@@ -2082,14 +2059,14 @@ void RenderCanvas(Drawing::Canvas &canvas) {
 
 
 // Handle keyboard shortcuts
-void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
+void HandleKeyboardShortcuts(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   ImGuiIO& io = ImGui::GetIO();
   
   // AutoCAD-like keyboard shortcuts
   
   // ESC to cancel current operation or clear selection
   if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-    SelectTool(Drawing::DrawingMode::Select, canvas, "Ready");
+    SelectTool(Drawing::DrawingMode::Select, canvas, appContext, "Ready");
     canvas.clearSelection();
   }
   
@@ -2097,31 +2074,31 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
   if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt) {
     // Simple key presses for common tools
     if (ImGui::IsKeyPressed(ImGuiKey_L)) {
-      SelectTool(Drawing::DrawingMode::Line, canvas, "Line Tool: Click to set start point, second click sets direction");
+      SelectTool(Drawing::DrawingMode::Line, canvas, appContext, "Line Tool: Click to set start point, second click sets direction");
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_C)) {
-      SelectTool(Drawing::DrawingMode::Circle, canvas, "Circle Tool: Click to set center and direction (radius in properties)");
+      SelectTool(Drawing::DrawingMode::Circle, canvas, appContext, "Circle Tool: Click to set center and direction (radius in properties)");
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_R)) {
-      SelectTool(Drawing::DrawingMode::Rectangle, canvas, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
+      SelectTool(Drawing::DrawingMode::Rectangle, canvas, appContext, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_P)) {
-      SelectTool(Drawing::DrawingMode::Point, canvas, "Point Tool: Click to place points");
+      SelectTool(Drawing::DrawingMode::Point, canvas, appContext, "Point Tool: Click to place points");
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_T)) {
-      SelectTool(Drawing::DrawingMode::Triangle, canvas, "Triangle Tool: Click to set point and direction (dimensions in properties)");
+      SelectTool(Drawing::DrawingMode::Triangle, canvas, appContext, "Triangle Tool: Click to set point and direction (dimensions in properties)");
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_S)) {
-      SelectTool(Drawing::DrawingMode::Square, canvas, "Square Tool: Click to set corner and direction (side length in properties)");
+      SelectTool(Drawing::DrawingMode::Square, canvas, appContext, "Square Tool: Click to set corner and direction (side length in properties)");
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_G)) {
       bool currentGridState = canvas.isGridVisible();
       canvas.setShowGrid(!currentGridState);
-      UIState::consoleMessage = !currentGridState ? "Grid turned ON" : "Grid turned OFF";
+      appContext.consoleMessage = !currentGridState ? "Grid turned ON" : "Grid turned OFF";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
       canvas.deleteSelectedShape();
-      UIState::consoleMessage = "Deleted selected shape";
+      appContext.consoleMessage = "Deleted selected shape";
     }
   }
   
@@ -2129,41 +2106,41 @@ void HandleKeyboardShortcuts(Drawing::Canvas &canvas) {
   if (io.KeyCtrl) {
     if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
       canvas.undo();
-      UIState::consoleMessage = "Undo last action";
+      appContext.consoleMessage = "Undo last action";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_A)) {
       // Select all - would need implementation
-      UIState::consoleMessage = "Select All (not implemented)";
+      appContext.consoleMessage = "Select All (not implemented)";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_S)) {
       // Save - would need implementation
-      UIState::consoleMessage = "Save Drawing (not implemented)";
+      appContext.consoleMessage = "Save Drawing (not implemented)";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_O)) {
       // Open - would need implementation
-      UIState::consoleMessage = "Open Drawing (not implemented)";
+      appContext.consoleMessage = "Open Drawing (not implemented)";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_N)) {
       // New drawing - would need implementation
       canvas.clearAll();
-      UIState::consoleMessage = "New Drawing - All shapes cleared";
+      appContext.consoleMessage = "New Drawing - All shapes cleared";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_Equal)) {
       // Zoom in
-      UIState::zoomLevel = std::min(UIState::zoomLevel * 1.2f, 5.0f);
-      UIState::consoleMessage = "Zoom In";
+      appContext.zoomLevel = std::min(appContext.zoomLevel * 1.2f, 5.0f);
+      appContext.consoleMessage = "Zoom In";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_Minus)) {
       // Zoom out
-      UIState::zoomLevel = std::max(UIState::zoomLevel / 1.2f, 0.2f);
-      UIState::consoleMessage = "Zoom Out";
+      appContext.zoomLevel = std::max(appContext.zoomLevel / 1.2f, 0.2f);
+      appContext.consoleMessage = "Zoom Out";
     }
   }
   
   if (io.KeyShift) {
     if (ImGui::IsKeyPressed(ImGuiKey_L)) {
       // AutoCAD-like: Shift+L for polyline
-      UIState::consoleMessage = "Polyline command (not implemented)";
+      appContext.consoleMessage = "Polyline command (not implemented)";
     }
   }
 }
@@ -2318,6 +2295,7 @@ void CleanupIconTextures() {
 }
 
 int main(int argc, char* argv[]) {
+    Core::ApplicationContext appContext;
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
         std::cerr << "Error: SDL_Init(): " << SDL_GetError() << std::endl;
@@ -2406,13 +2384,13 @@ int main(int argc, char* argv[]) {
         ImGui::NewFrame();
 
         // Handle keyboard shortcuts
-        HandleKeyboardShortcuts(canvas);
+        HandleKeyboardShortcuts(canvas, appContext);
 
         // Main UI rendering
-        RenderTopRibbon(canvas);
-        RenderCanvas(canvas);
-        RenderPropertyPanel(canvas);
-        RenderStatusBar(canvas);
+        RenderTopRibbon(canvas, appContext);
+        RenderCanvas(canvas, appContext);
+        RenderPropertyPanel(canvas, appContext);
+        RenderStatusBar(canvas, appContext);
 
         // Render 3D views if enabled
         if (UIState::showBellows3DView) {
@@ -2425,11 +2403,11 @@ int main(int argc, char* argv[]) {
         
         // Note: The 3D views need to be implemented to work with the canvas shapes
         // For now, the 3D view flags are being set but the rendering needs shape data
-        if (UIState::showSpring3DView) {
-            RenderSpring3DViewWindow(canvas);
+        if (appContext.showSpring3DView) {
+            RenderSpring3DViewWindow(canvas, appContext);
         }
-        if (UIState::showShockAbsorber3DView) {
-            RenderShockAbsorber3DViewWindow(canvas);
+        if (appContext.showShockAbsorber3DView) {
+            RenderShockAbsorber3DViewWindow(canvas, appContext);
         }
 
         // Rendering
