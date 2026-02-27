@@ -1,9 +1,12 @@
 # Find Gmsh
-# Find the Gmsh includes and library
+# First we check the localized SDK placed in external/gmsh
+# If that is not found, we check generic system paths.
+
+set(GMSH_LOCAL_DIR "${CMAKE_SOURCE_DIR}/external/gmsh")
 
 find_path(GMSH_INCLUDE_DIR gmsh.h
     PATHS
-    ${CMAKE_SOURCE_DIR}/external/gmsh/include
+    "${GMSH_LOCAL_DIR}/include"
     /usr/include
     /usr/local/include
     /opt/local/include
@@ -11,7 +14,7 @@ find_path(GMSH_INCLUDE_DIR gmsh.h
 
 find_library(GMSH_LIBRARY NAMES gmsh
     PATHS
-    ${CMAKE_SOURCE_DIR}/external/gmsh/lib
+    "${GMSH_LOCAL_DIR}/lib"
     /usr/lib
     /usr/local/lib
     /opt/local/lib
