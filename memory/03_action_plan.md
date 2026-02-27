@@ -31,3 +31,4 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 - **Priority 4**: Implement Load interfaces (Neumann/Force vectors).
 - **Priority 5**: Implement the structural stiffness matrix assembly and solver kernel mappings.
 - **Priority 6**: Implement post-processing rendering (color vectors for stresses).
+- **Priority 7**: Complete UI/UX Redesign. Overhaul the ImGui layout from scratch to eliminate clutter, establish a professional aesthetic, and provide an optimal workflow for the new B-REP, meshing, and FEA tools (e.g., dedicated docking, modern toolbars, and dynamic property panels).
