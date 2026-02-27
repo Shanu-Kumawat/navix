@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef BALL_BEARING_VIEWER_3D_HPP
 #define BALL_BEARING_VIEWER_3D_HPP
 
@@ -19,7 +20,7 @@ public:
     void handleInput(const SDL_Event& event) override;
     
     // Ball bearing-specific rendering
-    void render(const Drawing::BallBearing* ballBearing, ImVec2 windowSize);
+    void render(const Drawing::BallBearing* ballBearing, glm::dvec2 windowSize);
 
 private:
     // Ball bearing-specific 3D model

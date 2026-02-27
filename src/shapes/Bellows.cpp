@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "shapes/ComplexShapes.hpp"
 #include "Canvas.hpp"
 #include <cmath>
@@ -7,16 +8,16 @@
 
 namespace Drawing {
 
-bool Bellows::isPointNear(const ImVec2& point, float threshold) const {
+bool Bellows::isPointNear(const glm::dvec2& point, float threshold) const {
     // Get the cached profile instead of regenerating
-    const std::vector<ImVec2>& profile = getCachedProfile();
+    const std::vector<glm::dvec2>& profile = getCachedProfile();
     
     // Calculate sin and cos for rotation
     float s = sin(angle);
     float c = cos(angle);
     
     // Transform all profile points to account for position and rotation
-    std::vector<ImVec2> transformedProfile;
+    std::vector<glm::dvec2> transformedProfile;
     transformedProfile.reserve(profile.size());
     
     for (const auto& p : profile) {
@@ -24,7 +25,7 @@ bool Bellows::isPointNear(const ImVec2& point, float threshold) const {
         float rotatedX = p.x * c - p.y * s;
         float rotatedY = p.x * s + p.y * c;
         
-        transformedProfile.push_back(ImVec2(
+        transformedProfile.push_back(glm::dvec2(
             position.x + rotatedX,
             position.y + rotatedY
         ));
@@ -35,8 +36,8 @@ bool Bellows::isPointNear(const ImVec2& point, float threshold) const {
     
     // Check if point is near any segment of the transformed profile
     for (size_t i = 0; i < transformedProfile.size() - 1; ++i) {
-        const ImVec2& p1 = transformedProfile[i];
-        const ImVec2& p2 = transformedProfile[i + 1];
+        const glm::dvec2& p1 = transformedProfile[i];
+        const glm::dvec2& p2 = transformedProfile[i + 1];
         
         float lineLength = std::sqrt(
             (p2.x - p1.x) * (p2.x - p1.x) + 
@@ -74,8 +75,8 @@ bool Bellows::isPointNear(const ImVec2& point, float threshold) const {
     return inside;
 }
 
-std::vector<ImVec2> Bellows::generateProfile() const {
-    std::vector<ImVec2> points;
+std::vector<glm::dvec2> Bellows::generateProfile() const {
+    std::vector<glm::dvec2> points;
     
     // Calculate derived parameters
     float convolutionDistance = convolutedSectionLength / static_cast<float>(numConvolutions);
@@ -88,9 +89,9 @@ std::vector<ImVec2> Bellows::generateProfile() const {
     
     // First cuff (A) - inner surface
     float innerYA = cuffAInnerDiameter / 2.0f;
-    points.push_back(ImVec2(x, innerYA));
+    points.push_back(glm::dvec2(x, innerYA));
     x += cuffALength;
-    points.push_back(ImVec2(x, innerYA));
+    points.push_back(glm::dvec2(x, innerYA));
     
     // Convoluted section - inner surface
     float valleyY = baseConvolutionDiameter / 2.0f;
@@ -102,22 +103,22 @@ std::vector<ImVec2> Bellows::generateProfile() const {
             float angle = static_cast<float>(j) / 10.0f * M_PI / 2.0f;
             float dx = convolutionRadius * (1.0f - std::cos(angle));
             float dy = convolutionRadius * std::sin(angle);
-            points.push_back(ImVec2(x + dx, valleyY + dy));
+            points.push_back(glm::dvec2(x + dx, valleyY + dy));
         }
         
         x += convolutionRadius;
         
         // Generate peak
-        points.push_back(ImVec2(x, peakY));
+        points.push_back(glm::dvec2(x, peakY));
         x += convolutionDistance - 2 * convolutionRadius;
-        points.push_back(ImVec2(x, peakY));
+        points.push_back(glm::dvec2(x, peakY));
         
         // Generate peak to valley curve (quarter circle)
         for (int j = 0; j <= 10; ++j) {
             float angle = static_cast<float>(j) / 10.0f * M_PI / 2.0f;
             float dx = convolutionRadius * std::sin(angle);
             float dy = convolutionRadius * (1.0f - std::cos(angle));
-            points.push_back(ImVec2(x + dx, peakY - dy));
+            points.push_back(glm::dvec2(x + dx, peakY - dy));
         }
         
         x += convolutionRadius;
@@ -125,18 +126,18 @@ std::vector<ImVec2> Bellows::generateProfile() const {
     
     // Second cuff (B) - inner surface
     float innerYB = cuffBInnerDiameter / 2.0f;
-    points.push_back(ImVec2(x, innerYB));
+    points.push_back(glm::dvec2(x, innerYB));
     x += cuffBLength;
-    points.push_back(ImVec2(x, innerYB));
+    points.push_back(glm::dvec2(x, innerYB));
     
     // Total length points (for reference)
     float totalLength = x;
     
     // Generate outer profile (top side, right to left)
     // Second cuff (B) - outer surface
-    points.push_back(ImVec2(x, innerYB + wallThickness));
+    points.push_back(glm::dvec2(x, innerYB + wallThickness));
     x -= cuffBLength;
-    points.push_back(ImVec2(x, innerYB + wallThickness));
+    points.push_back(glm::dvec2(x, innerYB + wallThickness));
     
     // Convoluted section - outer surface (right to left)
     for (int i = numConvolutions - 1; i >= 0; --i) {
@@ -149,12 +150,12 @@ std::vector<ImVec2> Bellows::generateProfile() const {
             float angle = static_cast<float>(j) / 10.0f * M_PI / 2.0f;
             float dx = convolutionRadius * std::sin(angle);
             float dy = convolutionRadius * (1.0f - std::cos(angle));
-            points.push_back(ImVec2(x + dx, valleyY + wallThickness + dy));
+            points.push_back(glm::dvec2(x + dx, valleyY + wallThickness + dy));
         }
         
         // Generate peak
         x = convStartX + convolutionRadius;
-        points.push_back(ImVec2(x, peakY + 2 * wallThickness));
+        points.push_back(glm::dvec2(x, peakY + 2 * wallThickness));
         x -= convolutionRadius;
         
         // Generate peak to valley curve (quarter circle)
@@ -162,16 +163,16 @@ std::vector<ImVec2> Bellows::generateProfile() const {
             float angle = static_cast<float>(j) / 10.0f * M_PI / 2.0f;
             float dx = convolutionRadius * (1.0f - std::cos(angle));
             float dy = convolutionRadius * std::sin(angle);
-            points.push_back(ImVec2(x + dx, valleyY + wallThickness + convolutionRadius - dy));
+            points.push_back(glm::dvec2(x + dx, valleyY + wallThickness + convolutionRadius - dy));
         }
         
         x = convStartX;
     }
     
     // First cuff (A) - outer surface
-    points.push_back(ImVec2(x, innerYA + wallThickness));
+    points.push_back(glm::dvec2(x, innerYA + wallThickness));
     x -= cuffALength;
-    points.push_back(ImVec2(x, innerYA + wallThickness));
+    points.push_back(glm::dvec2(x, innerYA + wallThickness));
     
     // Close the profile
     points.push_back(points[0]);
@@ -179,8 +180,8 @@ std::vector<ImVec2> Bellows::generateProfile() const {
     return points;
 }
 
-std::vector<std::pair<ImVec2, ImVec2>> Bellows::generateDimensionLines() const {
-    std::vector<std::pair<ImVec2, ImVec2>> dimensions;
+std::vector<std::pair<glm::dvec2, glm::dvec2>> Bellows::generateDimensionLines() const {
+    std::vector<std::pair<glm::dvec2, glm::dvec2>> dimensions;
     
     // Calculate total length
     float totalLength = calculateOverallLength();
@@ -193,55 +194,55 @@ std::vector<std::pair<ImVec2, ImVec2>> Bellows::generateDimensionLines() const {
     
     // Overall length dimension (below)
     dimensions.push_back({
-        ImVec2(0, -10), 
-        ImVec2(totalLength, -10)
+        glm::dvec2(0, -10), 
+        glm::dvec2(totalLength, -10)
     });
     
     // Cuff A length
     dimensions.push_back({
-        ImVec2(0, -30),
-        ImVec2(cuffALength, -30)
+        glm::dvec2(0, -30),
+        glm::dvec2(cuffALength, -30)
     });
     
     // Convoluted section length
     dimensions.push_back({
-        ImVec2(cuffALength, -50),
-        ImVec2(totalLength - cuffBLength, -50)
+        glm::dvec2(cuffALength, -50),
+        glm::dvec2(totalLength - cuffBLength, -50)
     });
     
     // Cuff B length
     dimensions.push_back({
-        ImVec2(totalLength - cuffBLength, -30),
-        ImVec2(totalLength, -30)
+        glm::dvec2(totalLength - cuffBLength, -30),
+        glm::dvec2(totalLength, -30)
     });
     
     // Inner diameter dimensions (vertical)
     dimensions.push_back({
-        ImVec2(-20, -innerHeightA/2),
-        ImVec2(-20, innerHeightA/2)
+        glm::dvec2(-20, -innerHeightA/2),
+        glm::dvec2(-20, innerHeightA/2)
     });
     
     dimensions.push_back({
-        ImVec2(totalLength + 20, -innerHeightB/2),
-        ImVec2(totalLength + 20, innerHeightB/2)
+        glm::dvec2(totalLength + 20, -innerHeightB/2),
+        glm::dvec2(totalLength + 20, innerHeightB/2)
     });
     
     // Convolution base diameter
     dimensions.push_back({
-        ImVec2(totalLength/2, -baseHeight/2),
-        ImVec2(totalLength/2, baseHeight/2)
+        glm::dvec2(totalLength/2, -baseHeight/2),
+        glm::dvec2(totalLength/2, baseHeight/2)
     });
     
     // Convolution peak diameter
     dimensions.push_back({
-        ImVec2(totalLength/2 + 20, -peakHeight/2),
-        ImVec2(totalLength/2 + 20, peakHeight/2)
+        glm::dvec2(totalLength/2 + 20, -peakHeight/2),
+        glm::dvec2(totalLength/2 + 20, peakHeight/2)
     });
     
     return dimensions;
 }
 
-const std::vector<ImVec2>& Bellows::getCachedProfile() const {
+const std::vector<glm::dvec2>& Bellows::getCachedProfile() const {
     if (!profileCached || !isCacheValid()) {
         // Cache is invalid, regenerate profile
         cachedProfile = generateProfile();

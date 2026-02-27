@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <imgui.h>
@@ -43,15 +44,15 @@ struct Shape {
     virtual ~Shape() = default;
     virtual std::unique_ptr<Shape> clone() const = 0;
     virtual bool isValid() const = 0;
-    virtual bool isPointNear(const ImVec2& point, float threshold) const = 0;
-    virtual void getBounds(ImVec2& min, ImVec2& max) const = 0;
+    virtual bool isPointNear(const glm::dvec2& point, float threshold) const = 0;
+    virtual void getBounds(glm::dvec2& min, glm::dvec2& max) const = 0;
 };
 
 struct Point : public Shape {
-    ImVec2 position;
+    glm::dvec2 position;
     float size;
 
-    Point(const ImVec2& pos, ImU32 color = Colors::POINT, float s = Constants::DEFAULT_POINT_SIZE)
+    Point(const glm::dvec2& pos, ImU32 color = Colors::POINT, float s = Constants::DEFAULT_POINT_SIZE)
         : Shape(ShapeType::POINT, color), position(pos), size(s) {}
 
     std::unique_ptr<Shape> clone() const override {
@@ -62,30 +63,30 @@ struct Point : public Shape {
         return size > 0;
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         float dx = point.x - position.x;
         float dy = point.y - position.y;
         return (dx * dx + dy * dy) <= threshold * threshold;
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
-        min = ImVec2(position.x - size, position.y - size);
-        max = ImVec2(position.x + size, position.y + size);
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
+        min = glm::dvec2(position.x - size, position.y - size);
+        max = glm::dvec2(position.x + size, position.y + size);
     }
 };
 
 struct Line : public Shape {
-    ImVec2 start;
-    ImVec2 end;
+    glm::dvec2 start;
+    glm::dvec2 end;
 
-    Line(const ImVec2& s, const ImVec2& e, ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+    Line(const glm::dvec2& s, const glm::dvec2& e, ImU32 color = Colors::LINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::LINE, color, thickness), start(s), end(e) {}
 
     bool isValid() const override {
         return thickness > 0 && (start.x != end.x || start.y != end.y);
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         // Calculate distance from point to line segment
         float lineLength = std::sqrt(
             (end.x - start.x) * (end.x - start.x) + 
@@ -134,24 +135,24 @@ struct Line : public Shape {
         return std::make_unique<Line>(*this);
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
-        min = ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
-        max = ImVec2(std::max(start.x, end.x), std::max(start.y, end.y));
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
+        min = glm::dvec2(std::min(start.x, end.x), std::min(start.y, end.y));
+        max = glm::dvec2(std::max(start.x, end.x), std::max(start.y, end.y));
     }
 };
 
 struct Circle : public Shape {
-    ImVec2 center;
+    glm::dvec2 center;
     float radius;
 
-    Circle(const ImVec2& c, float r, ImU32 color = Colors::CIRCLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+    Circle(const glm::dvec2& c, float r, ImU32 color = Colors::CIRCLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::CIRCLE, color, thickness), center(c), radius(r) {}
 
     bool isValid() const override {
         return radius > 0 && thickness > 0;
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         float dx = point.x - center.x;
         float dy = point.y - center.y;
         float distance = std::sqrt(dx * dx + dy * dy);
@@ -162,16 +163,16 @@ struct Circle : public Shape {
         return std::make_unique<Circle>(*this);
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
-        min = ImVec2(center.x - radius, center.y - radius);
-        max = ImVec2(center.x + radius, center.y + radius);
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
+        min = glm::dvec2(center.x - radius, center.y - radius);
+        max = glm::dvec2(center.x + radius, center.y + radius);
     }
 };
 
 struct Triangle : public Shape {
-    std::array<ImVec2, 3> points;
+    std::array<glm::dvec2, 3> points;
 
-    Triangle(const std::array<ImVec2, 3>& pts, ImU32 color = Colors::TRIANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+    Triangle(const std::array<glm::dvec2, 3>& pts, ImU32 color = Colors::TRIANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::TRIANGLE, color, thickness), points(pts) {}
 
     bool isValid() const override {
@@ -183,11 +184,11 @@ struct Triangle : public Shape {
                        (points[2].x - points[0].x) * (points[1].y - points[0].y)) * 0.5f;
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         // Check if point is near any of the edges
         for (int i = 0; i < 3; ++i) {
-            const ImVec2& start = points[i];
-            const ImVec2& end = points[(i + 1) % 3];
+            const glm::dvec2& start = points[i];
+            const glm::dvec2& end = points[(i + 1) % 3];
             
             float lineLength = std::sqrt(
                 (end.x - start.x) * (end.x - start.x) + 
@@ -218,19 +219,19 @@ struct Triangle : public Shape {
         return std::make_unique<Triangle>(*this);
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
-        min = ImVec2(std::min({points[0].x, points[1].x, points[2].x}),
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
+        min = glm::dvec2(std::min({points[0].x, points[1].x, points[2].x}),
                     std::min({points[0].y, points[1].y, points[2].y}));
-        max = ImVec2(std::max({points[0].x, points[1].x, points[2].x}),
+        max = glm::dvec2(std::max({points[0].x, points[1].x, points[2].x}),
                     std::max({points[0].y, points[1].y, points[2].y}));
     }
 };
 
 struct Square : public Shape {
-    ImVec2 start;
-    ImVec2 end;
+    glm::dvec2 start;
+    glm::dvec2 end;
 
-    Square(const ImVec2& s, const ImVec2& e, ImU32 color = Colors::SQUARE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+    Square(const glm::dvec2& s, const glm::dvec2& e, ImU32 color = Colors::SQUARE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::SQUARE, color, thickness), start(s), end(e) {}
 
     bool isValid() const override {
@@ -238,25 +239,25 @@ struct Square : public Shape {
         return thickness > 0 && size > Constants::MIN_SHAPE_SIZE;
     }
 
-    ImVec2 getTopLeft() const {
-        return ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
+    glm::dvec2 getTopLeft() const {
+        return glm::dvec2(std::min(start.x, end.x), std::min(start.y, end.y));
     }
 
     float getSize() const {
         return std::abs(end.x - start.x);
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override {
-        ImVec2 topLeft = getTopLeft();
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
+        glm::dvec2 topLeft = getTopLeft();
         float size = getSize();
         
         // Calculate the four corners
-        ImVec2 topRight(topLeft.x + size, topLeft.y);
-        ImVec2 bottomLeft(topLeft.x, topLeft.y + size);
-        ImVec2 bottomRight(topLeft.x + size, topLeft.y + size);
+        glm::dvec2 topRight(topLeft.x + size, topLeft.y);
+        glm::dvec2 bottomLeft(topLeft.x, topLeft.y + size);
+        glm::dvec2 bottomRight(topLeft.x + size, topLeft.y + size);
         
         // Check if point is near any of the edges
-        const std::array<std::pair<ImVec2, ImVec2>, 4> edges = {{
+        const std::array<std::pair<glm::dvec2, glm::dvec2>, 4> edges = {{
             {topLeft, topRight},
             {topRight, bottomRight},
             {bottomRight, bottomLeft},
@@ -293,21 +294,21 @@ struct Square : public Shape {
         return std::make_unique<Square>(*this);
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
-        ImVec2 topLeft = getTopLeft();
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
+        glm::dvec2 topLeft = getTopLeft();
         float size = getSize();
         min = topLeft;
-        max = ImVec2(topLeft.x + size, topLeft.y + size);
+        max = glm::dvec2(topLeft.x + size, topLeft.y + size);
     }
 };
 
 struct Rectangle : public Shape {
-    ImVec2 topLeft;
-    ImVec2 topRight;
-    ImVec2 bottomRight;
-    ImVec2 bottomLeft;
+    glm::dvec2 topLeft;
+    glm::dvec2 topRight;
+    glm::dvec2 bottomRight;
+    glm::dvec2 bottomLeft;
 
-    Rectangle(const ImVec2& p1, const ImVec2& p2, const ImVec2& p3, const ImVec2& p4, 
+    Rectangle(const glm::dvec2& p1, const glm::dvec2& p2, const glm::dvec2& p3, const glm::dvec2& p4, 
              ImU32 color = Colors::RECTANGLE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::RECTANGLE, color, thickness) {
         // Calculate the corners based on the points
@@ -322,30 +323,30 @@ struct Rectangle : public Shape {
         float minY = *minYIt;
         float maxY = *maxYIt;
 
-        topLeft = ImVec2(minX, minY);
-        topRight = ImVec2(maxX, minY);
-        bottomRight = ImVec2(maxX, maxY);
-        bottomLeft = ImVec2(minX, maxY);
+        topLeft = glm::dvec2(minX, minY);
+        topRight = glm::dvec2(maxX, minY);
+        bottomRight = glm::dvec2(maxX, maxY);
+        bottomLeft = glm::dvec2(minX, maxY);
     }
 
     bool isValid() const override {
-        ImVec2 size = getSize();
+        glm::dvec2 size = getSize();
         return thickness > 0 && 
                size.x > Constants::MIN_SHAPE_SIZE &&
                size.y > Constants::MIN_SHAPE_SIZE;
     }
 
-    ImVec2 getTopLeft() const {
+    glm::dvec2 getTopLeft() const {
         return topLeft;
     }
 
-    ImVec2 getSize() const {
-        return ImVec2(std::abs(topRight.x - topLeft.x), std::abs(bottomLeft.y - topLeft.y));
+    glm::dvec2 getSize() const {
+        return glm::dvec2(std::abs(topRight.x - topLeft.x), std::abs(bottomLeft.y - topLeft.y));
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         // Check if point is near any of the edges
-        const std::array<std::pair<ImVec2, ImVec2>, 4> edges = {{
+        const std::array<std::pair<glm::dvec2, glm::dvec2>, 4> edges = {{
             {topLeft, topRight},
             {topRight, bottomRight},
             {bottomRight, bottomLeft},
@@ -382,7 +383,7 @@ struct Rectangle : public Shape {
         return std::make_unique<Rectangle>(*this);
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         min = topLeft;
         max = bottomRight;
     }
@@ -398,14 +399,14 @@ enum class DimensionType {
 
 // Dimension shape for technical drawings
 struct Dimension : public Shape {
-    ImVec2 start;
-    ImVec2 end;
-    ImVec2 textPosition;
+    glm::dvec2 start;
+    glm::dvec2 end;
+    glm::dvec2 textPosition;
     std::string dimensionText;
     DimensionType dimType;
     float lengthInPixels;
 
-    Dimension(const ImVec2& s, const ImVec2& e, 
+    Dimension(const glm::dvec2& s, const glm::dvec2& e, 
               ImU32 color = Colors::LINE, 
               float thickness = Constants::DEFAULT_LINE_THICKNESS,
               DimensionType type = DimensionType::Linear)
@@ -414,7 +415,7 @@ struct Dimension : public Shape {
           dimType(type)
     {
         // Calculate mid-point for text position by default
-        textPosition = ImVec2((start.x + end.x) / 2.0f, (start.y + end.y) / 2.0f - 10.0f);
+        textPosition = glm::dvec2((start.x + end.x) / 2.0f, (start.y + end.y) / 2.0f - 10.0f);
         
         // Calculate dimension length
         float dx = end.x - start.x;
@@ -426,22 +427,22 @@ struct Dimension : public Shape {
     }
 
     bool isValid() const override;
-    bool isPointNear(const ImVec2& point, float threshold) const override;
+    bool isPointNear(const glm::dvec2& point, float threshold) const override;
     std::unique_ptr<Shape> clone() const override;
 
     // Draw the dimension with text
     void draw(ImDrawList* drawList, Canvas* canvas) const;
     
     // Utility methods
-    ImVec2 getCenter() const;
-    void move(const ImVec2& delta);
+    glm::dvec2 getCenter() const;
+    void move(const glm::dvec2& delta);
     void scale(float factor);
-    void rotate(float angle, const ImVec2& center);
+    void rotate(float angle, const glm::dvec2& center);
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         // Calculate bounds based on start and end points
-        min = ImVec2(std::min(start.x, end.x), std::min(start.y, end.y));
-        max = ImVec2(std::max(start.x, end.x), std::max(start.y, end.y));
+        min = glm::dvec2(std::min(start.x, end.x), std::min(start.y, end.y));
+        max = glm::dvec2(std::max(start.x, end.x), std::max(start.y, end.y));
         
         // Add margin for text and extension lines
         float margin = 20.0f; // Adjust this value based on your text size and extension line length
@@ -472,7 +473,7 @@ struct Spring2D : public Shape {
     bool isValid() const override {
         return outerDiameter > wireDiameter && wireDiameter > 0 && freeLength > 0 && numCoils > 0;
     }
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         float dx = point.x - centerX;
         float dy = point.y - centerY;
         float distance = std::sqrt(dx * dx + dy * dy);
@@ -480,21 +481,21 @@ struct Spring2D : public Shape {
         // Allow selection if within the outer circle, plus a threshold
         return distance <= radius + threshold;
     }
-    bool isPointInBoundingBox(const ImVec2& point, float threshold) const {
+    bool isPointInBoundingBox(const glm::dvec2& point, float threshold) const {
         float halfLength = freeLength / 2.0f;
         float radius = outerDiameter / 2.0f;
         return (point.x >= centerX - radius - threshold && point.x <= centerX + radius + threshold &&
                 point.y >= centerY - halfLength - threshold && point.y <= centerY + halfLength + threshold);
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         // Calculate the bounds based on the spring's properties
         float radius = outerDiameter / 2.0f;
-        min = ImVec2(centerX - radius, centerY - radius);
-        max = ImVec2(centerX + radius, centerY + radius);
+        min = glm::dvec2(centerX - radius, centerY - radius);
+        max = glm::dvec2(centerX + radius, centerY + radius);
     }
 
-    std::vector<ImVec2> generateProfile() const;
+    std::vector<glm::dvec2> generateProfile() const;
 };
 
 enum class EndPosition { Top, Bottom };
@@ -510,7 +511,7 @@ struct ShockAbsorberEnd2D : public Shape {
     float step3Diameter;
     float boreDiameter;
     float chamfer;
-    ImVec2 baseCenter;
+    glm::dvec2 baseCenter;
 
     ShockAbsorberEnd2D(const Spring2D* spring, EndPosition pos = EndPosition::Top, ImU32 color = IM_COL32(80, 80, 80, 255), float thickness = 2.0f)
         : Shape(ShapeType::SHOCK_ABSORBER_END_2D, color, thickness), parentSpring(spring), position(pos)
@@ -551,14 +552,14 @@ struct ShockAbsorberEnd2D : public Shape {
             // Step3 drawn at y3, step1 drawn ending at y0
             // We want step1 (bottom of shaft) to overlap spring, so y0 ≈ springTop + step1Length
             // Therefore baseCenter.y = y0 - shaftLength/2 = springTop + step1Length - shaftLength/2
-            baseCenter = ImVec2(parentSpring->centerX, springTop + step1Length - shaftLength/2);
+            baseCenter = glm::dvec2(parentSpring->centerX, springTop + step1Length - shaftLength/2);
         } else {
             // Bottom end: step1 top sits at springBottom (slight overlap into spring)
             // Drawing code for bottom: y0=baseCenter.y-shaftLength/2, y3=y0+shaftLength
             // Step1 drawn starting at y0, step3 at bottom (y3)
             // We want step1 (top of shaft) to overlap spring, so y0 ≈ springBottom - step1Length
             // Therefore baseCenter.y = y0 + shaftLength/2 = springBottom - step1Length + shaftLength/2
-            baseCenter = ImVec2(parentSpring->centerX, springBottom - step1Length + shaftLength/2);
+            baseCenter = glm::dvec2(parentSpring->centerX, springBottom - step1Length + shaftLength/2);
         }
     }
 
@@ -566,7 +567,7 @@ struct ShockAbsorberEnd2D : public Shape {
         return std::make_unique<ShockAbsorberEnd2D>(*this);
     }
     bool isValid() const override { return parentSpring != nullptr; }
-    bool isPointNear(const ImVec2& point, float threshold) const override {
+    bool isPointNear(const glm::dvec2& point, float threshold) const override {
         float halfLen = shaftLength / 2.0f;
         float halfDia = step1Diameter / 2.0f;
         if (point.x >= baseCenter.x - halfDia - threshold && point.x <= baseCenter.x + halfDia + threshold &&
@@ -575,14 +576,14 @@ struct ShockAbsorberEnd2D : public Shape {
         }
         return false;
     }
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         float halfLen = shaftLength / 2.0f;
         float halfDia = step1Diameter / 2.0f;
-        min = ImVec2(baseCenter.x - halfDia, baseCenter.y - halfLen);
-        max = ImVec2(baseCenter.x + halfDia, baseCenter.y + halfLen);
+        min = glm::dvec2(baseCenter.x - halfDia, baseCenter.y - halfLen);
+        max = glm::dvec2(baseCenter.x + halfDia, baseCenter.y + halfLen);
     }
 
-    std::vector<ImVec2> generateProfile() const;
+    std::vector<glm::dvec2> generateProfile() const;
 };
 
 } // namespace Drawing 

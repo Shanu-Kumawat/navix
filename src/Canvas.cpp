@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "Canvas.hpp"
 #include "utils/MathUtils.hpp"
 #include "imgui.h"
@@ -9,6 +10,7 @@
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 
 namespace Drawing {
+using namespace Drawing::Math;
 
 using Math::calculateDistance;
 using Math::calculateTriangleArea;
@@ -17,8 +19,8 @@ using Math::calculateAngle;
 using Math::snapToGrid;
 using Math::isPointInRect;
 using Math::isPointNearPoint;
-using Math::normalizeVector;
-using Math::dotProduct;
+using glm::normalizeVector;
+using glm::dotProduct;
 using Math::rotatePoint;
 
 // ... existing code ...
@@ -77,8 +79,8 @@ void Canvas::handleInput() {
         return;
     
     // Cache mouse position to avoid multiple transformations
-    ImVec2 mousePos = ImGui::GetMousePos();
-    ImVec2 transformedMousePos = inverseTransformCoordinates(mousePos);
+    glm::dvec2 mousePos = Drawing::Math::toDVec2(ImGui::GetMousePos());
+    glm::dvec2 transformedMousePos = inverseTransformCoordinates(mousePos);
     
     // Handle mouse wheel for zooming - only if significant change
     if (std::abs(io.MouseWheel) > 0.01f) {
@@ -103,7 +105,7 @@ void Canvas::handleInput() {
     }
 }
 
-void Canvas::handleSelection(const ImVec2& mousePos) {
+void Canvas::handleSelection(const glm::dvec2& mousePos) {
     // Handle selection of shapes
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         clearSelection(); // Use our new method to properly clear selection
@@ -197,7 +199,7 @@ void Canvas::handleSelection(const ImVec2& mousePos) {
 }
 
 
-void Canvas::handleDrawing(const ImVec2& mousePos) {
+void Canvas::handleDrawing(const glm::dvec2& mousePos) {
     if (isDraggingCanvas) return;
     
     ImDrawList* drawList = ImGui::GetWindowDrawList();
@@ -244,7 +246,7 @@ void Canvas::handleDrawing(const ImVec2& mousePos) {
     }
 }
 
-void Canvas::update(const ImVec2& mousePos) {
+void Canvas::update(const glm::dvec2& mousePos) {
     // Handle keyboard shortcuts
     if (ImGui::GetIO().KeyCtrl) {
         if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
@@ -263,7 +265,7 @@ void Canvas::update(const ImVec2& mousePos) {
     }
 }
 
-void Canvas::updateSelectedShape(const ImVec2& mousePos) {
+void Canvas::updateSelectedShape(const glm::dvec2& mousePos) {
     if (!selectedShape) return;
 
     if (selectedShape->type == ShapeType::SPLINE || selectedShape->type == ShapeType::BEZIER) {
@@ -271,7 +273,7 @@ void Canvas::updateSelectedShape(const ImVec2& mousePos) {
     }
 }
 
-void Canvas::updateDrawingPreview(const ImVec2& mousePos) {
+void Canvas::updateDrawingPreview(const glm::dvec2& mousePos) {
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     handleDrawing(mousePos);
 }
@@ -305,15 +307,15 @@ void Canvas::duplicateSelectedShape() {
     switch (selectedShape->type) {
         case ShapeType::POINT: {
             const auto& point = static_cast<const Point&>(*selectedShape);
-            ImVec2 newPos = {point.position.x + 10.0f, point.position.y + 10.0f};
+            glm::dvec2 newPos = {point.position.x + 10.0f, point.position.y + 10.0f};
             newShape = std::make_unique<Point>(newPos, point.color, point.size);
             break;
         }
         case ShapeType::LINE: {
             const auto& line = static_cast<const Line&>(*selectedShape);
-            ImVec2 offset = {10.0f, 10.0f};
-            ImVec2 newStart = {line.start.x + offset.x, line.start.y + offset.y};
-            ImVec2 newEnd = {line.end.x + offset.x, line.end.y + offset.y};
+            glm::dvec2 offset = {10.0f, 10.0f};
+            glm::dvec2 newStart = {line.start.x + offset.x, line.start.y + offset.y};
+            glm::dvec2 newEnd = {line.end.x + offset.x, line.end.y + offset.y};
             newShape = std::make_unique<Line>(newStart, newEnd, line.color, line.thickness);
             break;
         }
@@ -356,7 +358,7 @@ void Canvas::duplicateSelectedShape() {
             newBallBearing->showDimensions = ballBearing.showDimensions;
             
             // Position the duplicate slightly offset from the original
-            newBallBearing->position = ImVec2(ballBearing.position.x + 50.0f, ballBearing.position.y + 50.0f);
+            newBallBearing->position = glm::dvec2(ballBearing.position.x + 50.0f, ballBearing.position.y + 50.0f);
             newBallBearing->angle = ballBearing.angle;
             
             newShape = std::move(newBallBearing);
@@ -371,7 +373,7 @@ void Canvas::duplicateSelectedShape() {
     }
 }
 
-void Canvas::moveSelectedShape(const ImVec2& delta) {
+void Canvas::moveSelectedShape(const glm::dvec2& delta) {
     if (!selectedShape) return;
     
     saveToHistory();
@@ -485,10 +487,10 @@ void Canvas::updateZoom(float delta) {
     zoomLevel = std::clamp(zoomLevel + delta * 0.1f, 0.1f, 10.0f);
     
     // Get the current mouse position in screen space
-    ImVec2 mousePos = ImGui::GetMousePos();
+    glm::dvec2 mousePos = Drawing::Math::toDVec2(ImGui::GetMousePos());
     
     // Convert mouse position to canvas space (relative to canvas origin)
-    ImVec2 mouseInCanvas = {
+    glm::dvec2 mouseInCanvas = {
         (mousePos.x - windowX - panOffset.x) / oldZoom,
         (mousePos.y - windowY - panOffset.y) / oldZoom
     };
@@ -498,20 +500,20 @@ void Canvas::updateZoom(float delta) {
     panOffset.y = mousePos.y - windowY - mouseInCanvas.y * zoomLevel;
 }
 
-void Canvas::updatePan(const ImVec2& delta) {
+void Canvas::updatePan(const glm::dvec2& delta) {
     panOffset.x += delta.x;
     panOffset.y += delta.y;
 }
 
-ImVec2 Canvas::transformCoordinates(const ImVec2& point) const {
-    return ImVec2{
+glm::dvec2 Canvas::transformCoordinates(const glm::dvec2& point) const {
+    return glm::dvec2{
         point.x * zoomLevel + panOffset.x,
         point.y * zoomLevel + panOffset.y
     };
 }
 
-ImVec2 Canvas::inverseTransformCoordinates(const ImVec2& point) const {
-    return ImVec2{
+glm::dvec2 Canvas::inverseTransformCoordinates(const glm::dvec2& point) const {
+    return glm::dvec2{
         (point.x - panOffset.x) / zoomLevel,
         (point.y - panOffset.y) / zoomLevel
     };
@@ -521,7 +523,7 @@ ImVec2 Canvas::inverseTransformCoordinates(const ImVec2& point) const {
 
 
 
-void Canvas::handleCurveManipulation(const ImVec2& mousePos) {
+void Canvas::handleCurveManipulation(const glm::dvec2& mousePos) {
     if (!selectedShape) return;
     
     if (selectedShape->type == ShapeType::SPLINE) {
@@ -568,8 +570,8 @@ void Canvas::handleCurveManipulation(const ImVec2& mousePos) {
 }
 
 // Shape drawing handlers
-void Canvas::handlePointDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handlePointDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
         // Create and add the new shape FIRST
         shapes.push_back(std::make_unique<Point>(snappedPos));
@@ -580,8 +582,8 @@ void Canvas::handlePointDrawing(ImDrawList* drawList, const ImVec2& currentPos) 
     }
 }
 
-void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleLineDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
@@ -596,8 +598,8 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
                 endPoint = snappedPos;
                 
                 // Use fixed length from property panel
-                ImVec2 direction = normalizeVector(ImVec2(endPoint.x - startPoint.x, endPoint.y - startPoint.y));
-                ImVec2 actualEnd = ImVec2(
+                glm::dvec2 direction = normalizeVector(glm::dvec2(endPoint.x - startPoint.x, endPoint.y - startPoint.y));
+                glm::dvec2 actualEnd = glm::dvec2(
                     startPoint.x + direction.x * lineLength,
                     startPoint.y + direction.y * lineLength
                 );
@@ -618,8 +620,8 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
         
         if (isDrawing) {
             // Preview with fixed length
-            ImVec2 direction = normalizeVector(ImVec2(currentPos.x - startPoint.x, currentPos.y - startPoint.y));
-            ImVec2 previewEnd = ImVec2(
+            glm::dvec2 direction = normalizeVector(glm::dvec2(currentPos.x - startPoint.x, currentPos.y - startPoint.y));
+            glm::dvec2 previewEnd = glm::dvec2(
                 startPoint.x + direction.x * lineLength,
                 startPoint.y + direction.y * lineLength
             );
@@ -666,8 +668,8 @@ void Canvas::handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
     }
 }
 
-void Canvas::handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleCircleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
@@ -743,8 +745,8 @@ void Canvas::handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos)
     }
 }
 
-void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleTriangleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
@@ -768,21 +770,21 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
                 // Fixed size mode: first click sets position, second click sets direction
                 if (clickCount == 1) {
                     // Calculate direction vector
-                    ImVec2 direction = ImVec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
+                    glm::dvec2 direction = glm::dvec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
                     float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
                     if (length > 0.0f) {
-                        direction = ImVec2(direction.x / length, direction.y / length);
+                        direction = glm::dvec2(direction.x / length, direction.y / length);
                         
                         // Calculate the three points of the equilateral triangle
                         float height = triangleSide * std::sqrt(3.0f) / 2.0f;
-                        ImVec2 p1 = startPoint;
-                        ImVec2 p2 = ImVec2(startPoint.x + triangleSide * direction.x,
+                        glm::dvec2 p1 = startPoint;
+                        glm::dvec2 p2 = glm::dvec2(startPoint.x + triangleSide * direction.x,
                                          startPoint.y + triangleSide * direction.y);
-                        ImVec2 p3 = ImVec2(startPoint.x + triangleSide * 0.5f * direction.x - height * direction.y,
+                        glm::dvec2 p3 = glm::dvec2(startPoint.x + triangleSide * 0.5f * direction.x - height * direction.y,
                                          startPoint.y + triangleSide * 0.5f * direction.y + height * direction.x);
                         
                         // Draw the triangle
-                        std::array<ImVec2, 3> points = {p1, p2, p3};
+                        std::array<glm::dvec2, 3> points = {p1, p2, p3};
                         shapes.push_back(std::make_unique<Triangle>(points));
                         saveToHistory();
                         isDrawing = false;
@@ -791,21 +793,21 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
                 }
             } else {
                 // Dynamic size mode: drag to set size
-                ImVec2 direction = ImVec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
+                glm::dvec2 direction = glm::dvec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
                 float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
                 if (length > 0.0f) {
-                    direction = ImVec2(direction.x / length, direction.y / length);
+                    direction = glm::dvec2(direction.x / length, direction.y / length);
                     
                     // Calculate the three points of the equilateral triangle
                     float height = length * std::sqrt(3.0f) / 2.0f;
-                    ImVec2 p1 = startPoint;
-                    ImVec2 p2 = ImVec2(startPoint.x + length * direction.x,
+                    glm::dvec2 p1 = startPoint;
+                    glm::dvec2 p2 = glm::dvec2(startPoint.x + length * direction.x,
                                      startPoint.y + length * direction.y);
-                    ImVec2 p3 = ImVec2(startPoint.x + length * 0.5f * direction.x - height * direction.y,
+                    glm::dvec2 p3 = glm::dvec2(startPoint.x + length * 0.5f * direction.x - height * direction.y,
                                      startPoint.y + length * 0.5f * direction.y + height * direction.x);
                     
                     // Draw preview
-                    std::array<ImVec2, 3> previewPoints = {p1, p2, p3};
+                    std::array<glm::dvec2, 3> previewPoints = {p1, p2, p3};
                     renderer->previewTriangle(drawList, previewPoints, 3);
                     
                     // Show snap indicators at vertices and midpoints
@@ -817,7 +819,7 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
                     
                     // Show snap indicators at midpoints of edges
                     for (int i = 0; i < 3; ++i) {
-                        ImVec2 midpoint = {
+                        glm::dvec2 midpoint = {
                             (previewPoints[i].x + previewPoints[(i + 1) % 3].x) * 0.5f,
                             (previewPoints[i].y + previewPoints[(i + 1) % 3].y) * 0.5f
                         };
@@ -830,21 +832,21 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
         } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
             if (!isFixedTriangleSize()) {
                 // Complete the triangle in dynamic mode
-                ImVec2 direction = ImVec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
+                glm::dvec2 direction = glm::dvec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
                 float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
                 if (length > Constants::MIN_SHAPE_SIZE) {
-                    direction = ImVec2(direction.x / length, direction.y / length);
+                    direction = glm::dvec2(direction.x / length, direction.y / length);
                     
                     // Calculate the three points of the equilateral triangle
                     float height = length * std::sqrt(3.0f) / 2.0f;
-                    ImVec2 p1 = startPoint;
-                    ImVec2 p2 = ImVec2(startPoint.x + length * direction.x,
+                    glm::dvec2 p1 = startPoint;
+                    glm::dvec2 p2 = glm::dvec2(startPoint.x + length * direction.x,
                                      startPoint.y + length * direction.y);
-                    ImVec2 p3 = ImVec2(startPoint.x + length * 0.5f * direction.x - height * direction.y,
+                    glm::dvec2 p3 = glm::dvec2(startPoint.x + length * 0.5f * direction.x - height * direction.y,
                                      startPoint.y + length * 0.5f * direction.y + height * direction.x);
                     
                     // Draw the triangle
-                    std::array<ImVec2, 3> points = {p1, p2, p3};
+                    std::array<glm::dvec2, 3> points = {p1, p2, p3};
                     shapes.push_back(std::make_unique<Triangle>(points));
                     saveToHistory();
                 }
@@ -854,8 +856,8 @@ void Canvas::handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPo
     }
 }
 
-void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleSquareDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
@@ -879,18 +881,18 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                 // Fixed size mode: first click sets position, second click sets direction
                 if (clickCount == 1) {
                     // Calculate direction vector
-                    ImVec2 direction = ImVec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
+                    glm::dvec2 direction = glm::dvec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
                     float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
                     if (length > 0.0f) {
-                        direction = ImVec2(direction.x / length, direction.y / length);
+                        direction = glm::dvec2(direction.x / length, direction.y / length);
                         
                         // Calculate the four corners of the square
-                        ImVec2 p1 = startPoint;
-                        ImVec2 p2 = ImVec2(startPoint.x + squareSize * direction.x,
+                        glm::dvec2 p1 = startPoint;
+                        glm::dvec2 p2 = glm::dvec2(startPoint.x + squareSize * direction.x,
                                          startPoint.y + squareSize * direction.y);
-                        ImVec2 p3 = ImVec2(p2.x - squareSize * direction.y,
+                        glm::dvec2 p3 = glm::dvec2(p2.x - squareSize * direction.y,
                                          p2.y + squareSize * direction.x);
-                        ImVec2 p4 = ImVec2(p1.x - squareSize * direction.y,
+                        glm::dvec2 p4 = glm::dvec2(p1.x - squareSize * direction.y,
                                          p1.y + squareSize * direction.x);
                         
                         // Draw the square
@@ -912,10 +914,10 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                 float signX = (snappedPos.x >= startPoint.x) ? 1.0f : -1.0f;
                 float signY = (snappedPos.y >= startPoint.y) ? 1.0f : -1.0f;
                 
-                ImVec2 p1 = startPoint;
-                ImVec2 p2 = ImVec2(startPoint.x + size * signX, startPoint.y);
-                ImVec2 p3 = ImVec2(startPoint.x + size * signX, startPoint.y + size * signY);
-                ImVec2 p4 = ImVec2(startPoint.x, startPoint.y + size * signY);
+                glm::dvec2 p1 = startPoint;
+                glm::dvec2 p2 = glm::dvec2(startPoint.x + size * signX, startPoint.y);
+                glm::dvec2 p3 = glm::dvec2(startPoint.x + size * signX, startPoint.y + size * signY);
+                glm::dvec2 p4 = glm::dvec2(startPoint.x, startPoint.y + size * signY);
                 
                 // Draw preview
                 renderer->previewSquare(drawList, startPoint, snappedPos);
@@ -929,7 +931,7 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                 
                 // Show snap indicators at midpoints of sides
                 for (int i = 0; i < 4; ++i) {
-                    ImVec2 midpoint = {
+                    glm::dvec2 midpoint = {
                         (p1.x + p2.x) * 0.5f,
                         (p1.y + p2.y) * 0.5f
                     };
@@ -952,10 +954,10 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
                     float signX = (snappedPos.x >= startPoint.x) ? 1.0f : -1.0f;
                     float signY = (snappedPos.y >= startPoint.y) ? 1.0f : -1.0f;
                     
-                    ImVec2 p1 = startPoint;
-                    ImVec2 p2 = ImVec2(startPoint.x + size * signX, startPoint.y);
-                    ImVec2 p3 = ImVec2(startPoint.x + size * signX, startPoint.y + size * signY);
-                    ImVec2 p4 = ImVec2(startPoint.x, startPoint.y + size * signY);
+                    glm::dvec2 p1 = startPoint;
+                    glm::dvec2 p2 = glm::dvec2(startPoint.x + size * signX, startPoint.y);
+                    glm::dvec2 p3 = glm::dvec2(startPoint.x + size * signX, startPoint.y + size * signY);
+                    glm::dvec2 p4 = glm::dvec2(startPoint.x, startPoint.y + size * signY);
                     
                     shapes.push_back(std::make_unique<Square>(p1, p2));
                     saveToHistory();
@@ -966,8 +968,8 @@ void Canvas::handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos)
     }
 }
 
-void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleRectangleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     
     // Display snap indicator for better visual feedback
     if (auto snapPoint = findSnapPoint(currentPos)) {
@@ -991,18 +993,18 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
                 // Fixed size mode: first click sets position, second click sets direction
                 if (clickCount == 1) {
                     // Calculate direction vector
-                    ImVec2 direction = ImVec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
+                    glm::dvec2 direction = glm::dvec2(snappedPos.x - startPoint.x, snappedPos.y - startPoint.y);
                     float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
                     if (length > 0.0f) {
-                        direction = ImVec2(direction.x / length, direction.y / length);
+                        direction = glm::dvec2(direction.x / length, direction.y / length);
                         
                         // Calculate the four corners of the rectangle
-                        ImVec2 p1 = startPoint;
-                        ImVec2 p2 = ImVec2(startPoint.x + rectangleWidth * direction.x,
+                        glm::dvec2 p1 = startPoint;
+                        glm::dvec2 p2 = glm::dvec2(startPoint.x + rectangleWidth * direction.x,
                                          startPoint.y + rectangleWidth * direction.y);
-                        ImVec2 p3 = ImVec2(p2.x - rectangleHeight * direction.y,
+                        glm::dvec2 p3 = glm::dvec2(p2.x - rectangleHeight * direction.y,
                                          p2.y + rectangleHeight * direction.x);
-                        ImVec2 p4 = ImVec2(p1.x - rectangleHeight * direction.y,
+                        glm::dvec2 p4 = glm::dvec2(p1.x - rectangleHeight * direction.y,
                                          p1.y + rectangleHeight * direction.x);
                         
                         // Draw the rectangle
@@ -1022,10 +1024,10 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
                 float signX = (snappedPos.x >= startPoint.x) ? 1.0f : -1.0f;
                 float signY = (snappedPos.y >= startPoint.y) ? 1.0f : -1.0f;
                 
-                ImVec2 p1 = startPoint;
-                ImVec2 p2 = ImVec2(startPoint.x + width * signX, startPoint.y);
-                ImVec2 p3 = ImVec2(startPoint.x + width * signX, startPoint.y + height * signY);
-                ImVec2 p4 = ImVec2(startPoint.x, startPoint.y + height * signY);
+                glm::dvec2 p1 = startPoint;
+                glm::dvec2 p2 = glm::dvec2(startPoint.x + width * signX, startPoint.y);
+                glm::dvec2 p3 = glm::dvec2(startPoint.x + width * signX, startPoint.y + height * signY);
+                glm::dvec2 p4 = glm::dvec2(startPoint.x, startPoint.y + height * signY);
                 
                 // Draw preview
                 renderer->previewRectangle(drawList, startPoint, snappedPos);
@@ -1049,10 +1051,10 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
                     float signX = (snappedPos.x >= startPoint.x) ? 1.0f : -1.0f;
                     float signY = (snappedPos.y >= startPoint.y) ? 1.0f : -1.0f;
                     
-                    ImVec2 p1 = startPoint;
-                    ImVec2 p2 = ImVec2(startPoint.x + width * signX, startPoint.y);
-                    ImVec2 p3 = ImVec2(startPoint.x + width * signX, startPoint.y + height * signY);
-                    ImVec2 p4 = ImVec2(startPoint.x, startPoint.y + height * signY);
+                    glm::dvec2 p1 = startPoint;
+                    glm::dvec2 p2 = glm::dvec2(startPoint.x + width * signX, startPoint.y);
+                    glm::dvec2 p3 = glm::dvec2(startPoint.x + width * signX, startPoint.y + height * signY);
+                    glm::dvec2 p4 = glm::dvec2(startPoint.x, startPoint.y + height * signY);
                     
                     shapes.push_back(std::make_unique<Rectangle>(p1, p2, p3, p4));
                     saveToHistory();
@@ -1063,8 +1065,8 @@ void Canvas::handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentP
     }
 }
 
-void Canvas::handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleSplineDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
         if (!isDrawing) {
             isDrawing = true;
@@ -1088,8 +1090,8 @@ void Canvas::handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos)
     }
 }
 
-void Canvas::handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
-    ImVec2 snappedPos = findNearestSnapPoint(currentPos);
+void Canvas::handleBezierDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(currentPos);
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
         if (!isDrawing) {
             isDrawing = true;
@@ -1112,7 +1114,7 @@ void Canvas::handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos)
     }
 }
 
-void Canvas::handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
+void Canvas::handleBellowsDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered()) {
         if (isFirstClick) {
             startPoint = getSnappedPoint(currentPos);
@@ -1169,7 +1171,7 @@ void Canvas::drawShape(const Shape& shape) const {
     switch (shape.type) {
         case ShapeType::POINT: {
             const auto& point = static_cast<const Point&>(shape);
-            ImVec2 transformedPos = transformCoordinates(point.position);
+            glm::dvec2 transformedPos = transformCoordinates(point.position);
             // Make points more visible with larger size
             drawList->AddCircleFilled(
                 transformedPos,
@@ -1181,8 +1183,8 @@ void Canvas::drawShape(const Shape& shape) const {
         }
         case ShapeType::LINE: {
             const auto& line = static_cast<const Line&>(shape);
-            ImVec2 transformedStart = transformCoordinates(line.start);
-            ImVec2 transformedEnd = transformCoordinates(line.end);
+            glm::dvec2 transformedStart = transformCoordinates(line.start);
+            glm::dvec2 transformedEnd = transformCoordinates(line.end);
             
             // Debug visualization of line endpoints
             drawList->AddCircleFilled(transformedStart, 3.0f, IM_COL32(0, 0, 0, 255)); // Black start point (was Red)
@@ -1205,7 +1207,7 @@ void Canvas::drawShape(const Shape& shape) const {
         }
         case ShapeType::CIRCLE: {
             const auto& circle = static_cast<const Circle&>(shape);
-            ImVec2 transformedCenter = transformCoordinates(circle.center);
+            glm::dvec2 transformedCenter = transformCoordinates(circle.center);
             
             // Add a visible center point
             drawList->AddCircleFilled(
@@ -1233,7 +1235,7 @@ void Canvas::drawShape(const Shape& shape) const {
         case ShapeType::TRIANGLE: {
             const auto& triangle = static_cast<const Triangle&>(shape);
             
-            ImVec2 transformedPoints[3];
+            glm::dvec2 transformedPoints[3];
             for (int i = 0; i < 3; ++i) {
                 transformedPoints[i] = transformCoordinates(triangle.points[i]);
                 // Add visible points at corners
@@ -1253,15 +1255,15 @@ void Canvas::drawShape(const Shape& shape) const {
         }
         case ShapeType::SQUARE: {
             const auto& square = static_cast<const Square&>(shape);
-            ImVec2 topLeft = square.getTopLeft();
+            glm::dvec2 topLeft = square.getTopLeft();
             float size = square.getSize();
             
             // Calculate transformed points for the square
-            ImVec2 points[4] = {
+            glm::dvec2 points[4] = {
                 transformCoordinates(topLeft),
-                transformCoordinates(ImVec2(topLeft.x + size, topLeft.y)),
-                transformCoordinates(ImVec2(topLeft.x + size, topLeft.y + size)),
-                transformCoordinates(ImVec2(topLeft.x, topLeft.y + size))
+                transformCoordinates(glm::dvec2(topLeft.x + size, topLeft.y)),
+                transformCoordinates(glm::dvec2(topLeft.x + size, topLeft.y + size)),
+                transformCoordinates(glm::dvec2(topLeft.x, topLeft.y + size))
             };
             
             // Add visible points at corners
@@ -1286,15 +1288,15 @@ void Canvas::drawShape(const Shape& shape) const {
         }
         case ShapeType::RECTANGLE: {
             const auto& rect = static_cast<const Rectangle&>(shape);
-            ImVec2 topLeft = rect.getTopLeft();
-            ImVec2 size = rect.getSize();
+            glm::dvec2 topLeft = rect.getTopLeft();
+            glm::dvec2 size = rect.getSize();
             
             // Calculate transformed points for the rectangle
-            ImVec2 points[4] = {
+            glm::dvec2 points[4] = {
                 transformCoordinates(topLeft),
-                transformCoordinates(ImVec2(topLeft.x + size.x, topLeft.y)),
-                transformCoordinates(ImVec2(topLeft.x + size.x, topLeft.y + size.y)),
-                transformCoordinates(ImVec2(topLeft.x, topLeft.y + size.y))
+                transformCoordinates(glm::dvec2(topLeft.x + size.x, topLeft.y)),
+                transformCoordinates(glm::dvec2(topLeft.x + size.x, topLeft.y + size.y)),
+                transformCoordinates(glm::dvec2(topLeft.x, topLeft.y + size.y))
             };
             
             // Add visible points at corners
@@ -1321,7 +1323,7 @@ void Canvas::drawShape(const Shape& shape) const {
             const auto& spline = static_cast<const Spline&>(shape);
             
             // Calculate spline points
-            std::vector<ImVec2> points = spline.calculatePoints(0.01f);
+            std::vector<glm::dvec2> points = spline.calculatePoints(0.01f);
             
             // Draw spline
             for (size_t i = 0; i < points.size() - 1; ++i) {
@@ -1364,7 +1366,7 @@ void Canvas::drawShape(const Shape& shape) const {
             }
             
             // Draw the curve
-            std::vector<ImVec2> points = bezier.calculatePoints(0.01f);
+            std::vector<glm::dvec2> points = bezier.calculatePoints(0.01f);
             
             for (size_t i = 0; i < points.size() - 1; ++i) {
                 drawList->AddLine(
@@ -1405,7 +1407,7 @@ void Canvas::drawShape(const Shape& shape) const {
             int totalPoints = spring.numCoils * pointsPerCoil;
             float halfLength = spring.freeLength / 2.0f;
             float radius = spring.outerDiameter / 2.0f - spring.wireDiameter / 2.0f;
-            std::vector<ImVec2> points;
+            std::vector<glm::dvec2> points;
             points.reserve(totalPoints);
             for (int i = 0; i < totalPoints; ++i) {
                 float t = (float)i / (totalPoints - 1);
@@ -1415,8 +1417,8 @@ void Canvas::drawShape(const Shape& shape) const {
                 points.emplace_back(x, y);
             }
             for (int i = 0; i < (int)points.size() - 1; ++i) {
-                ImVec2 p1 = transformCoordinates(points[i]);
-                ImVec2 p2 = transformCoordinates(points[i + 1]);
+                glm::dvec2 p1 = transformCoordinates(points[i]);
+                glm::dvec2 p2 = transformCoordinates(points[i + 1]);
                 drawList->AddLine(p1, p2, color, std::max(spring.wireDiameter * zoomLevel, 2.0f));
             }
             break;
@@ -1448,50 +1450,50 @@ void Canvas::drawShape(const Shape& shape) const {
                 // Spring seat (wide flange at top of spring)
                 float seatBottom = springTop;
                 float seatTop = seatBottom - springSeatThickness;
-                ImVec2 seatL(x - springSeatWidth/2, seatTop);
-                ImVec2 seatR(x + springSeatWidth/2, seatBottom);
+                glm::dvec2 seatL(x - springSeatWidth/2, seatTop);
+                glm::dvec2 seatR(x + springSeatWidth/2, seatBottom);
                 drawList->AddRect(transformCoordinates(seatL), transformCoordinates(seatR), end.color, 0, 0, end.thickness);
                 
                 // Damper tube (thicker tube extending DOWN into spring area - 70% into spring)
                 float tubeTop = seatBottom;
                 float tubeBottom = springTop + fl * 0.7f;  // Goes 70% down into spring
-                ImVec2 tubeL(x - damperTubeWidth/2, tubeTop);
-                ImVec2 tubeR(x + damperTubeWidth/2, tubeBottom);
+                glm::dvec2 tubeL(x - damperTubeWidth/2, tubeTop);
+                glm::dvec2 tubeR(x + damperTubeWidth/2, tubeBottom);
                 drawList->AddRect(transformCoordinates(tubeL), transformCoordinates(tubeR), IM_COL32(160,160,160,255), 0, 0, end.thickness);
                 
                 // Piston rod from bottom (thinner rod extending UP into spring area - shown as dashed or different color)
                 // This represents the rod coming from the bottom mount
                 float rodBottom = springBottom;
                 float rodTop = springTop + fl * 0.3f;  // Goes 70% up into spring (overlaps with tube)
-                ImVec2 rodL(x - pistonRodWidth/2, rodTop);
-                ImVec2 rodR(x + pistonRodWidth/2, rodBottom);
+                glm::dvec2 rodL(x - pistonRodWidth/2, rodTop);
+                glm::dvec2 rodR(x + pistonRodWidth/2, rodBottom);
                 drawList->AddRect(transformCoordinates(rodL), transformCoordinates(rodR), IM_COL32(200,200,200,255), 0, 0, end.thickness);
                 
                 // Collar (wider section above spring seat, below nut)
                 float collarBottom = seatTop;
                 float collarTop = collarBottom - collarHeight;
-                ImVec2 collarL(x - collarWidth/2, collarTop);
-                ImVec2 collarR(x + collarWidth/2, collarBottom);
+                glm::dvec2 collarL(x - collarWidth/2, collarTop);
+                glm::dvec2 collarR(x + collarWidth/2, collarBottom);
                 drawList->AddRect(transformCoordinates(collarL), transformCoordinates(collarR), end.color, 0, 0, end.thickness);
                 
                 // Nut (hexagonal shape - in 2D shown as rectangle with diagonal lines)
                 float nutBottom = collarTop;
                 float nutTop = nutBottom - nutHeight;
-                ImVec2 nutL(x - nutWidth/2, nutTop);
-                ImVec2 nutR(x + nutWidth/2, nutBottom);
+                glm::dvec2 nutL(x - nutWidth/2, nutTop);
+                glm::dvec2 nutR(x + nutWidth/2, nutBottom);
                 drawList->AddRect(transformCoordinates(nutL), transformCoordinates(nutR), end.color, 0, 0, end.thickness);
                 // Draw diagonal lines to indicate hex nut (cross-hatch pattern)
                 float hexOffset = nutWidth * 0.3f;
-                ImVec2 hexL1(x - hexOffset, nutTop);
-                ImVec2 hexL2(x - nutWidth/2, nutTop + nutHeight * 0.3f);
-                ImVec2 hexR1(x + hexOffset, nutTop);
-                ImVec2 hexR2(x + nutWidth/2, nutTop + nutHeight * 0.3f);
+                glm::dvec2 hexL1(x - hexOffset, nutTop);
+                glm::dvec2 hexL2(x - nutWidth/2, nutTop + nutHeight * 0.3f);
+                glm::dvec2 hexR1(x + hexOffset, nutTop);
+                glm::dvec2 hexR2(x + nutWidth/2, nutTop + nutHeight * 0.3f);
                 drawList->AddLine(transformCoordinates(hexL1), transformCoordinates(hexL2), end.color, end.thickness);
                 drawList->AddLine(transformCoordinates(hexR1), transformCoordinates(hexR2), end.color, end.thickness);
-                ImVec2 hexL3(x - hexOffset, nutBottom);
-                ImVec2 hexL4(x - nutWidth/2, nutBottom - nutHeight * 0.3f);
-                ImVec2 hexR3(x + hexOffset, nutBottom);
-                ImVec2 hexR4(x + nutWidth/2, nutBottom - nutHeight * 0.3f);
+                glm::dvec2 hexL3(x - hexOffset, nutBottom);
+                glm::dvec2 hexL4(x - nutWidth/2, nutBottom - nutHeight * 0.3f);
+                glm::dvec2 hexR3(x + hexOffset, nutBottom);
+                glm::dvec2 hexR4(x + nutWidth/2, nutBottom - nutHeight * 0.3f);
                 drawList->AddLine(transformCoordinates(hexL3), transformCoordinates(hexL4), end.color, end.thickness);
                 drawList->AddLine(transformCoordinates(hexR3), transformCoordinates(hexR4), end.color, end.thickness);
                 
@@ -1500,19 +1502,19 @@ void Canvas::drawShape(const Shape& shape) const {
                 float barExtend = nutWidth * 1.5f;  // How far bars extend
                 float barThick = nutHeight * 0.15f;
                 // Left bar
-                ImVec2 barLL(x - barExtend, nutMid - barThick);
-                ImVec2 barLR(x - nutWidth/2, nutMid + barThick);
+                glm::dvec2 barLL(x - barExtend, nutMid - barThick);
+                glm::dvec2 barLR(x - nutWidth/2, nutMid + barThick);
                 drawList->AddRect(transformCoordinates(barLL), transformCoordinates(barLR), end.color, 0, 0, end.thickness);
                 // Right bar
-                ImVec2 barRL(x + nutWidth/2, nutMid - barThick);
-                ImVec2 barRR(x + barExtend, nutMid + barThick);
+                glm::dvec2 barRL(x + nutWidth/2, nutMid - barThick);
+                glm::dvec2 barRR(x + barExtend, nutMid + barThick);
                 drawList->AddRect(transformCoordinates(barRL), transformCoordinates(barRR), end.color, 0, 0, end.thickness);
                 
                 // Cap (small cylinder on top)
                 float capBottom = nutTop;
                 float capTop = capBottom - capHeight;
-                ImVec2 capL(x - capWidth/2, capTop);
-                ImVec2 capR(x + capWidth/2, capBottom);
+                glm::dvec2 capL(x - capWidth/2, capTop);
+                glm::dvec2 capR(x + capWidth/2, capBottom);
                 drawList->AddRect(transformCoordinates(capL), transformCoordinates(capR), end.color, 0, 0, end.thickness);
             } else {
                 // Bottom end: currently handled by ShockAbsorberBottomEnd
@@ -1522,34 +1524,34 @@ void Canvas::drawShape(const Shape& shape) const {
                 float y2 = y1 + end.step2Length;
                 float y3 = y2 + end.step3Length;
                 // Step 1 (top, largest)
-                ImVec2 s1L(x - end.step1Diameter/2, y0);
-                ImVec2 s1R(x + end.step1Diameter/2, y0);
-                ImVec2 s1L2(x - end.step1Diameter/2, y1);
-                ImVec2 s1R2(x + end.step1Diameter/2, y1);
+                glm::dvec2 s1L(x - end.step1Diameter/2, y0);
+                glm::dvec2 s1R(x + end.step1Diameter/2, y0);
+                glm::dvec2 s1L2(x - end.step1Diameter/2, y1);
+                glm::dvec2 s1R2(x + end.step1Diameter/2, y1);
                 drawList->AddRect(transformCoordinates(s1L), transformCoordinates(s1R2), end.color, 0, 0, end.thickness);
                 // Step 2 (middle, spring seat)
-                ImVec2 s2L(x - end.step2Diameter/2, y1);
-                ImVec2 s2R(x + end.step2Diameter/2, y1);
-                ImVec2 s2L2(x - end.step2Diameter/2, y2);
-                ImVec2 s2R2(x + end.step2Diameter/2, y2);
+                glm::dvec2 s2L(x - end.step2Diameter/2, y1);
+                glm::dvec2 s2R(x + end.step2Diameter/2, y1);
+                glm::dvec2 s2L2(x - end.step2Diameter/2, y2);
+                glm::dvec2 s2R2(x + end.step2Diameter/2, y2);
                 drawList->AddRect(transformCoordinates(s2L), transformCoordinates(s2R2), end.color, 0, 0, end.thickness);
                 // Step 3 (bottom, smallest)
-                ImVec2 s3L(x - end.step3Diameter/2, y2);
-                ImVec2 s3R(x + end.step3Diameter/2, y2);
-                ImVec2 s3L2(x - end.step3Diameter/2, y3);
-                ImVec2 s3R2(x + end.step3Diameter/2, y3);
+                glm::dvec2 s3L(x - end.step3Diameter/2, y2);
+                glm::dvec2 s3R(x + end.step3Diameter/2, y2);
+                glm::dvec2 s3L2(x - end.step3Diameter/2, y3);
+                glm::dvec2 s3R2(x + end.step3Diameter/2, y3);
                 drawList->AddRect(transformCoordinates(s3L), transformCoordinates(s3R2), end.color, 0, 0, end.thickness);
                 // Central bore (section view: vertical rectangle)
                 float boreX1 = x - end.boreDiameter/2;
                 float boreX2 = x + end.boreDiameter/2;
-                ImVec2 boreL(boreX1, y0);
-                ImVec2 boreR(boreX2, y3);
+                glm::dvec2 boreL(boreX1, y0);
+                glm::dvec2 boreR(boreX2, y3);
                 drawList->AddRect(transformCoordinates(boreL), transformCoordinates(boreR), IM_COL32(200,200,200,255), 0, 0, end.thickness);
                 // Chamfers (draw as lines at ends)
-                ImVec2 chamferL1(x - end.step1Diameter/2, y0);
-                ImVec2 chamferL2(x - end.step1Diameter/2 + end.chamfer, y0 + end.chamfer);
-                ImVec2 chamferR1(x + end.step1Diameter/2, y0);
-                ImVec2 chamferR2(x + end.step1Diameter/2 - end.chamfer, y0 + end.chamfer);
+                glm::dvec2 chamferL1(x - end.step1Diameter/2, y0);
+                glm::dvec2 chamferL2(x - end.step1Diameter/2 + end.chamfer, y0 + end.chamfer);
+                glm::dvec2 chamferR1(x + end.step1Diameter/2, y0);
+                glm::dvec2 chamferR2(x + end.step1Diameter/2 - end.chamfer, y0 + end.chamfer);
                 drawList->AddLine(transformCoordinates(chamferL1), transformCoordinates(chamferL2), end.color, end.thickness);
                 drawList->AddLine(transformCoordinates(chamferR1), transformCoordinates(chamferR2), end.color, end.thickness);
             }
@@ -1567,8 +1569,8 @@ void Canvas::drawShape(const Shape& shape) const {
             if (!bellows.isValid()) break;
             
             // Get profile points and transform them
-            const std::vector<ImVec2>& profilePoints = bellows.getCachedProfile();
-            std::vector<ImVec2> transformedPoints;
+            const std::vector<glm::dvec2>& profilePoints = bellows.getCachedProfile();
+            std::vector<glm::dvec2> transformedPoints;
             transformedPoints.reserve(profilePoints.size());
             
             float s = sin(bellows.angle);
@@ -1577,7 +1579,7 @@ void Canvas::drawShape(const Shape& shape) const {
             for (const auto& point : profilePoints) {
                 float rotatedX = point.x * c - point.y * s;
                 float rotatedY = point.x * s + point.y * c;
-                ImVec2 translatedPoint(
+                glm::dvec2 translatedPoint(
                     bellows.position.x + rotatedX,
                     bellows.position.y + rotatedY
                 );
@@ -1590,8 +1592,8 @@ void Canvas::drawShape(const Shape& shape) const {
             
             // Draw the bellows profile
             for (size_t i = 0; i < transformedPoints.size() - 1; ++i) {
-                ImVec2 p1 = transformCoordinates(transformedPoints[i]);
-                ImVec2 p2 = transformCoordinates(transformedPoints[i + 1]);
+                glm::dvec2 p1 = transformCoordinates(transformedPoints[i]);
+                glm::dvec2 p2 = transformCoordinates(transformedPoints[i + 1]);
                 drawList->AddLine(p1, p2, profileColor, profileThickness);
             }
             break;
@@ -1603,7 +1605,7 @@ void Canvas::drawShape(const Shape& shape) const {
             if (!ballBearing.isValid()) break;
             
             // Transform center position
-            ImVec2 transformedCenter = transformCoordinates(ballBearing.position);
+            glm::dvec2 transformedCenter = transformCoordinates(ballBearing.position);
             
             float outerRadius = (ballBearing.outerDiameter / 2.0f) * zoomLevel;
             float innerRadius = (ballBearing.innerDiameter / 2.0f) * zoomLevel;
@@ -1627,7 +1629,7 @@ void Canvas::drawShape(const Shape& shape) const {
                 
                 for (int i = 0; i < ballBearing.numBalls; ++i) {
                     float ballAngle = (float)i / ballBearing.numBalls * 2.0f * M_PI;
-                    ImVec2 ballPos = ImVec2(
+                    glm::dvec2 ballPos = glm::dvec2(
                         transformedCenter.x + pitchRadius * cos(ballAngle),
                         transformedCenter.y + pitchRadius * sin(ballAngle)
                     );
@@ -1648,13 +1650,13 @@ void Canvas::drawShape(const Shape& shape) const {
     }
 }
 
-ImVec2 Canvas::catmullRomPoint(const ImVec2& p0, const ImVec2& p1, 
-                              const ImVec2& p2, const ImVec2& p3, float t) const {
+glm::dvec2 Canvas::catmullRomPoint(const glm::dvec2& p0, const glm::dvec2& p1, 
+                              const glm::dvec2& p2, const glm::dvec2& p3, float t) const {
     const float alpha = 0.5f;  // 0.5 for centripetal Catmull-Rom
     float t2 = t * t;
     float t3 = t2 * t;
 
-    ImVec2 result;
+    glm::dvec2 result;
     result.x = 0.5f * (
         (2.0f * p1.x) +
         (-p0.x + p2.x) * t +
@@ -1681,7 +1683,7 @@ void Canvas::reset() {
 }
 
 // Snapping methods
-std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) const {
+std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const glm::dvec2& mousePos) const {
     if (!snapToGrid) return std::nullopt;
     
     float minDist = Constants::SNAP_THRESHOLD / zoomLevel;
@@ -1713,7 +1715,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                     result = SnapPoint{line.end, "Endpoint"};
                 }
                 // Snap to midpoint
-                ImVec2 midpoint = {
+                glm::dvec2 midpoint = {
                     (line.start.x + line.end.x) * 0.5f,
                     (line.start.y + line.end.y) * 0.5f
                 };
@@ -1734,7 +1736,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 }
                 
                 // Snap to cardinal points on the circle (N, E, S, W)
-                std::vector<std::pair<ImVec2, std::string>> cardinalPoints = {
+                std::vector<std::pair<glm::dvec2, std::string>> cardinalPoints = {
                     {{circle.center.x, circle.center.y - circle.radius}, "North"},
                     {{circle.center.x + circle.radius, circle.center.y}, "East"},
                     {{circle.center.x, circle.center.y + circle.radius}, "South"},
@@ -1763,7 +1765,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 
                 // Snap to midpoints of edges
                 for (int i = 0; i < 3; ++i) {
-                    ImVec2 midpoint = {
+                    glm::dvec2 midpoint = {
                         (triangle.points[i].x + triangle.points[(i + 1) % 3].x) * 0.5f,
                         (triangle.points[i].y + triangle.points[(i + 1) % 3].y) * 0.5f
                     };
@@ -1775,7 +1777,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 }
                 
                 // Snap to centroid (center of mass)
-                ImVec2 centroid = {
+                glm::dvec2 centroid = {
                     (triangle.points[0].x + triangle.points[1].x + triangle.points[2].x) / 3.0f,
                     (triangle.points[0].y + triangle.points[1].y + triangle.points[2].y) / 3.0f
                 };
@@ -1788,11 +1790,11 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
             }
             case ShapeType::SQUARE: {
                 const auto& square = static_cast<const Square&>(*shape);
-                ImVec2 topLeft = square.getTopLeft();
+                glm::dvec2 topLeft = square.getTopLeft();
                 float size = square.getSize();
                 
                 // Create the four corners
-                std::vector<ImVec2> corners = {
+                std::vector<glm::dvec2> corners = {
                     topLeft,                                    // Top-left
                     {topLeft.x + size, topLeft.y},              // Top-right
                     {topLeft.x + size, topLeft.y + size},       // Bottom-right
@@ -1812,7 +1814,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 // Snap to midpoints of sides
                 std::vector<std::string> sideNames = {"Top", "Right", "Bottom", "Left"};
                 for (int i = 0; i < 4; ++i) {
-                    ImVec2 midpoint = {
+                    glm::dvec2 midpoint = {
                         (corners[i].x + corners[(i + 1) % 4].x) * 0.5f,
                         (corners[i].y + corners[(i + 1) % 4].y) * 0.5f
                     };
@@ -1824,7 +1826,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 }
                 
                 // Snap to center
-                ImVec2 center = {
+                glm::dvec2 center = {
                     topLeft.x + size * 0.5f,
                     topLeft.y + size * 0.5f
                 };
@@ -1837,11 +1839,11 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
             }
             case ShapeType::RECTANGLE: {
                 const auto& rect = static_cast<const Rectangle&>(*shape);
-                ImVec2 topLeft = rect.getTopLeft();
-                ImVec2 size = rect.getSize();
+                glm::dvec2 topLeft = rect.getTopLeft();
+                glm::dvec2 size = rect.getSize();
                 
                 // Create the four corners
-                std::vector<ImVec2> corners = {
+                std::vector<glm::dvec2> corners = {
                     topLeft,                                    // Top-left
                     {topLeft.x + size.x, topLeft.y},            // Top-right
                     {topLeft.x + size.x, topLeft.y + size.y},   // Bottom-right
@@ -1861,7 +1863,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 // Snap to midpoints of sides
                 std::vector<std::string> sideNames = {"Top", "Right", "Bottom", "Left"};
                 for (int i = 0; i < 4; ++i) {
-                    ImVec2 midpoint = {
+                    glm::dvec2 midpoint = {
                         (corners[i].x + corners[(i + 1) % 4].x) * 0.5f,
                         (corners[i].y + corners[(i + 1) % 4].y) * 0.5f
                     };
@@ -1873,7 +1875,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
                 }
                 
                 // Snap to center
-                ImVec2 center = {
+                glm::dvec2 center = {
                     topLeft.x + size.x * 0.5f,
                     topLeft.y + size.y * 0.5f
                 };
@@ -1905,7 +1907,7 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
     }
     
     // Check for grid snapping
-    ImVec2 gridSnapped = getSnappedPoint(mousePos);
+    glm::dvec2 gridSnapped = getSnappedPoint(mousePos);
     float gridDist = calculateDistance(mousePos, gridSnapped);
     if (gridDist < minDist) {
         result = SnapPoint{gridSnapped, "Grid"};
@@ -1914,14 +1916,14 @@ std::optional<Canvas::SnapPoint> Canvas::findSnapPoint(const ImVec2& mousePos) c
     return result;
 }
 
-std::optional<ImVec2> Canvas::findMidPoint(const ImVec2& mousePos) const {
+std::optional<glm::dvec2> Canvas::findMidPoint(const glm::dvec2& mousePos) const {
     float minDist = Constants::SNAP_THRESHOLD / zoomLevel;
-    std::optional<ImVec2> result;
+    std::optional<glm::dvec2> result;
     
     for (const auto& shape : shapes) {
         if (shape->type == ShapeType::LINE) {
             const auto& line = static_cast<const Line&>(*shape);
-            ImVec2 mid = calculateMidpoint(line.start, line.end);
+            glm::dvec2 mid = calculateMidpoint(line.start, line.end);
             float dist = calculateDistance(mousePos, mid);
             if (dist < minDist) {
                 minDist = dist;
@@ -1933,9 +1935,9 @@ std::optional<ImVec2> Canvas::findMidPoint(const ImVec2& mousePos) const {
     return result;
 }
 
-std::optional<ImVec2> Canvas::findIntersection(const ImVec2& mousePos) const {
+std::optional<glm::dvec2> Canvas::findIntersection(const glm::dvec2& mousePos) const {
     float minDist = Constants::SNAP_THRESHOLD / zoomLevel;
-    std::optional<ImVec2> result;
+    std::optional<glm::dvec2> result;
     
     // Check intersections between lines
     for (size_t i = 0; i < shapes.size(); ++i) {
@@ -1959,7 +1961,7 @@ std::optional<ImVec2> Canvas::findIntersection(const ImVec2& mousePos) const {
             float u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denominator;
             
             if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-                ImVec2 intersection = {
+                glm::dvec2 intersection = {
                     x1 + t * (x2 - x1),
                     y1 + t * (y2 - y1)
                 };
@@ -1976,22 +1978,22 @@ std::optional<ImVec2> Canvas::findIntersection(const ImVec2& mousePos) const {
     return result;
 }
 
-std::optional<ImVec2> Canvas::findPerpendicular(const ImVec2& mousePos) const {
+std::optional<glm::dvec2> Canvas::findPerpendicular(const glm::dvec2& mousePos) const {
     float minDist = Constants::SNAP_THRESHOLD / zoomLevel;
-    std::optional<ImVec2> result;
+    std::optional<glm::dvec2> result;
     
     for (const auto& shape : shapes) {
         if (shape->type == ShapeType::LINE) {
             const auto& line = static_cast<const Line&>(*shape);
             
             // Calculate perpendicular point
-            ImVec2 v = {line.end.x - line.start.x, line.end.y - line.start.y};
+            glm::dvec2 v = {line.end.x - line.start.x, line.end.y - line.start.y};
             float len2 = v.x * v.x + v.y * v.y;
             if (len2 < 0.0001f) continue;
             
             float t = ((mousePos.x - line.start.x) * v.x + (mousePos.y - line.start.y) * v.y) / len2;
             if (t >= 0 && t <= 1) {
-                ImVec2 perpPoint = {
+                glm::dvec2 perpPoint = {
                     line.start.x + t * v.x,
                     line.start.y + t * v.y
                 };
@@ -2008,9 +2010,9 @@ std::optional<ImVec2> Canvas::findPerpendicular(const ImVec2& mousePos) const {
     return result;
 }
 
-std::optional<ImVec2> Canvas::findCenter(const ImVec2& mousePos) const {
+std::optional<glm::dvec2> Canvas::findCenter(const glm::dvec2& mousePos) const {
     float minDist = Constants::SNAP_THRESHOLD / zoomLevel;
-    std::optional<ImVec2> result;
+    std::optional<glm::dvec2> result;
     
     for (const auto& shape : shapes) {
         if (shape->type == ShapeType::CIRCLE) {
@@ -2027,16 +2029,16 @@ std::optional<ImVec2> Canvas::findCenter(const ImVec2& mousePos) const {
 }
 
 
-ImVec2 Canvas::getSnappedPoint(const ImVec2& point) const {
+glm::dvec2 Canvas::getSnappedPoint(const glm::dvec2& point) const {
     if (!snapToGrid) return point;
     
-    return ImVec2{
+    return glm::dvec2{
         std::round(point.x / gridSpacing) * gridSpacing,
         std::round(point.y / gridSpacing) * gridSpacing
     };
 }
 
-bool Canvas::trySnapToExistingPoint(ImVec2& point) const {
+bool Canvas::trySnapToExistingPoint(glm::dvec2& point) const {
     if (auto nearestPoint = findNearestPoint(point, Constants::SNAP_THRESHOLD / zoomLevel)) {
         point = *nearestPoint;
         return true;
@@ -2044,9 +2046,9 @@ bool Canvas::trySnapToExistingPoint(ImVec2& point) const {
     return false;
 }
 
-std::optional<ImVec2> Canvas::findNearestPoint(const ImVec2& point, float threshold) const {
+std::optional<glm::dvec2> Canvas::findNearestPoint(const glm::dvec2& point, float threshold) const {
     float minDist = threshold;
-    std::optional<ImVec2> result;
+    std::optional<glm::dvec2> result;
     
     for (const auto& shape : shapes) {
         switch (shape->type) {
@@ -2113,8 +2115,8 @@ std::optional<ImVec2> Canvas::findNearestPoint(const ImVec2& point, float thresh
 
 
 // Curve calculation methods
-ImVec2 Canvas::calculateBezierPoint(const std::vector<ImVec2>& points, float t) const {
-    if (points.size() != 4) return ImVec2(0, 0);
+glm::dvec2 Canvas::calculateBezierPoint(const std::vector<glm::dvec2>& points, float t) const {
+    if (points.size() != 4) return glm::dvec2(0, 0);
     
     float u = 1.0f - t;
     float tt = t * t;
@@ -2122,7 +2124,7 @@ ImVec2 Canvas::calculateBezierPoint(const std::vector<ImVec2>& points, float t) 
     float uuu = uu * u;
     float ttt = tt * t;
     
-    ImVec2 p = {
+    glm::dvec2 p = {
         uuu * points[0].x +
         3 * uu * t * points[1].x +
         3 * u * tt * points[2].x +
@@ -2137,16 +2139,16 @@ ImVec2 Canvas::calculateBezierPoint(const std::vector<ImVec2>& points, float t) 
     return p;
 }
 
-std::vector<ImVec2> Canvas::calculateSplinePoints(const std::vector<ImVec2>& controlPoints, bool isClosed) const {
+std::vector<glm::dvec2> Canvas::calculateSplinePoints(const std::vector<glm::dvec2>& controlPoints, bool isClosed) const {
     if (controlPoints.size() < 2) return {};
     
-    std::vector<ImVec2> result;
+    std::vector<glm::dvec2> result;
     float step = 0.02f;  // Smaller step size for smoother curves
     
     if (controlPoints.size() == 2) {
         // For 2 points, just do linear interpolation
-        const ImVec2& p0 = controlPoints[0];
-        const ImVec2& p1 = controlPoints[1];
+        const glm::dvec2& p0 = controlPoints[0];
+        const glm::dvec2& p1 = controlPoints[1];
         for (float t = 0; t <= 1.0f; t += step) {
             result.push_back({
                 p0.x + (p1.x - p0.x) * t,
@@ -2158,7 +2160,7 @@ std::vector<ImVec2> Canvas::calculateSplinePoints(const std::vector<ImVec2>& con
     }
 
     // For Catmull-Rom spline, we need at least 4 points
-    std::vector<ImVec2> points = controlPoints;
+    std::vector<glm::dvec2> points = controlPoints;
     if (isClosed) {
         // For closed splines, wrap the points
         points.insert(points.begin(), points.back());
@@ -2171,10 +2173,10 @@ std::vector<ImVec2> Canvas::calculateSplinePoints(const std::vector<ImVec2>& con
 
     // Calculate points along each segment
     for (size_t i = 0; i < points.size() - 3; ++i) {
-        const ImVec2& p0 = points[i];
-        const ImVec2& p1 = points[i + 1];
-        const ImVec2& p2 = points[i + 2];
-        const ImVec2& p3 = points[i + 3];
+        const glm::dvec2& p0 = points[i];
+        const glm::dvec2& p1 = points[i + 1];
+        const glm::dvec2& p2 = points[i + 2];
+        const glm::dvec2& p3 = points[i + 3];
 
         for (float t = 0; t < 1.0f; t += step) {
             result.push_back(catmullRomPoint(p0, p1, p2, p3, t));
@@ -2184,11 +2186,11 @@ std::vector<ImVec2> Canvas::calculateSplinePoints(const std::vector<ImVec2>& con
     return result;
 }
 
-ImVec2 Canvas::findNearestSnapPoint(const ImVec2& pos) const {
+glm::dvec2 Canvas::findNearestSnapPoint(const glm::dvec2& pos) const {
     if (!snapToGrid) return pos;
     
     // Default to returning grid-snapped position
-    ImVec2 result = getSnappedPoint(pos);
+    glm::dvec2 result = getSnappedPoint(pos);
     float minDist = calculateDistance(pos, result);
     
     // Get best shape snap point if available
@@ -2241,11 +2243,11 @@ void Canvas::fitBellowsToView() {
             float c = cos(bellows->angle);
             
             // Calculate transformed corners
-            std::vector<ImVec2> corners = {
-                ImVec2(bbox.x, bbox.y),
-                ImVec2(bbox.x, bbox.w),
-                ImVec2(bbox.z, bbox.y),
-                ImVec2(bbox.z, bbox.w)
+            std::vector<glm::dvec2> corners = {
+                glm::dvec2(bbox.x, bbox.y),
+                glm::dvec2(bbox.x, bbox.w),
+                glm::dvec2(bbox.z, bbox.y),
+                glm::dvec2(bbox.z, bbox.w)
             };
             
             // Transform corners
@@ -2287,7 +2289,7 @@ void Canvas::fitBellowsToView() {
             
             // Set the zoom and pan position
             zoomLevel = newZoom;
-            panOffset = ImVec2(
+            panOffset = glm::dvec2(
                 -minX * zoomLevel + viewWidth / 2.0f - (maxX - minX) * zoomLevel / 2.0f,
                 -minY * zoomLevel + viewHeight / 2.0f - (maxY - minY) * zoomLevel / 2.0f
             );
@@ -2333,7 +2335,7 @@ const Drawing::BallBearing* Drawing::Canvas::findOrCreateBallBearing() const {
     return nullptr;
 }
 
-void Canvas::handleBallBearingDrawing(ImDrawList* drawList, const ImVec2& currentPos) {
+void Canvas::handleBallBearingDrawing(ImDrawList* drawList, const glm::dvec2& currentPos) {
     // Only handle click events, not mouse movement
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (isFirstClick) {
@@ -2392,8 +2394,8 @@ void Canvas::setSpring2DShape(std::unique_ptr<Shape> spring) {
     saveToHistory();
 }
 
-void Canvas::handleSpring2DDrawing(ImDrawList* drawList, const ImVec2& mousePos) {
-    ImVec2 snappedPos = findNearestSnapPoint(mousePos);
+void Canvas::handleSpring2DDrawing(ImDrawList* drawList, const glm::dvec2& mousePos) {
+    glm::dvec2 snappedPos = findNearestSnapPoint(mousePos);
 
     if (!isDrawing) {
         // Start drawing when tool is selected

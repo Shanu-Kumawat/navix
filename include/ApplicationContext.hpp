@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <string>
@@ -47,7 +48,7 @@ public:
     bool showRulers;
     bool showCoordinates;
     float zoomLevel;
-    ImVec2 panOffset;
+    glm::dvec2 panOffset;
 
     // Helper methods
     void addCommandToHistory(const std::string& command);

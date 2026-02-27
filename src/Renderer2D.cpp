@@ -2,9 +2,11 @@
 #include "Renderer2D.hpp"
 #include "Canvas.hpp"
 #include "utils/MathUtils.hpp"
+#include "utils/VectorMath.hpp"
 #include <cmath>
 
 namespace Core {
+using namespace Drawing::Math;
 
 Renderer2D::Renderer2D(Drawing::Canvas* canvas) : canvas(canvas) {}
 
@@ -27,7 +29,8 @@ void Renderer2D::renderGrid(ImDrawList* drawList) {
 
     float gridSpacing = canvas->getGridSpacing();
     float zoomLevel = canvas->getZoomLevel();
-    ImVec2 panOffset = canvas->getPanOffset();
+    glm::dvec2 panOffsetVec = canvas->getPanOffset();
+    ImVec2 panOffset = toImVec2(panOffsetVec);
 
     // Only render grid if it's enabled
     if (gridSpacing <= 0) return;
@@ -87,7 +90,7 @@ void Renderer2D::renderGrid(ImDrawList* drawList) {
     }
     
     // Add axes lines at (0,0) if visible
-    ImVec2 origin = canvas->transformCoordinates(ImVec2(0, 0));
+    ImVec2 origin = toImVec2(canvas->transformCoordinates(glm::dvec2(0, 0)));
     ImU32 axisColor = IM_COL32(140, 100, 60, 240);  // Darker brown for axes (abacus frame)
     
     if (origin.x >= startX && origin.x <= endX) {
@@ -111,15 +114,15 @@ void Renderer2D::renderGrid(ImDrawList* drawList) {
 
 void Renderer2D::renderShapes(ImDrawList* drawList, const std::vector<std::unique_ptr<Drawing::Shape>>& shapes) {
     // Calculate viewport bounds in world coordinates
-    ImVec2 viewportMin = canvas->inverseTransformCoordinates(ImVec2(0, 0));
-    ImVec2 viewportMax = canvas->inverseTransformCoordinates(ImVec2(canvas->getWindowWidth(), canvas->getWindowHeight()));
+    glm::dvec2 viewportMin = canvas->inverseTransformCoordinates(glm::dvec2(0, 0));
+    glm::dvec2 viewportMax = canvas->inverseTransformCoordinates(glm::dvec2(canvas->getWindowWidth(), canvas->getWindowHeight()));
     
     // Render only shapes that intersect with the viewport
     for (const auto& shape : shapes) {
         if (!shape) continue;
         
         // Get shape bounds
-        ImVec2 shapeMin, shapeMax;
+        glm::dvec2 shapeMin, shapeMax;
         shape->getBounds(shapeMin, shapeMax);
         
         // Skip shapes outside viewport
@@ -158,7 +161,7 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
     switch (shape->type) {
         case Drawing::ShapeType::POINT: {
             const auto* point = static_cast<const Drawing::Point*>(shape);
-            ImVec2 transformedPos = canvas->transformCoordinates(point->position);
+            ImVec2 transformedPos = toImVec2(canvas->transformCoordinates(point->position));
             // Make points more visible with larger size
             drawList->AddCircleFilled(
                 transformedPos,
@@ -170,8 +173,8 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
         }
         case Drawing::ShapeType::LINE: {
             const auto* line = static_cast<const Drawing::Line*>(shape);
-            ImVec2 transformedStart = canvas->transformCoordinates(line->start);
-            ImVec2 transformedEnd = canvas->transformCoordinates(line->end);
+            ImVec2 transformedStart = toImVec2(canvas->transformCoordinates(line->start));
+            ImVec2 transformedEnd = toImVec2(canvas->transformCoordinates(line->end));
             
             // Debug visualization of line endpoints
             drawList->AddCircleFilled(transformedStart, 3.0f, IM_COL32(0, 0, 0, 255)); // Black start point (was Red)
@@ -194,7 +197,7 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
         }
         case Drawing::ShapeType::CIRCLE: {
             const auto* circle = static_cast<const Drawing::Circle*>(shape);
-            ImVec2 transformedCenter = canvas->transformCoordinates(circle->center);
+            ImVec2 transformedCenter = toImVec2(canvas->transformCoordinates(circle->center));
             
             // Add a visible center point
             drawList->AddCircleFilled(
@@ -224,7 +227,7 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
             
             ImVec2 transformedPoints[3];
             for (int i = 0; i < 3; ++i) {
-                transformedPoints[i] = canvas->transformCoordinates(triangle->points[i]);
+                transformedPoints[i] = toImVec2(canvas->transformCoordinates(triangle->points[i]));
                 // Add visible points at corners
                 drawList->AddCircleFilled(transformedPoints[i], 3.0f, IM_COL32(0, 0, 0, 255));
             }
@@ -242,15 +245,15 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
         }
         case Drawing::ShapeType::SQUARE: {
             const auto* square = static_cast<const Drawing::Square*>(shape);
-            ImVec2 topLeft = square->getTopLeft();
+            glm::dvec2 topLeft = square->getTopLeft();
             float size = square->getSize();
             
             // Calculate transformed points for the square
             ImVec2 points[4] = {
-                canvas->transformCoordinates(topLeft),
-                canvas->transformCoordinates(ImVec2(topLeft.x + size, topLeft.y)),
-                canvas->transformCoordinates(ImVec2(topLeft.x + size, topLeft.y + size)),
-                canvas->transformCoordinates(ImVec2(topLeft.x, topLeft.y + size))
+                toImVec2(canvas->transformCoordinates(topLeft)),
+                toImVec2(canvas->transformCoordinates(glm::dvec2(topLeft.x + size, topLeft.y))),
+                toImVec2(canvas->transformCoordinates(glm::dvec2(topLeft.x + size, topLeft.y + size))),
+                toImVec2(canvas->transformCoordinates(glm::dvec2(topLeft.x, topLeft.y + size)))
             };
             
             // Add visible points at corners
@@ -275,15 +278,15 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
         }
         case Drawing::ShapeType::RECTANGLE: {
             const auto* rect = static_cast<const Drawing::Rectangle*>(shape);
-            ImVec2 topLeft = rect->getTopLeft();
-            ImVec2 size = rect->getSize();
+            glm::dvec2 topLeft = rect->getTopLeft();
+            glm::dvec2 size = rect->getSize();
             
             // Calculate transformed points for the rectangle
             ImVec2 points[4] = {
-                canvas->transformCoordinates(topLeft),
-                canvas->transformCoordinates(ImVec2(topLeft.x + size.x, topLeft.y)),
-                canvas->transformCoordinates(ImVec2(topLeft.x + size.x, topLeft.y + size.y)),
-                canvas->transformCoordinates(ImVec2(topLeft.x, topLeft.y + size.y))
+                toImVec2(canvas->transformCoordinates(topLeft)),
+                toImVec2(canvas->transformCoordinates(glm::dvec2(topLeft.x + size.x, topLeft.y))),
+                toImVec2(canvas->transformCoordinates(glm::dvec2(topLeft.x + size.x, topLeft.y + size.y))),
+                toImVec2(canvas->transformCoordinates(glm::dvec2(topLeft.x, topLeft.y + size.y)))
             };
             
             // Add visible points at corners
@@ -310,13 +313,13 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
             const auto* spline = static_cast<const Drawing::Spline*>(shape);
             
             // Calculate spline points
-            std::vector<ImVec2> points = spline->calculatePoints(0.01f);
+            std::vector<glm::dvec2> points = spline->calculatePoints(0.01f);
             
             // Draw spline
             for (size_t i = 0; i < points.size() - 1; ++i) {
                 drawList->AddLine(
-                    canvas->transformCoordinates(points[i]),
-                    canvas->transformCoordinates(points[i + 1]),
+                    toImVec2(canvas->transformCoordinates(points[i])),
+                    toImVec2(canvas->transformCoordinates(points[i + 1])),
                     color,
                     std::max(spline->thickness * canvas->getZoomLevel(), 2.0f)
                 );
@@ -357,8 +360,8 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
             
             for (size_t i = 0; i < points.size() - 1; ++i) {
                 drawList->AddLine(
-                    canvas->transformCoordinates(points[i]),
-                    canvas->transformCoordinates(points[i + 1]),
+                    toImVec2(canvas->transformCoordinates(points[i])),
+                    toImVec2(canvas->transformCoordinates(points[i + 1])),
                     color,
                     std::max(bezier->thickness * canvas->getZoomLevel(), 2.0f)
                 );
@@ -404,8 +407,8 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
                 points.emplace_back(x, y);
             }
             for (int i = 0; i < (int)points.size() - 1; ++i) {
-                ImVec2 p1 = canvas->transformCoordinates(points[i]);
-                ImVec2 p2 = canvas->transformCoordinates(points[i + 1]);
+                ImVec2 p1 = toImVec2(canvas->transformCoordinates(points[i])));
+                ImVec2 p2 = toImVec2(canvas->transformCoordinates(points[i + 1])));
                 drawList->AddLine(p1, p2, color, std::max(spring->wireDiameter * canvas->getZoomLevel(), 2.0f));
             }
             break;
@@ -579,8 +582,8 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
             
             // Draw the bellows profile
             for (size_t i = 0; i < transformedPoints.size() - 1; ++i) {
-                ImVec2 p1 = canvas->transformCoordinates(transformedPoints[i]);
-                ImVec2 p2 = canvas->transformCoordinates(transformedPoints[i + 1]);
+                ImVec2 p1 = toImVec2(canvas->transformCoordinates(transformedPoints[i]));
+                ImVec2 p2 = toImVec2(canvas->transformCoordinates(transformedPoints[i + 1]));
                 drawList->AddLine(p1, p2, profileColor, profileThickness);
             }
             break;
@@ -592,7 +595,7 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
             if (!ballBearing->isValid()) break;
             
             // Transform center position
-            ImVec2 transformedCenter = canvas->transformCoordinates(ballBearing->position);
+            ImVec2 transformedCenter = toImVec2(canvas->transformCoordinates(ballBearing->position));
             
             float outerRadius = (ballBearing->outerDiameter / 2.0f) * canvas->getZoomLevel();
             float innerRadius = (ballBearing->innerDiameter / 2.0f) * canvas->getZoomLevel();
@@ -636,7 +639,7 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
             break;
     }
 }
-void Renderer2D::previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) {
+void Renderer2D::previewBellows(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) {
     // Calculate length and orientation for preview
     float dx = end.x - start.x;
     float dy = end.y - start.y;
@@ -682,14 +685,14 @@ void Renderer2D::previewBellows(ImDrawList* drawList, const ImVec2& start, const
         drawList->AddLine(p1, p2, Drawing::Colors::PREVIEW, 1.0f);
     }
 }
-void Renderer2D::previewPoint(ImDrawList* drawList, const ImVec2& pos) {
-    ImVec2 transformedPos = canvas->transformCoordinates(pos);
+void Renderer2D::previewPoint(ImDrawList* drawList, const glm::dvec2& pos) {
+    ImVec2 transformedPos = toImVec2(canvas->transformCoordinates(pos));
     drawList->AddCircleFilled(transformedPos, Drawing::Constants::DEFAULT_POINT_SIZE * canvas->getZoomLevel(), Drawing::Colors::PREVIEW);
 }
-void Renderer2D::previewLine(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) {
+void Renderer2D::previewLine(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) {
     // Transform coordinates to screen space
-    ImVec2 transformedStart = canvas->transformCoordinates(start);
-    ImVec2 transformedEnd = canvas->transformCoordinates(end);
+    ImVec2 transformedStart = toImVec2(canvas->transformCoordinates(start));
+    ImVec2 transformedEnd = toImVec2(canvas->transformCoordinates(end));
     
     // Draw the line
     drawList->AddLine(
@@ -714,9 +717,9 @@ void Renderer2D::previewLine(ImDrawList* drawList, const ImVec2& start, const Im
         8
     );
 }
-void Renderer2D::previewCircle(ImDrawList* drawList, const ImVec2& center, float radius) {
+void Renderer2D::previewCircle(ImDrawList* drawList, const glm::dvec2& center, float radius) {
     // Transform coordinates to screen space
-    ImVec2 transformedCenter = canvas->transformCoordinates(center);
+    ImVec2 transformedCenter = toImVec2(canvas->transformCoordinates(center));
     
     // Draw the circle
     drawList->AddCircle(
@@ -756,11 +759,11 @@ void Renderer2D::previewCircle(ImDrawList* drawList, const ImVec2& center, float
         8
     );
 }
-void Renderer2D::previewTriangle(ImDrawList* drawList, const std::array<ImVec2, 3>& points, int count) {
+void Renderer2D::previewTriangle(ImDrawList* drawList, const std::array<glm::dvec2, 3>& points, int count) {
     // Transform all points first
     std::array<ImVec2, 3> transformedPoints;
     for (int i = 0; i < count; ++i) {
-        transformedPoints[i] = canvas->transformCoordinates(points[i]);
+        transformedPoints[i] = toImVec2(canvas->transformCoordinates(points[i])));
     }
     
     // Draw completed lines
@@ -818,7 +821,7 @@ void Renderer2D::previewTriangle(ImDrawList* drawList, const std::array<ImVec2, 
         );
     }
 }
-void Renderer2D::previewSquare(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) {
+void Renderer2D::previewSquare(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) {
     // Calculate the size based on the larger of width or height
     float size = std::max(
         std::abs(end.x - start.x),
@@ -859,7 +862,7 @@ void Renderer2D::previewSquare(ImDrawList* drawList, const ImVec2& start, const 
         1.0f * canvas->getZoomLevel()
     );
 }
-void Renderer2D::previewRectangle(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) {
+void Renderer2D::previewRectangle(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) {
     // Calculate width and height
     float width = std::abs(end.x - start.x);
     float height = std::abs(end.y - start.y);
@@ -898,20 +901,20 @@ void Renderer2D::previewRectangle(ImDrawList* drawList, const ImVec2& start, con
         1.0f * canvas->getZoomLevel()
     );
 }
-void Renderer2D::previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) {
+void Renderer2D::previewSpline(ImDrawList* drawList, const std::vector<glm::dvec2>& points) {
     if (points.empty()) return;
 
     // Draw control points
     for (const auto& point : points) {
-        ImVec2 transformed = canvas->transformCoordinates(point);
+        ImVec2 transformed = toImVec2(canvas->transformCoordinates(point));
         drawList->AddCircleFilled(transformed, 4.0f, IM_COL32(255, 255, 255, 255));
         drawList->AddCircle(transformed, 5.0f, IM_COL32(0, 0, 0, 255));
     }
     
     // Draw control polygon with dashed lines
     for (size_t i = 0; i < points.size() - 1; ++i) {
-        ImVec2 transformed1 = canvas->transformCoordinates(points[i]);
-        ImVec2 transformed2 = canvas->transformCoordinates(points[i + 1]);
+        ImVec2 transformed1 = toImVec2(canvas->transformCoordinates(points[i])));
+        ImVec2 transformed2 = toImVec2(canvas->transformCoordinates(points[i + 1])));
         drawDashedLine(drawList, transformed1, transformed2, IM_COL32(128, 128, 128, 200), 
                       1.0f, 5.0f);
     }
@@ -926,25 +929,25 @@ void Renderer2D::previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& 
         // Calculate and draw the preview curve
         std::vector<ImVec2> curvePoints = canvas->calculateSplinePoints(previewPoints, false);
         for (size_t i = 1; i < curvePoints.size(); ++i) {
-            ImVec2 transformed1 = canvas->transformCoordinates(curvePoints[i-1]);
-            ImVec2 transformed2 = canvas->transformCoordinates(curvePoints[i]);
+            ImVec2 transformed1 = toImVec2(canvas->transformCoordinates(curvePoints[i-1]));
+            ImVec2 transformed2 = toImVec2(canvas->transformCoordinates(curvePoints[i]));
             drawList->AddLine(transformed1, transformed2, 
                             IM_COL32(255, 255, 255, 200), 
                             2.0f * canvas->getZoomLevel());
         }
     }
 }
-void Renderer2D::previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) {
+void Renderer2D::previewBezier(ImDrawList* drawList, const std::vector<glm::dvec2>& points) {
     // Draw control points
     for (const auto& point : points) {
-        ImVec2 transformed = canvas->transformCoordinates(point);
+        ImVec2 transformed = toImVec2(canvas->transformCoordinates(point));
         Drawing::CurveUI::drawControlPoint(drawList, transformed, false);
     }
     
     // Draw control polygon with dashed lines
     for (size_t i = 0; i < points.size() - 1; ++i) {
-        ImVec2 transformed1 = canvas->transformCoordinates(points[i]);
-        ImVec2 transformed2 = canvas->transformCoordinates(points[i + 1]);
+        ImVec2 transformed1 = toImVec2(canvas->transformCoordinates(points[i])));
+        ImVec2 transformed2 = toImVec2(canvas->transformCoordinates(points[i + 1])));
         drawDashedLine(drawList, transformed1, transformed2, Drawing::Colors::PREVIEW_LIGHT, 
                       1.0f * canvas->getZoomLevel(), 5.0f * canvas->getZoomLevel());
     }
@@ -968,17 +971,17 @@ void Renderer2D::previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& 
         std::vector<ImVec2> curvePoints = tempBezier.calculatePoints();
         
         for (size_t i = 0; i < curvePoints.size() - 1; ++i) {
-            ImVec2 transformed1 = canvas->transformCoordinates(curvePoints[i]);
-            ImVec2 transformed2 = canvas->transformCoordinates(curvePoints[i + 1]);
+            ImVec2 transformed1 = toImVec2(canvas->transformCoordinates(curvePoints[i]));
+            ImVec2 transformed2 = toImVec2(canvas->transformCoordinates(curvePoints[i + 1]));
             drawList->AddLine(transformed1, transformed2, Drawing::Colors::PREVIEW, 
                             Drawing::Constants::DEFAULT_LINE_THICKNESS * canvas->getZoomLevel());
         }
     }
 }
-void Renderer2D::previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius) {
+void Renderer2D::previewBallBearing(ImDrawList* drawList, const glm::dvec2& center, float radius) {
     if (!canvas->getIsDrawing() || radius <= 0.0f) return;
     
-    ImVec2 transformedCenter = canvas->transformCoordinates(center);
+    ImVec2 transformedCenter = toImVec2(canvas->transformCoordinates(center));
     float transformedRadius = radius * canvas->getZoomLevel();
     
     // Draw preview of outer circle
@@ -1002,7 +1005,7 @@ void Renderer2D::previewBallBearing(ImDrawList* drawList, const ImVec2& center, 
         drawList->AddCircleFilled(ballPos, ballRadius, Drawing::Colors::PREVIEW);
     }
 }
-void Renderer2D::previewSpring2D(ImDrawList* drawList, const ImVec2& center) {
+void Renderer2D::previewSpring2D(ImDrawList* drawList, const glm::dvec2& center) {
     // Draw a preview of the spring at the given center using current parameters
     int pointsPerCoil = 40;
     int totalPoints = canvas->springNumCoils * pointsPerCoil;
@@ -1018,13 +1021,13 @@ void Renderer2D::previewSpring2D(ImDrawList* drawList, const ImVec2& center) {
         points.emplace_back(x, y);
     }
     for (int i = 0; i < (int)points.size() - 1; ++i) {
-        ImVec2 p1 = canvas->transformCoordinates(points[i]);
-        ImVec2 p2 = canvas->transformCoordinates(points[i + 1]);
+        ImVec2 p1 = toImVec2(canvas->transformCoordinates(points[i])));
+        ImVec2 p2 = toImVec2(canvas->transformCoordinates(points[i + 1])));
         drawList->AddLine(p1, p2, Drawing::Colors::PREVIEW, std::max(canvas->springWireDiameter * canvas->getZoomLevel(), 2.0f));
     }
     // Removed top and bottom arcs for a cleaner preview
 }
-void Renderer2D::renderPreview(ImDrawList* drawList, const ImVec2& currentPos, Drawing::DrawingMode mode) {
+void Renderer2D::renderPreview(ImDrawList* drawList, const glm::dvec2& currentPos, Drawing::DrawingMode mode) {
     switch (mode) {
         case Drawing::DrawingMode::Point:
             previewPoint(drawList, currentPos);
@@ -1081,7 +1084,7 @@ void Renderer2D::renderPreview(ImDrawList* drawList, const ImVec2& currentPos, D
 }
 } // namespace Core
 
-void Core::Renderer2D::drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
+void Core::Renderer2D::drawDashedLine(ImDrawList* drawList, const glm::dvec2& p1, const glm::dvec2& p2, 
                    ImU32 color, float thickness, float dash_length) {
     ImVec2 direction = {p2.x - p1.x, p2.y - p1.y};
     float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
@@ -1112,8 +1115,8 @@ void Core::Renderer2D::drawDashedLine(ImDrawList* drawList, const ImVec2& p1, co
     }
 }
 
-void Core::Renderer2D::renderSnapIndicator(ImDrawList* drawList, const ImVec2& pos, const std::string& type) {
-    ImVec2 transformed = canvas->transformCoordinates(pos);
+void Core::Renderer2D::renderSnapIndicator(ImDrawList* drawList, const glm::dvec2& pos, const std::string& type) {
+    ImVec2 transformed = toImVec2(canvas->transformCoordinates(pos));
     float zoomLevel = canvas->getZoomLevel();
     float size = 5.0f * zoomLevel;
     

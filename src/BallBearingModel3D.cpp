@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "BallBearingModel3D.hpp"
 #include <iostream>
 #include <cmath>
@@ -31,7 +32,7 @@ void BallBearingModel3D::generateMesh(const Drawing::BallBearing* ballBearing) {
     
     // Generate ball geometry if enabled
     if (ballBearing->showBalls) {
-        std::vector<ImVec2> ballPositions = ballBearing->generateBallPositions();
+        std::vector<glm::dvec2> ballPositions = ballBearing->generateBallPositions();
         if (!ballPositions.empty()) {
             // Normalize ball size to work with our scaled coordinate system
             float outerRadius = ballBearing->outerDiameter / 2.0f;
@@ -80,48 +81,48 @@ void BallBearingModel3D::generateSeparateRaces(float innerRadius, float outerRad
     float grooveDepth = raceWidth * 0.15f; // Groove depth for ball contact
     
     // Generate INNER RACE profile (hollow design)
-    std::vector<ImVec2> innerRaceProfile;
+    std::vector<glm::dvec2> innerRaceProfile;
     
     // Inner race with ball groove - create a proper ring shape
-    innerRaceProfile.push_back(ImVec2(innerRadius, -raceHeight));        // Inner bottom
-    innerRaceProfile.push_back(ImVec2(innerRaceOuter - grooveDepth, -raceHeight)); // Inner edge bottom
+    innerRaceProfile.push_back(glm::dvec2(innerRadius, -raceHeight));        // Inner bottom
+    innerRaceProfile.push_back(glm::dvec2(innerRaceOuter - grooveDepth, -raceHeight)); // Inner edge bottom
     
     // Inner race ball groove (curved)
     float innerGrooveMidRadius = (innerRadius + innerRaceOuter) / 2.0f;
-    innerRaceProfile.push_back(ImVec2(innerGrooveMidRadius, -raceHeight * 0.8f)); // Groove bottom
-    innerRaceProfile.push_back(ImVec2(innerGrooveMidRadius, 0.0f));               // Groove center  
-    innerRaceProfile.push_back(ImVec2(innerGrooveMidRadius, raceHeight * 0.8f));  // Groove top
+    innerRaceProfile.push_back(glm::dvec2(innerGrooveMidRadius, -raceHeight * 0.8f)); // Groove bottom
+    innerRaceProfile.push_back(glm::dvec2(innerGrooveMidRadius, 0.0f));               // Groove center  
+    innerRaceProfile.push_back(glm::dvec2(innerGrooveMidRadius, raceHeight * 0.8f));  // Groove top
     
-    innerRaceProfile.push_back(ImVec2(innerRaceOuter - grooveDepth, raceHeight)); // Inner edge top
-    innerRaceProfile.push_back(ImVec2(innerRadius, raceHeight));          // Inner top
+    innerRaceProfile.push_back(glm::dvec2(innerRaceOuter - grooveDepth, raceHeight)); // Inner edge top
+    innerRaceProfile.push_back(glm::dvec2(innerRadius, raceHeight));          // Inner top
     
     // Generate inner race geometry
     revolveProfile(innerRaceProfile, segments);
     
     // Generate OUTER RACE profile (hollow design)
-    std::vector<ImVec2> outerRaceProfile;
+    std::vector<glm::dvec2> outerRaceProfile;
     
     // Outer race with ball groove
-    outerRaceProfile.push_back(ImVec2(outerRaceInner + grooveDepth, -raceHeight)); // Inner edge bottom
+    outerRaceProfile.push_back(glm::dvec2(outerRaceInner + grooveDepth, -raceHeight)); // Inner edge bottom
     
     // Outer race ball groove (curved)
     float outerGrooveMidRadius = (outerRaceInner + outerRadius) / 2.0f;
-    outerRaceProfile.push_back(ImVec2(outerGrooveMidRadius, -raceHeight * 0.8f)); // Groove bottom
-    outerRaceProfile.push_back(ImVec2(outerGrooveMidRadius, 0.0f));               // Groove center
-    outerRaceProfile.push_back(ImVec2(outerGrooveMidRadius, raceHeight * 0.8f));  // Groove top
+    outerRaceProfile.push_back(glm::dvec2(outerGrooveMidRadius, -raceHeight * 0.8f)); // Groove bottom
+    outerRaceProfile.push_back(glm::dvec2(outerGrooveMidRadius, 0.0f));               // Groove center
+    outerRaceProfile.push_back(glm::dvec2(outerGrooveMidRadius, raceHeight * 0.8f));  // Groove top
     
-    outerRaceProfile.push_back(ImVec2(outerRaceInner + grooveDepth, raceHeight)); // Inner edge top
-    outerRaceProfile.push_back(ImVec2(outerRadius, raceHeight));       // Outer top
-    outerRaceProfile.push_back(ImVec2(outerRadius, -raceHeight));      // Outer bottom
+    outerRaceProfile.push_back(glm::dvec2(outerRaceInner + grooveDepth, raceHeight)); // Inner edge top
+    outerRaceProfile.push_back(glm::dvec2(outerRadius, raceHeight));       // Outer top
+    outerRaceProfile.push_back(glm::dvec2(outerRadius, -raceHeight));      // Outer bottom
     
     // Close the loop back to start
-    outerRaceProfile.push_back(ImVec2(outerRaceInner + grooveDepth, -raceHeight)); // Back to start
+    outerRaceProfile.push_back(glm::dvec2(outerRaceInner + grooveDepth, -raceHeight)); // Back to start
     
     // Generate outer race geometry  
     revolveProfile(outerRaceProfile, segments);
 }
 
-void BallBearingModel3D::generateBallGeometry(const std::vector<ImVec2>& ballPositions, float ballRadius, float scale) {
+void BallBearingModel3D::generateBallGeometry(const std::vector<glm::dvec2>& ballPositions, float ballRadius, float scale) {
     if (ballPositions.empty()) return;
     
     unsigned int baseIndex = vertices.size() / 6; // 6 floats per vertex (pos + normal)

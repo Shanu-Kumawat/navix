@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef SPRING_VIEWER_3D_HPP
 #define SPRING_VIEWER_3D_HPP
 
@@ -15,7 +16,7 @@ public:
     SpringViewer3D();
     ~SpringViewer3D();
     void initialize();
-    void render(const Drawing::Spring2D* spring, ImVec2 windowSize);
+    void render(const Drawing::Spring2D* spring, glm::dvec2 windowSize);
     void handleInput(const SDL_Event& event);
     Camera* getCamera();
 private:

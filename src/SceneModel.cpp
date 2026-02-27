@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "SceneModel.hpp"
 #include <algorithm>
 
@@ -50,7 +51,7 @@ Drawing::Shape* SceneModel::getSelectedShape() const {
     return selectedShape;
 }
 
-void SceneModel::saveToHistory(const ImVec2& panOffset, float zoomLevel, bool showGrid) {
+void SceneModel::saveToHistory(const glm::dvec2& panOffset, float zoomLevel, bool showGrid) {
     // If we're not at the end of history, truncate the future
     if (currentHistoryIndex < history.size() - 1) {
         history.erase(history.begin() + currentHistoryIndex + 1, history.end());
@@ -70,7 +71,7 @@ void SceneModel::saveToHistory(const ImVec2& panOffset, float zoomLevel, bool sh
     currentHistoryIndex = history.size() - 1;
 }
 
-bool SceneModel::undo(ImVec2& outPanOffset, float& outZoomLevel, bool& outShowGrid) {
+bool SceneModel::undo(glm::dvec2& outPanOffset, float& outZoomLevel, bool& outShowGrid) {
     if (!canUndo()) return false;
 
     currentHistoryIndex--;
@@ -91,7 +92,7 @@ bool SceneModel::undo(ImVec2& outPanOffset, float& outZoomLevel, bool& outShowGr
     return true;
 }
 
-bool SceneModel::redo(ImVec2& outPanOffset, float& outZoomLevel, bool& outShowGrid) {
+bool SceneModel::redo(glm::dvec2& outPanOffset, float& outZoomLevel, bool& outShowGrid) {
     if (!canRedo()) return false;
 
     currentHistoryIndex++;

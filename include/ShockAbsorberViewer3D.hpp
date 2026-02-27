@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef SHOCK_ABSORBER_VIEWER_3D_HPP
 #define SHOCK_ABSORBER_VIEWER_3D_HPP
 
@@ -21,7 +22,7 @@ public:
     
     // Shock absorber-specific rendering (takes multiple components)
     void render(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 
-                const Drawing::ShockAbsorberBottomEnd* bottomEnd, ImVec2 windowSize);
+                const Drawing::ShockAbsorberBottomEnd* bottomEnd, glm::dvec2 windowSize);
 
 private:
     // Shock absorber-specific 3D model

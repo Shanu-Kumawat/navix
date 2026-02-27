@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <imgui.h>
@@ -5,62 +6,63 @@
 #include "utils/VectorMath.hpp"
 
 namespace Drawing {
+using namespace Drawing::Math;
 namespace Math {
 
 /**
  * @brief Calculate the Euclidean distance between two points
  */
-float calculateDistance(const ImVec2& p1, const ImVec2& p2);
+float calculateDistance(const glm::dvec2& p1, const glm::dvec2& p2);
 
 /**
  * @brief Calculate the distance from a point to a line
  */
-float calculateDistanceToLine(const ImVec2& point, const ImVec2& lineStart, const ImVec2& lineEnd);
+double calculateDistanceToLine(const glm::dvec2& point, const glm::dvec2& lineStart, const glm::dvec2& lineEnd);
 
 /**
  * @brief Calculate the midpoint between two points
  */
-ImVec2 calculateMidpoint(const ImVec2& p1, const ImVec2& p2);
+glm::dvec2 calculateMidpoint(const glm::dvec2& p1, const glm::dvec2& p2);
 
 /**
  * @brief Calculate the angle between two points (in radians)
  */
-float calculateAngle(const ImVec2& v1, const ImVec2& v2);
+float calculateAngle(const glm::dvec2& v1, const glm::dvec2& v2);
 
 /**
  * @brief Check if a point lies within a rectangle
  */
-bool isPointInRect(const ImVec2& point, const ImVec2& rectMin, const ImVec2& rectMax);
+bool isPointInRect(const glm::dvec2& point, const glm::dvec2& rectMin, const glm::dvec2& rectMax);
 
 /**
  * @brief Calculate the area of a triangle defined by three points
  */
-float calculateTriangleArea(const ImVec2& p1, const ImVec2& p2, const ImVec2& p3);
+float calculateTriangleArea(const glm::dvec2& p1, const glm::dvec2& p2, const glm::dvec2& p3);
 
 /**
  * @brief Snap a point to the nearest grid intersection
  */
-ImVec2 snapToGrid(const ImVec2& point, float gridSize);
+glm::dvec2 snapToGrid(const glm::dvec2& point, float gridSize);
 
 /**
  * @brief Check if two points are within a threshold distance of each other
  */
-bool isPointNearPoint(const ImVec2& p1, const ImVec2& p2, float threshold);
+bool isPointNearPoint(const glm::dvec2& p1, const glm::dvec2& p2, float threshold);
 
 /**
  * @brief Normalize a vector to unit length
  */
-ImVec2 normalizeVector(const ImVec2& v);
+glm::dvec2 normalizeVector(const glm::dvec2& v);
 
 /**
  * @brief Calculate the dot product of two vectors
  */
-float dotProduct(const ImVec2& v1, const ImVec2& v2);
+float dotProduct(const glm::dvec2& v1, const glm::dvec2& v2);
 
 /**
  * @brief Rotate a point around a center by a given angle
  */
-ImVec2 rotatePoint(const ImVec2& point, const ImVec2& center, float angle);
+glm::dvec2 rotatePoint(const glm::dvec2& point, const glm::dvec2& center, float angle);
 
 constexpr float MM_PER_INCH = 25.4f;
 constexpr float CM_PER_INCH = 2.54f;

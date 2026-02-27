@@ -11,8 +11,8 @@ void UI::Viewers3DUI::RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::Ap
   
   if (ImGui::Begin("Spring 3D View", &appContext.showSpring3DView)) {
     // Get available content region size for dynamic viewport
-    ImVec2 availableSize = ImGui::GetContentRegionAvail();
-    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    glm::dvec2 availableSize = Drawing::Math::toDVec2(ImGui::GetContentRegionAvail());
+    glm::dvec2 viewportSize = glm::dvec2(availableSize.x, availableSize.y - 20); // Leave some margin
     
     // Get the currently selected Spring2D from the canvas
     const Drawing::Shape* selectedShape = canvas.getSelectedShape();
@@ -34,8 +34,8 @@ void UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, C
   
   if (ImGui::Begin("Shock Absorber 3D View", &appContext.showShockAbsorber3DView)) {
     // Get available content region size for dynamic viewport
-    ImVec2 availableSize = ImGui::GetContentRegionAvail();
-    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    glm::dvec2 availableSize = Drawing::Math::toDVec2(ImGui::GetContentRegionAvail());
+    glm::dvec2 viewportSize = glm::dvec2(availableSize.x, availableSize.y - 20); // Leave some margin
     
     // Find complete shock absorber assemblies
     auto assemblies = canvas.findShockAbsorberAssemblies();
@@ -64,8 +64,8 @@ void UI::Viewers3DUI::RenderBellows3DViewWindow(Drawing::Canvas &canvas) {
   
   if (ImGui::Begin("Bellows 3D View", &UIState::showBellows3DView)) {
     // Get available content region size for dynamic viewport
-    ImVec2 availableSize = ImGui::GetContentRegionAvail();
-    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    glm::dvec2 availableSize = Drawing::Math::toDVec2(ImGui::GetContentRegionAvail());
+    glm::dvec2 viewportSize = glm::dvec2(availableSize.x, availableSize.y - 20); // Leave some margin
     
     // Get the currently selected Bellows from the canvas
     const Drawing::Shape* selectedShape = canvas.getSelectedShape();
@@ -87,8 +87,8 @@ void UI::Viewers3DUI::RenderBallBearing3DViewWindow(Drawing::Canvas &canvas) {
   
   if (ImGui::Begin("Ball Bearing 3D View", &UIState::showBallBearing3DView)) {
     // Get available content region size for dynamic viewport
-    ImVec2 availableSize = ImGui::GetContentRegionAvail();
-    ImVec2 viewportSize = ImVec2(availableSize.x, availableSize.y - 20); // Leave some margin
+    glm::dvec2 availableSize = Drawing::Math::toDVec2(ImGui::GetContentRegionAvail());
+    glm::dvec2 viewportSize = glm::dvec2(availableSize.x, availableSize.y - 20); // Leave some margin
     
     // Get the currently selected Ball Bearing from the canvas
     const Drawing::Shape* selectedShape = canvas.getSelectedShape();

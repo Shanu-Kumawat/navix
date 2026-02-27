@@ -1,11 +1,13 @@
+#include <glm/glm.hpp>
 #include "shapes/ComplexShapes.hpp"
 #include <algorithm>
 #include <cmath>
 
 namespace Drawing {
+using namespace Drawing::Math;
 
 // Spline methods
-void Spline::addControlPoint(const ImVec2& point) {
+void Spline::addControlPoint(const glm::dvec2& point) {
     controlPoints.push_back(point);
 }
 
@@ -15,13 +17,13 @@ void Spline::removeControlPoint(size_t index) {
     }
 }
 
-void Spline::moveControlPoint(size_t index, const ImVec2& newPos) {
+void Spline::moveControlPoint(size_t index, const glm::dvec2& newPos) {
     if (index < controlPoints.size()) {
         controlPoints[index] = newPos;
     }
 }
 
-void Spline::moveEntireSpline(const ImVec2& delta) {
+void Spline::moveEntireSpline(const glm::dvec2& delta) {
     for (auto& point : controlPoints) {
         point.x += delta.x;
         point.y += delta.y;
@@ -31,11 +33,11 @@ void Spline::moveEntireSpline(const ImVec2& delta) {
 void Spline::smoothen(float factor) {
     if (controlPoints.size() < 3) return;
 
-    std::vector<ImVec2> newPoints = controlPoints;
+    std::vector<glm::dvec2> newPoints = controlPoints;
     for (size_t i = 1; i < controlPoints.size() - 1; ++i) {
-        ImVec2& prev = controlPoints[i - 1];
-        ImVec2& curr = controlPoints[i];
-        ImVec2& next = controlPoints[i + 1];
+        glm::dvec2& prev = controlPoints[i - 1];
+        glm::dvec2& curr = controlPoints[i];
+        glm::dvec2& next = controlPoints[i + 1];
 
         newPoints[i].x = curr.x + (prev.x + next.x - 2 * curr.x) * factor;
         newPoints[i].y = curr.y + (prev.y + next.y - 2 * curr.y) * factor;
@@ -46,16 +48,16 @@ void Spline::smoothen(float factor) {
 void Spline::subdivide(float threshold) {
     if (controlPoints.size() < 2) return;
 
-    std::vector<ImVec2> newPoints;
+    std::vector<glm::dvec2> newPoints;
     newPoints.push_back(controlPoints[0]);
 
     for (size_t i = 0; i < controlPoints.size() - 1; ++i) {
-        const ImVec2& p1 = controlPoints[i];
-        const ImVec2& p2 = controlPoints[i + 1];
+        const glm::dvec2& p1 = controlPoints[i];
+        const glm::dvec2& p2 = controlPoints[i + 1];
         float dist = Math::calculateDistance(p1, p2);
 
         if (dist > threshold) {
-            ImVec2 mid = Math::calculateMidpoint(p1, p2);
+            glm::dvec2 mid = Math::calculateMidpoint(p1, p2);
             newPoints.push_back(mid);
         }
         newPoints.push_back(p2);
@@ -64,7 +66,7 @@ void Spline::subdivide(float threshold) {
     controlPoints = newPoints;
 }
 
-bool Spline::isPointNear(const ImVec2& point, float threshold) const {
+bool Spline::isPointNear(const glm::dvec2& point, float threshold) const {
     if (!isValid()) return false;
 
     const float thresholdSquared = threshold * threshold;
@@ -81,11 +83,11 @@ bool Spline::isPointNear(const ImVec2& point, float threshold) const {
 
     // Check if point is near the spline curve with improved accuracy
     const float smallStep = 0.01f;  // Smaller step for more accurate curve checking
-    std::vector<ImVec2> curvePoints = calculatePoints(smallStep);
+    std::vector<glm::dvec2> curvePoints = calculatePoints(smallStep);
     
     for (size_t i = 1; i < curvePoints.size(); ++i) {
-        const ImVec2& start = curvePoints[i - 1];
-        const ImVec2& end = curvePoints[i];
+        const glm::dvec2& start = curvePoints[i - 1];
+        const glm::dvec2& end = curvePoints[i];
         
         // Calculate squared length of line segment
         const float segmentDx = end.x - start.x;
@@ -95,9 +97,9 @@ bool Spline::isPointNear(const ImVec2& point, float threshold) const {
         if (segmentLengthSquared < 1e-6f) continue;  // Skip degenerate segments
         
         // Calculate projection of point onto line segment
-        const float t = std::clamp(
+        const float t = std::clamp<double>(
             ((point.x - start.x) * segmentDx + (point.y - start.y) * segmentDy) / segmentLengthSquared,
-            0.0f, 1.0f
+            0.0, 1.0
         );
         
         // Calculate closest point on line segment
@@ -116,7 +118,7 @@ bool Spline::isPointNear(const ImVec2& point, float threshold) const {
     return false;
 }
 
-int Spline::findNearestControlPoint(const ImVec2& point, float threshold) const {
+int Spline::findNearestControlPoint(const glm::dvec2& point, float threshold) const {
     const float thresholdSquared = threshold * threshold;
     float minDistSquared = thresholdSquared;
     int nearest = -1;
@@ -135,21 +137,21 @@ int Spline::findNearestControlPoint(const ImVec2& point, float threshold) const 
     return nearest;
 }
 
-std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
+std::vector<glm::dvec2> Spline::calculatePoints(float resolution) const {
     if (!isValid()) return {};
 
-    std::vector<ImVec2> points;
+    std::vector<glm::dvec2> points;
     const size_t numPoints = static_cast<size_t>(1.0f / resolution) + 1;
     points.reserve(numPoints);
 
-    auto catmullRom = [this](const ImVec2& p0, const ImVec2& p1, const ImVec2& p2, const ImVec2& p3, float t) {
+    auto catmullRom = [this](const glm::dvec2& p0, const glm::dvec2& p1, const glm::dvec2& p2, const glm::dvec2& p3, float t) {
         // Ensure t is in [0,1]
-        t = std::clamp(t, 0.0f, 1.0f);
+        t = std::clamp<double>(t, 0.0, 1.0);
         float t2 = t * t;
         float t3 = t2 * t;
 
         // Apply tension parameter with bounds checking
-        float alpha = std::clamp((1.0f - tension) * 0.5f, 0.0f, 1.0f);
+        float alpha = std::clamp<double>((1.0f - tension) * 0.5f, 0.0, 1.0);
 
         // Improved numerical stability by grouping terms
         float c0 = -alpha * t3 + 2.0f * alpha * t2 - alpha * t;
@@ -157,7 +159,7 @@ std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
         float c2 = (alpha - 2.0f) * t3 + (3.0f - 2.0f * alpha) * t2 + alpha * t;
         float c3 = alpha * t3 - alpha * t2;
 
-        ImVec2 result;
+        glm::dvec2 result;
         result.x = c0 * p0.x + c1 * p1.x + c2 * p2.x + c3 * p3.x;
         result.y = c0 * p0.y + c1 * p1.y + c2 * p2.y + c3 * p3.y;
         return result;
@@ -169,7 +171,7 @@ std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
         if (n == 2) {
             // Linear interpolation between two points
             for (float t = 0; t <= 1.0f; t += resolution) {
-                ImVec2 point;
+                glm::dvec2 point;
                 point.x = controlPoints[0].x + t * (controlPoints[1].x - controlPoints[0].x);
                 point.y = controlPoints[0].y + t * (controlPoints[1].y - controlPoints[0].y);
                 points.push_back(point);
@@ -180,7 +182,7 @@ std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
                 float t2 = t * t;
                 float mt = 1.0f - t;
                 float mt2 = mt * mt;
-                ImVec2 point;
+                glm::dvec2 point;
                 point.x = mt2 * controlPoints[0].x + 2.0f * mt * t * controlPoints[1].x + t2 * controlPoints[2].x;
                 point.y = mt2 * controlPoints[0].y + 2.0f * mt * t * controlPoints[1].y + t2 * controlPoints[2].y;
                 points.push_back(point);
@@ -209,8 +211,8 @@ std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
     } else {
         // Handle open spline with proper boundary conditions
         // Use extrapolated points for the ends
-        ImVec2 startExtrapolated = controlPoints[0] * 2.0f - controlPoints[1];
-        ImVec2 endExtrapolated = controlPoints[n-1] * 2.0f - controlPoints[n-2];
+        glm::dvec2 startExtrapolated = controlPoints[0] * 2.0 - controlPoints[1];
+        glm::dvec2 endExtrapolated = controlPoints[n-1] * 2.0 - controlPoints[n-2];
 
         // First segment
         for (float t = 0; t <= 1.0f; t += resolution) {
@@ -251,7 +253,7 @@ std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
     // Remove duplicate points
     points.erase(
         std::unique(points.begin(), points.end(), 
-            [](const ImVec2& a, const ImVec2& b) {
+            [](const glm::dvec2& a, const glm::dvec2& b) {
                 const float EPSILON = 1e-5f;
                 return std::abs(a.x - b.x) < EPSILON && std::abs(a.y - b.y) < EPSILON;
             }
@@ -263,16 +265,16 @@ std::vector<ImVec2> Spline::calculatePoints(float resolution) const {
 }
 
 // BezierCurve methods
-void BezierCurve::moveControlPoint(size_t index, const ImVec2& newPos) {
+void BezierCurve::moveControlPoint(size_t index, const glm::dvec2& newPos) {
     if (index < controlPoints.size()) {
-        ImVec2 oldPos = controlPoints[index];
+        glm::dvec2 oldPos = controlPoints[index];
         controlPoints[index] = newPos;
 
         if (isSymmetrical && (index == 1 || index == 2)) {
             // Adjust the opposite control point symmetrically
             size_t oppositeIndex = (index == 1) ? 2 : 1;
-            ImVec2 center = controlPoints[index == 1 ? 0 : 3];
-            ImVec2 delta;
+            glm::dvec2 center = controlPoints[index == 1 ? 0 : 3];
+            glm::dvec2 delta;
             delta.x = newPos.x - oldPos.x;
             delta.y = newPos.y - oldPos.y;
             controlPoints[oppositeIndex].x -= delta.x;
@@ -281,14 +283,14 @@ void BezierCurve::moveControlPoint(size_t index, const ImVec2& newPos) {
     }
 }
 
-void BezierCurve::moveEntireCurve(const ImVec2& delta) {
+void BezierCurve::moveEntireCurve(const glm::dvec2& delta) {
     for (auto& point : controlPoints) {
         point.x += delta.x;
         point.y += delta.y;
     }
 }
 
-bool BezierCurve::isPointNear(const ImVec2& point, float threshold) const {
+bool BezierCurve::isPointNear(const glm::dvec2& point, float threshold) const {
     if (!isValid()) return false;
 
     const float thresholdSquared = threshold * threshold;
@@ -305,11 +307,11 @@ bool BezierCurve::isPointNear(const ImVec2& point, float threshold) const {
 
     // Check if point is near the curve with improved accuracy
     const float smallStep = 0.01f;  // Smaller step for more accurate curve checking
-    std::vector<ImVec2> curvePoints = calculatePoints(smallStep);
+    std::vector<glm::dvec2> curvePoints = calculatePoints(smallStep);
     
     for (size_t i = 1; i < curvePoints.size(); ++i) {
-        const ImVec2& start = curvePoints[i - 1];
-        const ImVec2& end = curvePoints[i];
+        const glm::dvec2& start = curvePoints[i - 1];
+        const glm::dvec2& end = curvePoints[i];
         
         // Calculate squared length of line segment
         const float segmentDx = end.x - start.x;
@@ -319,9 +321,9 @@ bool BezierCurve::isPointNear(const ImVec2& point, float threshold) const {
         if (segmentLengthSquared < 1e-6f) continue;  // Skip degenerate segments
         
         // Calculate projection of point onto line segment
-        const float t = std::clamp(
+        const float t = std::clamp<double>(
             ((point.x - start.x) * segmentDx + (point.y - start.y) * segmentDy) / segmentLengthSquared,
-            0.0f, 1.0f
+            0.0, 1.0
         );
         
         // Calculate closest point on line segment
@@ -340,7 +342,7 @@ bool BezierCurve::isPointNear(const ImVec2& point, float threshold) const {
     return false;
 }
 
-int BezierCurve::findNearestControlPoint(const ImVec2& point, float threshold) const {
+int BezierCurve::findNearestControlPoint(const glm::dvec2& point, float threshold) const {
     const float thresholdSquared = threshold * threshold;
     float minDistSquared = thresholdSquared;
     int nearest = -1;
@@ -359,22 +361,22 @@ int BezierCurve::findNearestControlPoint(const ImVec2& point, float threshold) c
     return nearest;
 }
 
-void BezierCurve::adjustSymmetrically(size_t index, const ImVec2& newPos) {
+void BezierCurve::adjustSymmetrically(size_t index, const glm::dvec2& newPos) {
     if (index >= controlPoints.size()) return;
 
-    ImVec2 oldPos = controlPoints[index];
+    glm::dvec2 oldPos = controlPoints[index];
     moveControlPoint(index, newPos);
 
     if (isSymmetrical && (index == 1 || index == 2)) {
         size_t oppositeIndex = (index == 1) ? 2 : 1;
         size_t anchorIndex = (index == 1) ? 0 : 3;
         
-        ImVec2 anchor = controlPoints[anchorIndex];
+        glm::dvec2 anchor = controlPoints[anchorIndex];
         float oldDist = Math::calculateDistance(oldPos, anchor);
         float newDist = Math::calculateDistance(newPos, anchor);
         float ratio = newDist / oldDist;
 
-        ImVec2 oppositeVec;
+        glm::dvec2 oppositeVec;
         oppositeVec.x = controlPoints[oppositeIndex].x - anchor.x;
         oppositeVec.y = controlPoints[oppositeIndex].y - anchor.y;
         oppositeVec.x *= ratio;
@@ -387,24 +389,24 @@ void BezierCurve::adjustSymmetrically(size_t index, const ImVec2& newPos) {
 void BezierCurve::splitCurve(float t) {
     if (!isValid() || t <= 0.0f || t >= 1.0f) return;
 
-    ImVec2 p0 = controlPoints[0];
-    ImVec2 p1 = controlPoints[1];
-    ImVec2 p2 = controlPoints[2];
-    ImVec2 p3 = controlPoints[3];
+    glm::dvec2 p0 = controlPoints[0];
+    glm::dvec2 p1 = controlPoints[1];
+    glm::dvec2 p2 = controlPoints[2];
+    glm::dvec2 p3 = controlPoints[3];
 
     // De Casteljau's algorithm
-    ImVec2 p01 = Math::calculateMidpoint(p0, p1);
-    ImVec2 p12 = Math::calculateMidpoint(p1, p2);
-    ImVec2 p23 = Math::calculateMidpoint(p2, p3);
+    glm::dvec2 p01 = Math::calculateMidpoint(p0, p1);
+    glm::dvec2 p12 = Math::calculateMidpoint(p1, p2);
+    glm::dvec2 p23 = Math::calculateMidpoint(p2, p3);
 
-    ImVec2 p012 = Math::calculateMidpoint(p01, p12);
-    ImVec2 p123 = Math::calculateMidpoint(p12, p23);
+    glm::dvec2 p012 = Math::calculateMidpoint(p01, p12);
+    glm::dvec2 p123 = Math::calculateMidpoint(p12, p23);
 
-    ImVec2 p0123 = Math::calculateMidpoint(p012, p123);
+    glm::dvec2 p0123 = Math::calculateMidpoint(p012, p123);
 
     // Create two new curves
-    std::vector<ImVec2> firstHalf = {p0, p01, p012, p0123};
-    std::vector<ImVec2> secondHalf = {p0123, p123, p23, p3};
+    std::vector<glm::dvec2> firstHalf = {p0, p01, p012, p0123};
+    std::vector<glm::dvec2> secondHalf = {p0123, p123, p23, p3};
 
     // Update current curve to be the first half
     controlPoints = firstHalf;
@@ -414,7 +416,7 @@ void BezierCurve::elevateOrder() {
     // Degree elevation for cubic Bezier curve (not commonly needed but provided for completeness)
     if (!isValid()) return;
 
-    std::vector<ImVec2> newPoints;
+    std::vector<glm::dvec2> newPoints;
     newPoints.resize(5);  // Quartic curve has 5 control points
 
     // Degree elevation formulas
@@ -438,7 +440,7 @@ void BezierCurve::reduceOrder() {
     // Degree reduction for cubic Bezier curve (approximate)
     if (!isValid()) return;
 
-    std::vector<ImVec2> newPoints;
+    std::vector<glm::dvec2> newPoints;
     newPoints.resize(3);  // Quadratic curve has 3 control points
 
     // Simple degree reduction (approximate)
@@ -453,30 +455,30 @@ void BezierCurve::reduceOrder() {
 // UI Helper Functions
 namespace CurveUI {
 
-void drawControlPoint(ImDrawList* drawList, const ImVec2& pos, bool isSelected, float size) {
+void drawControlPoint(ImDrawList* drawList, const glm::dvec2& pos, bool isSelected, float size) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(255, 255, 255, 255);
-    drawList->AddCircleFilled(pos, size, color);
-    drawList->AddCircle(pos, size + 1.0f, IM_COL32(0, 0, 0, 255));
+    drawList->AddCircleFilled(Drawing::Math::toglm::dvec2(pos), size, color);
+    drawList->AddCircle(Drawing::Math::toglm::dvec2(pos), size + 1.0f, IM_COL32(0, 0, 0, 255));
 }
 
-void drawControlPolygon(ImDrawList* drawList, const std::vector<ImVec2>& points, bool isSelected) {
+void drawControlPolygon(ImDrawList* drawList, const std::vector<glm::dvec2>& points, bool isSelected) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 128) : IM_COL32(128, 128, 128, 128);
     for (size_t i = 1; i < points.size(); ++i) {
-        drawList->AddLine(points[i - 1], points[i], color, 1.0f);
+        drawList->AddLine(Drawing::Math::toglm::dvec2(points[i - 1]), Drawing::Math::toglm::dvec2(points[i]), color, 1.0f);
     }
 }
 
-void drawTangentHandles(ImDrawList* drawList, const ImVec2& point, const ImVec2& tangent, bool isSelected) {
+void drawTangentHandles(ImDrawList* drawList, const glm::dvec2& point, const glm::dvec2& tangent, bool isSelected) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 128) : IM_COL32(128, 128, 128, 128);
-    drawList->AddLine(point, tangent, color, 1.0f);
-    drawList->AddCircleFilled(tangent, 3.0f, color);
+    drawList->AddLine(Drawing::Math::toglm::dvec2(point), Drawing::Math::toglm::dvec2(tangent), color, 1.0f);
+    drawList->AddCircleFilled(Drawing::Math::toglm::dvec2(tangent), 3.0f, color);
 }
 
-void drawCurveManipulator(ImDrawList* drawList, const ImVec2& pos, float size, bool isSelected) {
+void drawCurveManipulator(ImDrawList* drawList, const glm::dvec2& pos, float size, bool isSelected) {
     ImU32 color = isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(255, 255, 255, 255);
     drawList->AddRect(
-        ImVec2(pos.x - size, pos.y - size),
-        ImVec2(pos.x + size, pos.y + size),
+        glm::dvec2(pos.x - size, pos.y - size),
+        glm::dvec2(pos.x + size, pos.y + size),
         color
     );
 }
@@ -497,12 +499,12 @@ void Spline::makeUniform() {
     }
     
     float segmentLength = totalLength / (controlPoints.size() - 1);
-    std::vector<ImVec2> newPoints;
+    std::vector<glm::dvec2> newPoints;
     newPoints.push_back(controlPoints.front());
     
     for (size_t i = 1; i < controlPoints.size() - 1; ++i) {
         float t = static_cast<float>(i) / (controlPoints.size() - 1);
-        ImVec2 point = calculatePoint(t);
+        glm::dvec2 point = calculatePoint(t);
         newPoints.push_back(point);
     }
     
@@ -511,24 +513,24 @@ void Spline::makeUniform() {
 }
 
 void Spline::adjustTension(float t) {
-    tension = std::clamp(t, 0.0f, 1.0f);
+    tension = std::clamp<double>(t, 0.0, 1.0);
 }
 
 void Spline::optimizeControlPoints() {
     if (controlPoints.size() < 4) return;
     
-    std::vector<ImVec2> optimized;
+    std::vector<glm::dvec2> optimized;
     optimized.push_back(controlPoints.front());
     
     for (size_t i = 1; i < controlPoints.size() - 1; ++i) {
-        ImVec2 prev = controlPoints[i - 1];
-        ImVec2 curr = controlPoints[i];
-        ImVec2 next = controlPoints[i + 1];
+        glm::dvec2 prev = controlPoints[i - 1];
+        glm::dvec2 curr = controlPoints[i];
+        glm::dvec2 next = controlPoints[i + 1];
         
         // Calculate angle between segments
         float angle = Math::calculateAngle(
-            ImVec2(curr.x - prev.x, curr.y - prev.y),
-            ImVec2(next.x - curr.x, next.y - curr.y)
+            glm::dvec2(curr.x - prev.x, curr.y - prev.y),
+            glm::dvec2(next.x - curr.x, next.y - curr.y)
         );
         
         // Keep point if angle is significant
@@ -542,7 +544,7 @@ void Spline::optimizeControlPoints() {
 }
 
 float Spline::calculateLength() const {
-    std::vector<ImVec2> points = calculatePoints(0.01f);
+    std::vector<glm::dvec2> points = calculatePoints(0.01f);
     float length = 0.0f;
     
     for (size_t i = 1; i < points.size(); ++i) {
@@ -556,9 +558,9 @@ float Spline::calculateCurvature(float t) const {
     if (controlPoints.size() < 3) return 0.0f;
     
     // Get point and its derivatives
-    ImVec2 p = calculatePoint(t);
-    ImVec2 dp = calculateDerivative(t);
-    ImVec2 ddp = calculateSecondDerivative(t);
+    glm::dvec2 p = calculatePoint(t);
+    glm::dvec2 dp = calculateDerivative(t);
+    glm::dvec2 ddp = calculateSecondDerivative(t);
     
     // Calculate curvature using the formula: |x'y'' - y'x''| / (x'² + y'²)^(3/2)
     float num = std::abs(dp.x * ddp.y - dp.y * ddp.x);
@@ -567,13 +569,13 @@ float Spline::calculateCurvature(float t) const {
     return den > 0.0001f ? num / den : 0.0f;
 }
 
-std::vector<ImVec2> Spline::getTangents() const {
-    std::vector<ImVec2> tangents;
+std::vector<glm::dvec2> Spline::getTangents() const {
+    std::vector<glm::dvec2> tangents;
     if (controlPoints.size() < 2) return tangents;
     
     for (size_t i = 0; i < controlPoints.size(); ++i) {
         float t = static_cast<float>(i) / (controlPoints.size() - 1);
-        ImVec2 derivative = calculateDerivative(t);
+        glm::dvec2 derivative = calculateDerivative(t);
         float len = std::sqrt(derivative.x * derivative.x + derivative.y * derivative.y);
         if (len > 0.0001f) {
             derivative.x /= len;
@@ -588,7 +590,7 @@ std::vector<ImVec2> Spline::getTangents() const {
 void Spline::insertKnot(float t) {
     if (t <= 0.0f || t >= 1.0f) return;
     
-    ImVec2 newPoint = calculatePoint(t);
+    glm::dvec2 newPoint = calculatePoint(t);
     
     // Find insertion point
     auto it = controlPoints.begin();
@@ -610,14 +612,14 @@ void Spline::removeKnot(size_t index, float tolerance) {
     if (index >= controlPoints.size() || controlPoints.size() <= 2) return;
     
     // Store original curve points for comparison
-    std::vector<ImVec2> originalCurve = calculatePoints(0.01f);
+    std::vector<glm::dvec2> originalCurve = calculatePoints(0.01f);
     
     // Temporarily remove the point
-    ImVec2 removedPoint = controlPoints[index];
+    glm::dvec2 removedPoint = controlPoints[index];
     controlPoints.erase(controlPoints.begin() + index);
     
     // Check if the curve still maintains its shape within tolerance
-    std::vector<ImVec2> newCurve = calculatePoints(0.01f);
+    std::vector<glm::dvec2> newCurve = calculatePoints(0.01f);
     
     float maxError = 0.0f;
     for (size_t i = 0; i < std::min(originalCurve.size(), newCurve.size()); ++i) {
@@ -632,8 +634,8 @@ void Spline::removeKnot(size_t index, float tolerance) {
 }
 
 // Helper methods for curvature calculation
-ImVec2 Spline::calculatePoint(float t) const {
-    if (controlPoints.size() < 2) return ImVec2(0, 0);
+glm::dvec2 Spline::calculatePoint(float t) const {
+    if (controlPoints.size() < 2) return glm::dvec2(0, 0);
     
     size_t n = controlPoints.size();
     size_t i = static_cast<size_t>(t * (n - 1));
@@ -641,46 +643,46 @@ ImVec2 Spline::calculatePoint(float t) const {
     
     float localT = (t * (n - 1)) - i;
     
-    ImVec2 p0 = controlPoints[i];
-    ImVec2 p1 = controlPoints[i + 1];
-    ImVec2 p2 = i + 2 < n ? controlPoints[i + 2] : p1;
-    ImVec2 p3 = i > 0 ? controlPoints[i - 1] : p0;
+    glm::dvec2 p0 = controlPoints[i];
+    glm::dvec2 p1 = controlPoints[i + 1];
+    glm::dvec2 p2 = i + 2 < n ? controlPoints[i + 2] : p1;
+    glm::dvec2 p3 = i > 0 ? controlPoints[i - 1] : p0;
     
     return catmullRomPoint(p3, p0, p1, p2, localT);
 }
 
-ImVec2 Spline::calculateDerivative(float t) const {
-    if (controlPoints.size() < 2) return ImVec2(0, 0);
+glm::dvec2 Spline::calculateDerivative(float t) const {
+    if (controlPoints.size() < 2) return glm::dvec2(0, 0);
     
     const float h = 0.0001f;
-    ImVec2 p1 = calculatePoint(t - h);
-    ImVec2 p2 = calculatePoint(t + h);
+    glm::dvec2 p1 = calculatePoint(t - h);
+    glm::dvec2 p2 = calculatePoint(t + h);
     
-    return ImVec2((p2.x - p1.x) / (2 * h), (p2.y - p1.y) / (2 * h));
+    return glm::dvec2((p2.x - p1.x) / (2 * h), (p2.y - p1.y) / (2 * h));
 }
 
-ImVec2 Spline::calculateSecondDerivative(float t) const {
-    if (controlPoints.size() < 2) return ImVec2(0, 0);
+glm::dvec2 Spline::calculateSecondDerivative(float t) const {
+    if (controlPoints.size() < 2) return glm::dvec2(0, 0);
     
     const float h = 0.0001f;
-    ImVec2 p1 = calculatePoint(t - h);
-    ImVec2 p2 = calculatePoint(t);
-    ImVec2 p3 = calculatePoint(t + h);
+    glm::dvec2 p1 = calculatePoint(t - h);
+    glm::dvec2 p2 = calculatePoint(t);
+    glm::dvec2 p3 = calculatePoint(t + h);
     
-    return ImVec2(
+    return glm::dvec2(
         (p3.x - 2 * p2.x + p1.x) / (h * h),
         (p3.y - 2 * p2.y + p1.y) / (h * h)
     );
 }
 
-ImVec2 Spline::catmullRomPoint(const ImVec2& p0, const ImVec2& p1, 
-                              const ImVec2& p2, const ImVec2& p3, float t) const {
+glm::dvec2 Spline::catmullRomPoint(const glm::dvec2& p0, const glm::dvec2& p1, 
+                              const glm::dvec2& p2, const glm::dvec2& p3, float t) const {
     float t2 = t * t;
     float t3 = t2 * t;
     
     float alpha = (1.0f - tension) * 0.5f;
     
-    ImVec2 result;
+    glm::dvec2 result;
     result.x = 0.5f * (
         (2.0f * p1.x) +
         (-p0.x + p2.x) * alpha * t +
@@ -701,20 +703,20 @@ void BezierCurve::decompose() {
     if (!isValid()) return;
     
     // Split curve at t = 0.5
-    ImVec2 p0 = controlPoints[0];
-    ImVec2 p1 = controlPoints[1];
-    ImVec2 p2 = controlPoints[2];
-    ImVec2 p3 = controlPoints[3];
+    glm::dvec2 p0 = controlPoints[0];
+    glm::dvec2 p1 = controlPoints[1];
+    glm::dvec2 p2 = controlPoints[2];
+    glm::dvec2 p3 = controlPoints[3];
     
     // De Casteljau's algorithm
-    ImVec2 p01 = Math::calculateMidpoint(p0, p1);
-    ImVec2 p12 = Math::calculateMidpoint(p1, p2);
-    ImVec2 p23 = Math::calculateMidpoint(p2, p3);
+    glm::dvec2 p01 = Math::calculateMidpoint(p0, p1);
+    glm::dvec2 p12 = Math::calculateMidpoint(p1, p2);
+    glm::dvec2 p23 = Math::calculateMidpoint(p2, p3);
     
-    ImVec2 p012 = Math::calculateMidpoint(p01, p12);
-    ImVec2 p123 = Math::calculateMidpoint(p12, p23);
+    glm::dvec2 p012 = Math::calculateMidpoint(p01, p12);
+    glm::dvec2 p123 = Math::calculateMidpoint(p12, p23);
     
-    ImVec2 p0123 = Math::calculateMidpoint(p012, p123);
+    glm::dvec2 p0123 = Math::calculateMidpoint(p012, p123);
     
     // Update control points to first half of curve
     controlPoints = {p0, p01, p012, p0123};
@@ -723,8 +725,8 @@ void BezierCurve::decompose() {
 void BezierCurve::approximate(float tolerance) {
     if (!isValid()) return;
     
-    std::vector<ImVec2> points = calculatePoints(0.01f);
-    std::vector<ImVec2> simplified;
+    std::vector<glm::dvec2> points = calculatePoints(0.01f);
+    std::vector<glm::dvec2> simplified;
     simplified.push_back(points.front());
     
     size_t start = 0;
@@ -774,7 +776,7 @@ float BezierCurve::calculateLength() const {
     float length = 0.0f;
     for (int i = 0; i < 10; ++i) {
         float t = (x[i] + 1.0f) * 0.5f;
-        ImVec2 derivative = calculateDerivative(t);
+        glm::dvec2 derivative = calculateDerivative(t);
         float speed = std::sqrt(derivative.x * derivative.x + derivative.y * derivative.y);
         length += w[i] * speed;
     }
@@ -782,25 +784,25 @@ float BezierCurve::calculateLength() const {
     return length * 0.5f;
 }
 
-std::vector<ImVec2> BezierCurve::findExtrema() const {
+std::vector<glm::dvec2> BezierCurve::findExtrema() const {
     if (!isValid()) return {};
     
-    std::vector<ImVec2> extrema;
+    std::vector<glm::dvec2> extrema;
     
     // Find roots of derivative
     // Calculate coefficients for derivative polynomial
-    ImVec2 p0 = controlPoints[0];
-    ImVec2 p1 = controlPoints[1];
-    ImVec2 p2 = controlPoints[2];
-    ImVec2 p3 = controlPoints[3];
+    glm::dvec2 p0 = controlPoints[0];
+    glm::dvec2 p1 = controlPoints[1];
+    glm::dvec2 p2 = controlPoints[2];
+    glm::dvec2 p3 = controlPoints[3];
     
     // For cubic Bezier, derivative coefficients are:
     // a = 3(p3 - 3p2 + 3p1 - p0)
     // b = 2(3p2 - 6p1 + 3p0)
     // c = 3(p1 - p0)
-    ImVec2 a = 3.0f * (p3 - 3.0f * p2 + 3.0f * p1 - p0);
-    ImVec2 b = 6.0f * (p2 - 2.0f * p1 + p0);
-    ImVec2 c = 3.0f * (p1 - p0);
+    glm::dvec2 a = 3.0f * (p3 - 3.0f * p2 + 3.0f * p1 - p0);
+    glm::dvec2 b = 6.0f * (p2 - 2.0f * p1 + p0);
+    glm::dvec2 c = 3.0f * (p1 - p0);
     
     // Solve quadratic equation for x and y components
     auto solveQuadratic = [](float a, float b, float c) -> std::vector<float> {
@@ -835,22 +837,22 @@ std::vector<ImVec2> BezierCurve::findExtrema() const {
     return extrema;
 }
 
-std::vector<ImVec2> BezierCurve::findInflections() const {
+std::vector<glm::dvec2> BezierCurve::findInflections() const {
     if (!isValid()) return {};
     
-    std::vector<ImVec2> inflections;
+    std::vector<glm::dvec2> inflections;
     
     // Calculate second derivative coefficients
-    ImVec2 p0 = controlPoints[0];
-    ImVec2 p1 = controlPoints[1];
-    ImVec2 p2 = controlPoints[2];
-    ImVec2 p3 = controlPoints[3];
+    glm::dvec2 p0 = controlPoints[0];
+    glm::dvec2 p1 = controlPoints[1];
+    glm::dvec2 p2 = controlPoints[2];
+    glm::dvec2 p3 = controlPoints[3];
     
     // For cubic Bezier, second derivative coefficients are:
     // a = 6(p3 - 3p2 + 3p1 - p0)
     // b = 6(p2 - 2p1 + p0)
-    ImVec2 a = 6.0f * (p3 - 3.0f * p2 + 3.0f * p1 - p0);
-    ImVec2 b = 6.0f * (p2 - 2.0f * p1 + p0);
+    glm::dvec2 a = 6.0f * (p3 - 3.0f * p2 + 3.0f * p1 - p0);
+    glm::dvec2 b = 6.0f * (p2 - 2.0f * p1 + p0);
     
     // Find points where curvature changes sign
     for (float t = 0.0f; t <= 1.0f; t += 0.01f) {
@@ -865,11 +867,11 @@ std::vector<ImVec2> BezierCurve::findInflections() const {
     return inflections;
 }
 
-ImVec2 BezierCurve::findNearestPoint(const ImVec2& point) const {
+glm::dvec2 BezierCurve::findNearestPoint(const glm::dvec2& point) const {
     if (!isValid()) return point;
     
     float minDist = std::numeric_limits<float>::max();
-    ImVec2 nearest = point;
+    glm::dvec2 nearest = point;
     
     // Binary search for closest point
     const int MAX_ITERATIONS = 20;
@@ -880,8 +882,8 @@ ImVec2 BezierCurve::findNearestPoint(const ImVec2& point) const {
         float t1 = tLeft + (tRight - tLeft) / 3.0f;
         float t2 = tLeft + 2.0f * (tRight - tLeft) / 3.0f;
         
-        ImVec2 p1 = calculatePoint(t1);
-        ImVec2 p2 = calculatePoint(t2);
+        glm::dvec2 p1 = calculatePoint(t1);
+        glm::dvec2 p2 = calculatePoint(t2);
         
         float dist1 = Math::calculateDistance(point, p1);
         float dist2 = Math::calculateDistance(point, p2);
@@ -908,19 +910,19 @@ ImVec2 BezierCurve::findNearestPoint(const ImVec2& point) const {
 void BezierCurve::generateOffsetCurve(float distance) {
     if (!isValid()) return;
     
-    std::vector<ImVec2> offsetPoints;
+    std::vector<glm::dvec2> offsetPoints;
     const int SAMPLES = 100;
     
     for (int i = 0; i <= SAMPLES; ++i) {
         float t = static_cast<float>(i) / SAMPLES;
-        ImVec2 point = calculatePoint(t);
-        ImVec2 derivative = calculateDerivative(t);
+        glm::dvec2 point = calculatePoint(t);
+        glm::dvec2 derivative = calculateDerivative(t);
         
         // Calculate normal vector
         float len = std::sqrt(derivative.x * derivative.x + derivative.y * derivative.y);
         if (len > 0.0001f) {
-            ImVec2 normal(-derivative.y / len, derivative.x / len);
-            offsetPoints.push_back(ImVec2(
+            glm::dvec2 normal(-derivative.y / len, derivative.x / len);
+            offsetPoints.push_back(glm::dvec2(
                 point.x + normal.x * distance,
                 point.y + normal.y * distance
             ));
@@ -931,12 +933,12 @@ void BezierCurve::generateOffsetCurve(float distance) {
     fitToCurve(offsetPoints);
 }
 
-void BezierCurve::fitToCurve(const std::vector<ImVec2>& points) {
+void BezierCurve::fitToCurve(const std::vector<glm::dvec2>& points) {
     if (points.size() < 2) return;
     
     // Simple least squares fitting for cubic Bezier
-    ImVec2 p0 = points.front();
-    ImVec2 p3 = points.back();
+    glm::dvec2 p0 = points.front();
+    glm::dvec2 p3 = points.back();
     
     // Estimate control points using chord length parameterization
     float totalLength = 0.0f;
@@ -955,7 +957,7 @@ void BezierCurve::fitToCurve(const std::vector<ImVec2>& points) {
     }
     
     // Estimate control points
-    ImVec2 p1, p2;
+    glm::dvec2 p1, p2;
     float alpha = 1.0f / 3.0f;
     
     p1.x = p0.x + (points[points.size()/3].x - p0.x) / alpha;
@@ -968,14 +970,14 @@ void BezierCurve::fitToCurve(const std::vector<ImVec2>& points) {
 }
 
 // Helper methods for Bezier calculations
-ImVec2 BezierCurve::calculateDerivative(float t) const {
-    if (!isValid()) return ImVec2(0, 0);
+glm::dvec2 BezierCurve::calculateDerivative(float t) const {
+    if (!isValid()) return glm::dvec2(0, 0);
     
     float mt = 1.0f - t;
     float mt2 = mt * mt;
     float t2 = t * t;
     
-    ImVec2 result;
+    glm::dvec2 result;
     result.x = 3.0f * (
         mt2 * (controlPoints[1].x - controlPoints[0].x) +
         2.0f * mt * t * (controlPoints[2].x - controlPoints[1].x) +
@@ -991,11 +993,11 @@ ImVec2 BezierCurve::calculateDerivative(float t) const {
 }
 
 float BezierCurve::calculateCurvature(float t) const {
-    ImVec2 d1 = calculateDerivative(t);
+    glm::dvec2 d1 = calculateDerivative(t);
     
     // Calculate second derivative
     float mt = 1.0f - t;
-    ImVec2 d2;
+    glm::dvec2 d2;
     d2.x = 6.0f * (
         mt * (controlPoints[2].x - 2.0f * controlPoints[1].x + controlPoints[0].x) +
         t * (controlPoints[3].x - 2.0f * controlPoints[2].x + controlPoints[1].x)
@@ -1012,8 +1014,8 @@ float BezierCurve::calculateCurvature(float t) const {
     return den > 0.0001f ? num / den : 0.0f;
 }
 
-ImVec2 BezierCurve::calculatePoint(float t) const {
-    if (!isValid()) return ImVec2(0, 0);
+glm::dvec2 BezierCurve::calculatePoint(float t) const {
+    if (!isValid()) return glm::dvec2(0, 0);
     
     float mt = 1.0f - t;
     float mt2 = mt * mt;
@@ -1021,7 +1023,7 @@ ImVec2 BezierCurve::calculatePoint(float t) const {
     float t2 = t * t;
     float t3 = t2 * t;
     
-    ImVec2 result;
+    glm::dvec2 result;
     result.x = mt3 * controlPoints[0].x +
                3.0f * mt2 * t * controlPoints[1].x +
                3.0f * mt * t2 * controlPoints[2].x +
@@ -1035,10 +1037,10 @@ ImVec2 BezierCurve::calculatePoint(float t) const {
     return result;
 }
 
-std::vector<ImVec2> BezierCurve::calculatePoints(float step) const {
+std::vector<glm::dvec2> BezierCurve::calculatePoints(float step) const {
     if (!isValid()) return {};
     
-    std::vector<ImVec2> points;
+    std::vector<glm::dvec2> points;
     if (adaptiveRendering) {
         // Use adaptive sampling based on curvature
         float t = 0.0f;

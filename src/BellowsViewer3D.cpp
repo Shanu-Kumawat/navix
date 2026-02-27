@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "BellowsViewer3D.hpp"
 #include <iostream>
 
@@ -26,7 +27,7 @@ void BellowsViewer3D::initialize() {
     setupFramebuffer(viewportWidth, viewportHeight);
 }
 
-void BellowsViewer3D::render(const Drawing::Bellows* bellows, ImVec2 windowSize) {
+void BellowsViewer3D::render(const Drawing::Bellows* bellows, glm::dvec2 windowSize) {
     if (!bellowsModel || !camera || !shader) return;
     
     // Update framebuffer if window size changed
@@ -68,7 +69,7 @@ void BellowsViewer3D::render(const Drawing::Bellows* bellows, ImVec2 windowSize)
         
         // Handle mouse drag for camera rotation
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            glm::dvec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
             if (delta.x != 0.0f || delta.y != 0.0f) {
                 camera->ProcessMouseMovement(delta.x, -delta.y);
                 ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);

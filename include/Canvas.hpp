@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <imgui.h>
@@ -16,17 +17,18 @@
 #include "SceneModel.hpp"
 
 namespace Drawing {
+using namespace Drawing::Math;
 
 
 
 class Canvas {
 public:
     void render(ImDrawList* drawList) { if (renderer) renderer->render(drawList, *sceneModel); }
-    std::vector<ImVec2> calculateSplinePoints(const std::vector<ImVec2>& controlPoints, bool isClosed) const;
+    std::vector<glm::dvec2> calculateSplinePoints(const std::vector<glm::dvec2>& controlPoints, bool isClosed) const;
 
     // Getters for Renderer2D
     float getZoomLevel() const { return zoomLevel; }
-    ImVec2 getPanOffset() const { return panOffset; }
+    glm::dvec2 getPanOffset() const { return panOffset; }
     bool isGridVisible() const { return showGrid; }
     float getGridSpacing() const { return gridSpacing; }
     float getWindowWidth() const { return windowWidth; }
@@ -34,11 +36,11 @@ public:
     float getWindowX() const { return windowX; }
     float getWindowY() const { return windowY; }
     bool getIsDrawing() const { return isDrawing; }
-    ImVec2 getStartPoint() const { return startPoint; }
+    glm::dvec2 getStartPoint() const { return startPoint; }
     int getClickCount() const { return clickCount; }
-    const std::array<ImVec2, 3>& getTrianglePoints() const { return trianglePoints; }
-    const std::vector<ImVec2>& getCurrentSplinePoints() const { return currentSplinePoints; }
-    const std::vector<ImVec2>& getCurrentCurvePoints() const { return currentCurvePoints; }
+    const std::array<glm::dvec2, 3>& getTrianglePoints() const { return trianglePoints; }
+    const std::vector<glm::dvec2>& getCurrentSplinePoints() const { return currentSplinePoints; }
+    const std::vector<glm::dvec2>& getCurrentCurvePoints() const { return currentCurvePoints; }
     bool getShowControlPoints() const { return showControlPoints; }
     Shape* getSelectedShape() const { return selectedShape; }
     
@@ -50,16 +52,16 @@ public:
 
     // Main loop methods
     void handleInput();
-    void update(const ImVec2& mousePos);
+    void update(const glm::dvec2& mousePos);
     
     // Input handling methods
-    void handleSelection(const ImVec2& mousePos);
-    void handleDrawing(const ImVec2& mousePos);
-    void handleCurveManipulation(const ImVec2& mousePos);
+    void handleSelection(const glm::dvec2& mousePos);
+    void handleDrawing(const glm::dvec2& mousePos);
+    void handleCurveManipulation(const glm::dvec2& mousePos);
     
     // Transformation methods
-    ImVec2 transformCoordinates(const ImVec2& point) const;
-    ImVec2 inverseTransformCoordinates(const ImVec2& point) const;
+    glm::dvec2 transformCoordinates(const glm::dvec2& point) const;
+    glm::dvec2 inverseTransformCoordinates(const glm::dvec2& point) const;
     
     // Drawing state methods
     void setDrawingMode(DrawingMode mode);
@@ -68,7 +70,7 @@ public:
     // Grid methods
     void renderGrid(ImDrawList* drawList);
     void updateZoom(float delta);
-    void updatePan(const ImVec2& delta);
+    void updatePan(const glm::dvec2& delta);
 
     // Settings
     void setSnapToGrid(bool enabled) { snapToGrid = enabled; }
@@ -112,7 +114,7 @@ public:
     // Shape manipulation methods
     void deleteSelectedShape();
     void duplicateSelectedShape();
-    void moveSelectedShape(const ImVec2& delta);
+    void moveSelectedShape(const glm::dvec2& delta);
     void rotateSelectedShape(float angle);
     void scaleSelectedShape(float factor);
 
@@ -131,22 +133,22 @@ public:
     void clearAll();
 
     struct SnapPoint {
-        ImVec2 point;
+        glm::dvec2 point;
         std::string type;
     };
 
     // Snapping methods
-    std::optional<SnapPoint> findSnapPoint(const ImVec2& mousePos) const;
-    std::optional<ImVec2> findMidPoint(const ImVec2& mousePos) const;
-    std::optional<ImVec2> findIntersection(const ImVec2& mousePos) const;
-    std::optional<ImVec2> findPerpendicular(const ImVec2& mousePos) const;
-    std::optional<ImVec2> findCenter(const ImVec2& mousePos) const;
-    void renderSnapIndicator(ImDrawList* drawList, const ImVec2& pos, const std::string& type) const;
+    std::optional<SnapPoint> findSnapPoint(const glm::dvec2& mousePos) const;
+    std::optional<glm::dvec2> findMidPoint(const glm::dvec2& mousePos) const;
+    std::optional<glm::dvec2> findIntersection(const glm::dvec2& mousePos) const;
+    std::optional<glm::dvec2> findPerpendicular(const glm::dvec2& mousePos) const;
+    std::optional<glm::dvec2> findCenter(const glm::dvec2& mousePos) const;
+    void renderSnapIndicator(ImDrawList* drawList, const glm::dvec2& pos, const std::string& type) const;
 
     // Make HistoryState public since it's used in method signatures
     struct HistoryState {
         std::vector<std::unique_ptr<Shape>> shapes;
-        ImVec2 panOffset;
+        glm::dvec2 panOffset;
         float zoomLevel;
         bool showGrid;
     };
@@ -235,15 +237,15 @@ public:
     void renderSprings2D(ImDrawList* drawList) const;
 
     // Viewport culling methods
-    bool isPointInViewport(const ImVec2& point) const {
-        ImVec2 transformed = transformCoordinates(point);
+    bool isPointInViewport(const glm::dvec2& point) const {
+        glm::dvec2 transformed = transformCoordinates(point);
         return transformed.x >= 0 && transformed.x <= windowWidth &&
                transformed.y >= 0 && transformed.y <= windowHeight;
     }
 
-    bool isRectInViewport(const ImVec2& min, const ImVec2& max) const {
-        ImVec2 transformedMin = transformCoordinates(min);
-        ImVec2 transformedMax = transformCoordinates(max);
+    bool isRectInViewport(const glm::dvec2& min, const glm::dvec2& max) const {
+        glm::dvec2 transformedMin = transformCoordinates(min);
+        glm::dvec2 transformedMax = transformCoordinates(max);
         return !(transformedMax.x < 0 || transformedMin.x > windowWidth ||
                 transformedMax.y < 0 || transformedMin.y > windowHeight);
     }
@@ -284,8 +286,8 @@ private:
     // Transform state
     float zoomLevel{1.0f};
     float scaleFactor{1.0f};
-    ImVec2 panOffset{0.0f, 0.0f};
-    ImVec2 zoomCenter{0.0f, 0.0f};
+    glm::dvec2 panOffset{0.0f, 0.0f};
+    glm::dvec2 zoomCenter{0.0f, 0.0f};
     
     // Grid & snapping
     float gridSpacing{Constants::DEFAULT_GRID_SPACING};
@@ -295,13 +297,13 @@ private:
     std::vector<std::unique_ptr<Shape>> shapes;
     
     // Temporary drawing state
-    ImVec2 startPoint{0.0f, 0.0f};
-    ImVec2 endPoint{0.0f, 0.0f};
-    std::array<ImVec2, 3> trianglePoints{};
-    std::vector<ImVec2> currentSplinePoints;
+    glm::dvec2 startPoint{0.0f, 0.0f};
+    glm::dvec2 endPoint{0.0f, 0.0f};
+    std::array<glm::dvec2, 3> trianglePoints{};
+    std::vector<glm::dvec2> currentSplinePoints;
     
     // Curve editing state
-    std::vector<ImVec2> currentCurvePoints;
+    std::vector<glm::dvec2> currentCurvePoints;
     bool isEditingCurve{false};
     float curveStartT{0.0f};
     float curveEndT{1.0f};
@@ -332,9 +334,9 @@ private:
     size_t currentHistoryIndex{0};
     static constexpr size_t MAX_HISTORY_SIZE = 50;
     
-    ImVec2 mousePos;
-    ImVec2 lastMousePos;
-    std::vector<ImVec2> splinePoints;
+    glm::dvec2 mousePos;
+    glm::dvec2 lastMousePos;
+    std::vector<glm::dvec2> splinePoints;
     
     bool isDragging = false;
     bool isPanning = false;
@@ -354,45 +356,45 @@ private:
     
     // Helper methods
     void restoreHistoryState(const HistoryState& state);
-    ImVec2 getSnappedPoint(const ImVec2& point) const;
-    bool trySnapToExistingPoint(ImVec2& point) const;
-    void renderPreview(ImDrawList* drawList, const ImVec2& currentPos) const;
-    std::optional<ImVec2> findNearestPoint(const ImVec2& point, float threshold) const;
-    ImVec2 findNearestSnapPoint(const ImVec2& pos) const;
+    glm::dvec2 getSnappedPoint(const glm::dvec2& point) const;
+    bool trySnapToExistingPoint(glm::dvec2& point) const;
+    void renderPreview(ImDrawList* drawList, const glm::dvec2& currentPos) const;
+    std::optional<glm::dvec2> findNearestPoint(const glm::dvec2& point, float threshold) const;
+    glm::dvec2 findNearestSnapPoint(const glm::dvec2& pos) const;
     
     // Vector math helpers
-    static ImVec2 normalizeVector(const ImVec2& vec) {
+    static glm::dvec2 normalizeVector(const glm::dvec2& vec) {
         float length = std::sqrt(vec.x * vec.x + vec.y * vec.y);
-        if (length < 0.0001f) return ImVec2(1.0f, 0.0f); // Avoid division by zero
-        return ImVec2(vec.x / length, vec.y / length);
+        if (length < 0.0001f) return glm::dvec2(1.0f, 0.0f); // Avoid division by zero
+        return glm::dvec2(vec.x / length, vec.y / length);
     }
     
     // Drawing handlers
-    void handlePointDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleLineDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleCircleDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleTriangleDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleSquareDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleRectangleDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleSplineDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleBezierDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleBellowsDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleBallBearingDrawing(ImDrawList* drawList, const ImVec2& currentPos);
-    void handleSpring2DDrawing(ImDrawList* drawList, const ImVec2& currentPos);
+    void handlePointDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleLineDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleCircleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleTriangleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleSquareDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleRectangleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleSplineDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleBezierDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleBellowsDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleBallBearingDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    void handleSpring2DDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
     
     // Preview methods
-    void previewPoint(ImDrawList* drawList, const ImVec2& pos) const;
-    void previewLine(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
-    void previewCircle(ImDrawList* drawList, const ImVec2& center, float radius) const;
-    void previewTriangle(ImDrawList* drawList, const std::array<ImVec2, 3>& points, int count) const;
-    void previewSquare(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
-    void previewRectangle(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
-    void previewSpline(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
-    void previewBezier(ImDrawList* drawList, const std::vector<ImVec2>& points) const;
-    void previewBellows(ImDrawList* drawList, const ImVec2& start, const ImVec2& end) const;
-    void previewBallBearing(ImDrawList* drawList, const ImVec2& center, float radius) const;
-    void previewSpring2D(ImDrawList* drawList, const ImVec2& center) const;
-    void drawDashedLine(ImDrawList* drawList, const ImVec2& p1, const ImVec2& p2, 
+    void previewPoint(ImDrawList* drawList, const glm::dvec2& pos) const;
+    void previewLine(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) const;
+    void previewCircle(ImDrawList* drawList, const glm::dvec2& center, float radius) const;
+    void previewTriangle(ImDrawList* drawList, const std::array<glm::dvec2, 3>& points, int count) const;
+    void previewSquare(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) const;
+    void previewRectangle(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) const;
+    void previewSpline(ImDrawList* drawList, const std::vector<glm::dvec2>& points) const;
+    void previewBezier(ImDrawList* drawList, const std::vector<glm::dvec2>& points) const;
+    void previewBellows(ImDrawList* drawList, const glm::dvec2& start, const glm::dvec2& end) const;
+    void previewBallBearing(ImDrawList* drawList, const glm::dvec2& center, float radius) const;
+    void previewSpring2D(ImDrawList* drawList, const glm::dvec2& center) const;
+    void drawDashedLine(ImDrawList* drawList, const glm::dvec2& p1, const glm::dvec2& p2, 
                        ImU32 color, float thickness, float dash_length) const;
 
     // Shape rendering
@@ -409,14 +411,14 @@ private:
     void renderBallBearings(ImDrawList* drawList) const;
 
     // Curve calculation methods
-    ImVec2 calculateBezierPoint(const std::vector<ImVec2>& points, float t) const;
+    glm::dvec2 calculateBezierPoint(const std::vector<glm::dvec2>& points, float t) const;
     
-    ImVec2 catmullRomPoint(const ImVec2& p0, const ImVec2& p1, 
-                          const ImVec2& p2, const ImVec2& p3, float t) const;
+    glm::dvec2 catmullRomPoint(const glm::dvec2& p0, const glm::dvec2& p1, 
+                          const glm::dvec2& p2, const glm::dvec2& p3, float t) const;
 
     // Update helper methods
-    void updateSelectedShape(const ImVec2& mousePos);
-    void updateDrawingPreview(const ImVec2& mousePos);
+    void updateSelectedShape(const glm::dvec2& mousePos);
+    void updateDrawingPreview(const glm::dvec2& mousePos);
 
     Drawing::UnitSystem currentUnits = Drawing::UnitSystem::Millimeters;
     float conversionFactor = 1.0f;

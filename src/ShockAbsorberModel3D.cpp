@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "ShockAbsorberModel3D.hpp"
 #include <iostream>
 #include <algorithm>
@@ -709,6 +710,6 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
     generateUMount(uMountTop, bottomMountHeight, bottomMountWidth, bottomMountThickness);
 }
 
-std::vector<ImVec2> ShockAbsorberModel3D::generateEnhancedSpringProfile() const {
-    return std::vector<ImVec2>();
+std::vector<glm::dvec2> ShockAbsorberModel3D::generateEnhancedSpringProfile() const {
+    return std::vector<glm::dvec2>();
 }

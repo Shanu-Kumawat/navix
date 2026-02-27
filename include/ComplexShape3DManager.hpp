@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef COMPLEX_SHAPE_3D_MANAGER_HPP
 #define COMPLEX_SHAPE_3D_MANAGER_HPP
 
@@ -62,7 +63,7 @@ private:
 
     // Common window rendering logic
     void renderViewerWindow(const std::string& title, bool& showFlag, 
-                          std::function<void(ImVec2)> renderCallback);
+                          std::function<void(glm::dvec2)> renderCallback);
 };
 
 #endif

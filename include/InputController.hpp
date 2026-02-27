@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <imgui.h>
@@ -26,14 +27,14 @@ public:
     void handleInput();
 
     // Specific input handlers
-    void handleSelection(const ImVec2& mousePos);
-    void handleDrawing(const ImVec2& mousePos);
-    void handleCurveManipulation(const ImVec2& mousePos);
+    void handleSelection(const glm::dvec2& mousePos);
+    void handleDrawing(const glm::dvec2& mousePos);
+    void handleCurveManipulation(const glm::dvec2& mousePos);
 
     // Shape manipulation
     void deleteSelectedShape();
     void duplicateSelectedShape();
-    void moveSelectedShape(const ImVec2& delta);
+    void moveSelectedShape(const glm::dvec2& delta);
     void rotateSelectedShape(float angle);
     void scaleSelectedShape(float factor);
 
@@ -43,17 +44,17 @@ private:
     ApplicationContext* context;
 
     // Drawing handlers
-    void handlePointDrawing(const ImVec2& currentPos);
-    void handleLineDrawing(const ImVec2& currentPos);
-    void handleCircleDrawing(const ImVec2& currentPos);
-    void handleTriangleDrawing(const ImVec2& currentPos);
-    void handleSquareDrawing(const ImVec2& currentPos);
-    void handleRectangleDrawing(const ImVec2& currentPos);
-    void handleSplineDrawing(const ImVec2& currentPos);
-    void handleBezierDrawing(const ImVec2& currentPos);
-    void handleBellowsDrawing(const ImVec2& currentPos);
-    void handleBallBearingDrawing(const ImVec2& currentPos);
-    void handleSpring2DDrawing(const ImVec2& currentPos);
+    void handlePointDrawing(const glm::dvec2& currentPos);
+    void handleLineDrawing(const glm::dvec2& currentPos);
+    void handleCircleDrawing(const glm::dvec2& currentPos);
+    void handleTriangleDrawing(const glm::dvec2& currentPos);
+    void handleSquareDrawing(const glm::dvec2& currentPos);
+    void handleRectangleDrawing(const glm::dvec2& currentPos);
+    void handleSplineDrawing(const glm::dvec2& currentPos);
+    void handleBezierDrawing(const glm::dvec2& currentPos);
+    void handleBellowsDrawing(const glm::dvec2& currentPos);
+    void handleBallBearingDrawing(const glm::dvec2& currentPos);
+    void handleSpring2DDrawing(const glm::dvec2& currentPos);
 };
 
 } // namespace Core

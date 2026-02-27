@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "BellowsModel3D.hpp"
 #include <iostream>
 
@@ -40,17 +41,17 @@ void BellowsModel3D::generateMesh(const Drawing::Bellows* bellows) {
 
 void BellowsModel3D::generateBellowsGeometry(const Drawing::Bellows* bellows) {
     // Get bellows profile using cached version
-    const std::vector<ImVec2>& profile = bellows->getCachedProfile();
+    const std::vector<glm::dvec2>& profile = bellows->getCachedProfile();
     if (profile.empty()) return;
     
     // Convert bellows profile to 3D revolve format for horizontal orientation
     // The bellows profile has: x = axial position, y = radius
     // For horizontal bellows: x = axial position (along X-axis), y = radius (for revolution around X-axis)
-    std::vector<ImVec2> bellowsProfile;
+    std::vector<glm::dvec2> bellowsProfile;
     for (const auto& point : profile) {
         // Keep x as axial position (horizontal axis), y as radius
         // Scale down by a reasonable factor to fit in the 3D viewport
-        bellowsProfile.push_back(ImVec2(point.y / 100.0f, point.x / 100.0f));
+        bellowsProfile.push_back(glm::dvec2(point.y / 100.0f, point.x / 100.0f));
     }
     
     // Revolve profile around X-axis to create horizontal 3D geometry

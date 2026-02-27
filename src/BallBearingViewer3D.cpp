@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "BallBearingViewer3D.hpp"
 #include <iostream>
 
@@ -26,7 +27,7 @@ void BallBearingViewer3D::initialize() {
     setupFramebuffer(viewportWidth, viewportHeight);
 }
 
-void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, ImVec2 windowSize) {
+void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, glm::dvec2 windowSize) {
     if (!ballBearingModel || !camera || !shader) return;
     
     // Update framebuffer if window size changed
@@ -70,7 +71,7 @@ void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, ImVec2
         
         // Handle mouse drag for camera rotation
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            glm::dvec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
             if (delta.x != 0.0f || delta.y != 0.0f) {
                 camera->ProcessMouseMovement(delta.x, -delta.y);
                 ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);

@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef SHOCK_ABSORBER_MODEL_3D_HPP
 #define SHOCK_ABSORBER_MODEL_3D_HPP
 
@@ -29,7 +30,7 @@ private:
     
     // Shock absorber-specific helper methods
     void generateShockAbsorberGeometry();
-    std::vector<ImVec2> generateEnhancedSpringProfile() const;
+    std::vector<glm::dvec2> generateEnhancedSpringProfile() const;
 };
 
 #endif 

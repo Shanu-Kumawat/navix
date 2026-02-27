@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <vector>
@@ -13,7 +14,7 @@ namespace Core {
  */
 struct HistoryState {
     std::vector<std::unique_ptr<Drawing::Shape>> shapes;
-    ImVec2 panOffset;
+    glm::dvec2 panOffset;
     float zoomLevel;
     bool showGrid;
 };
@@ -43,9 +44,9 @@ public:
     Drawing::Shape* getSelectedShape() const;
 
     // History management
-    void saveToHistory(const ImVec2& panOffset, float zoomLevel, bool showGrid);
-    bool undo(ImVec2& outPanOffset, float& outZoomLevel, bool& outShowGrid);
-    bool redo(ImVec2& outPanOffset, float& outZoomLevel, bool& outShowGrid);
+    void saveToHistory(const glm::dvec2& panOffset, float zoomLevel, bool showGrid);
+    bool undo(glm::dvec2& outPanOffset, float& outZoomLevel, bool& outShowGrid);
+    bool redo(glm::dvec2& outPanOffset, float& outZoomLevel, bool& outShowGrid);
     bool canUndo() const;
     bool canRedo() const;
 

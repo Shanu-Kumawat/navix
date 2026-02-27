@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "ShockAbsorberViewer3D.hpp"
 #include <iostream>
 
@@ -31,7 +32,7 @@ void ShockAbsorberViewer3D::initialize() {
 }
 
 void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 
-                                   const Drawing::ShockAbsorberBottomEnd* bottomEnd, ImVec2 windowSize) {
+                                   const Drawing::ShockAbsorberBottomEnd* bottomEnd, glm::dvec2 windowSize) {
     if (!shockAbsorberModel || !camera || !shader) {
         std::cout << "ShockAbsorberViewer3D::render - Missing components: "
                   << "model=" << (shockAbsorberModel ? "OK" : "NULL") 
@@ -79,7 +80,7 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
         
         // Handle mouse drag for camera rotation
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-            ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+            glm::dvec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
             if (delta.x != 0.0f || delta.y != 0.0f) {
                 camera->ProcessMouseMovement(delta.x, -delta.y);
                 ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);

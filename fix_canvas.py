@@ -1,0 +1,16 @@
+with open("src/Canvas.cpp", "r") as f: text = f.read()
+text = text.replace("panOffset = panOffset + ImGui::GetMouseDragDelta();", "panOffset = panOffset + Drawing::Math::toDVec2(ImGui::GetMouseDragDelta());")
+text = text.replace("setPanOffset(panOffset + ImGui::GetMouseDragDelta());", "setPanOffset(panOffset + Drawing::Math::toDVec2(ImGui::GetMouseDragDelta()));")
+text = text.replace("ImVec2 viewportMin = inverseTransformCoordinates(glm::dvec2(0, 0));", "glm::dvec2 viewportMin = inverseTransformCoordinates(glm::dvec2(0, 0));")
+text = text.replace("ImVec2 viewportMax = inverseTransformCoordinates(glm::dvec2(canvasWidth, canvasHeight));", "glm::dvec2 viewportMax = inverseTransformCoordinates(glm::dvec2(canvasWidth, canvasHeight));")
+text = text.replace("panOffset = panOffset + Drawing::Math::toDVec2(delta)", "panOffset = panOffset + delta")
+text = text.replace("panOffset = panOffset + delta;", "panOffset = panOffset + Drawing::Math::toDVec2(delta);")
+with open("src/Canvas.cpp", "w") as f: f.write(text)
+
+with open("src/Renderer2D.cpp", "r") as f: text = f.read()
+# Fix Renderer2D invalid initializations
+text = text.replace("Drawing::Math::toImVec2(canvas->transformCoordinates(points[i]))", "canvas->transformCoordinates(points[i])")
+text = text.replace("Drawing::Math::toImVec2(canvas->transformCoordinates(points[i + 1]))", "canvas->transformCoordinates(points[i + 1])")
+text = text.replace("canvas->transformCoordinates(points[i])", "Drawing::Math::toImVec2(canvas->transformCoordinates(points[i]))")
+text = text.replace("canvas->transformCoordinates(points[i + 1])", "Drawing::Math::toImVec2(canvas->transformCoordinates(points[i + 1]))")
+with open("src/Renderer2D.cpp", "w") as f: f.write(text)

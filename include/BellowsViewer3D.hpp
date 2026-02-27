@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef BELLOWS_VIEWER_3D_HPP
 #define BELLOWS_VIEWER_3D_HPP
 
@@ -19,7 +20,7 @@ public:
     void handleInput(const SDL_Event& event) override;
     
     // Bellows-specific rendering
-    void render(const Drawing::Bellows* bellows, ImVec2 windowSize);
+    void render(const Drawing::Bellows* bellows, glm::dvec2 windowSize);
 
 private:
     // Bellows-specific 3D model

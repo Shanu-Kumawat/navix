@@ -70,7 +70,7 @@ protected:
     int viewportHeight;
     
     // Helper methods for derived classes
-    void displayRenderedTexture(ImVec2 windowSize);
+    void displayRenderedTexture(glm::dvec2 windowSize);
     void processStandardMouseInput(const SDL_Event& event);
     void processStandardKeyboardInput(const SDL_Event& event);
 };

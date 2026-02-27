@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "InputController.hpp"
 #include "Canvas.hpp"
 
@@ -11,15 +12,15 @@ void InputController::handleInput() {
     canvas->handleInput();
 }
 
-void InputController::handleSelection(const ImVec2& mousePos) {
+void InputController::handleSelection(const glm::dvec2& mousePos) {
     canvas->handleSelection(mousePos);
 }
 
-void InputController::handleDrawing(const ImVec2& mousePos) {
+void InputController::handleDrawing(const glm::dvec2& mousePos) {
     canvas->handleDrawing(mousePos);
 }
 
-void InputController::handleCurveManipulation(const ImVec2& mousePos) {
+void InputController::handleCurveManipulation(const glm::dvec2& mousePos) {
     canvas->handleCurveManipulation(mousePos);
 }
 
@@ -31,7 +32,7 @@ void InputController::duplicateSelectedShape() {
     canvas->duplicateSelectedShape();
 }
 
-void InputController::moveSelectedShape(const ImVec2& delta) {
+void InputController::moveSelectedShape(const glm::dvec2& delta) {
     canvas->moveSelectedShape(delta);
 }
 
@@ -43,16 +44,16 @@ void InputController::scaleSelectedShape(float factor) {
     canvas->scaleSelectedShape(factor);
 }
 
-void InputController::handlePointDrawing(const ImVec2& currentPos) {}
-void InputController::handleLineDrawing(const ImVec2& currentPos) {}
-void InputController::handleCircleDrawing(const ImVec2& currentPos) {}
-void InputController::handleTriangleDrawing(const ImVec2& currentPos) {}
-void InputController::handleSquareDrawing(const ImVec2& currentPos) {}
-void InputController::handleRectangleDrawing(const ImVec2& currentPos) {}
-void InputController::handleSplineDrawing(const ImVec2& currentPos) {}
-void InputController::handleBezierDrawing(const ImVec2& currentPos) {}
-void InputController::handleBellowsDrawing(const ImVec2& currentPos) {}
-void InputController::handleBallBearingDrawing(const ImVec2& currentPos) {}
-void InputController::handleSpring2DDrawing(const ImVec2& currentPos) {}
+void InputController::handlePointDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleLineDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleCircleDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleTriangleDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleSquareDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleRectangleDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleSplineDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleBezierDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleBellowsDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleBallBearingDrawing(const glm::dvec2& currentPos) {}
+void InputController::handleSpring2DDrawing(const glm::dvec2& currentPos) {}
 
 } // namespace Core

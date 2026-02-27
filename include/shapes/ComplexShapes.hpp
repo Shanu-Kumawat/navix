@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #pragma once
 
 #include <imgui.h>
@@ -13,7 +14,7 @@
 namespace Drawing {
 
 struct Spline : public Shape {
-    std::vector<ImVec2> controlPoints;
+    std::vector<glm::dvec2> controlPoints;
     bool isClosed{false};
     float tension{0.5f};     // Controls curve tightness (0 = linear, 1 = very curved)
     bool showControlPoints{true};
@@ -29,7 +30,7 @@ struct Spline : public Shape {
     bool showCurvature{false};     // Show curvature visualization
     float adaptiveResolution{0.01f}; // For adaptive sampling based on curvature
 
-    Spline(const std::vector<ImVec2>& points = {}, ImU32 color = Colors::SPLINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+    Spline(const std::vector<glm::dvec2>& points = {}, ImU32 color = Colors::SPLINE, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::SPLINE, color, thickness), controlPoints(points) {}
 
     bool isValid() const override {
@@ -41,20 +42,20 @@ struct Spline : public Shape {
     }
 
     // Helper methods
-    std::vector<ImVec2> calculatePoints(float resolution = 0.1f) const;
-    ImVec2 calculatePoint(float t) const;
-    ImVec2 calculateDerivative(float t) const;
-    ImVec2 calculateSecondDerivative(float t) const;
-    ImVec2 catmullRomPoint(const ImVec2& p0, const ImVec2& p1, 
-                          const ImVec2& p2, const ImVec2& p3, float t) const;
-    void addControlPoint(const ImVec2& point);
+    std::vector<glm::dvec2> calculatePoints(float resolution = 0.1f) const;
+    glm::dvec2 calculatePoint(float t) const;
+    glm::dvec2 calculateDerivative(float t) const;
+    glm::dvec2 calculateSecondDerivative(float t) const;
+    glm::dvec2 catmullRomPoint(const glm::dvec2& p0, const glm::dvec2& p1, 
+                          const glm::dvec2& p2, const glm::dvec2& p3, float t) const;
+    void addControlPoint(const glm::dvec2& point);
     void removeControlPoint(size_t index);
-    void moveControlPoint(size_t index, const ImVec2& newPos);
-    void moveEntireSpline(const ImVec2& delta);
+    void moveControlPoint(size_t index, const glm::dvec2& newPos);
+    void moveEntireSpline(const glm::dvec2& delta);
     void smoothen(float factor = 0.5f);  // Smooths the curve by adjusting control points
     void subdivide(float threshold = 10.0f);  // Adds more control points for finer control
-    int findNearestControlPoint(const ImVec2& point, float threshold) const;
-    bool isPointNear(const ImVec2& point, float threshold) const override;
+    int findNearestControlPoint(const glm::dvec2& point, float threshold) const;
+    bool isPointNear(const glm::dvec2& point, float threshold) const override;
 
     // New methods
     void reverseDirection();       // Reverse the direction of the curve
@@ -63,14 +64,14 @@ struct Spline : public Shape {
     void optimizeControlPoints(); // Reduce number of control points while maintaining shape
     float calculateLength() const; // Calculate approximate curve length
     float calculateCurvature(float t) const; // Calculate curvature at parameter t
-    std::vector<ImVec2> getTangents() const; // Get tangent vectors at control points
+    std::vector<glm::dvec2> getTangents() const; // Get tangent vectors at control points
     void insertKnot(float t);     // Insert a new control point at parameter t
     void removeKnot(size_t index, float tolerance); // Remove control point while maintaining shape
-    void fitToCurve(const std::vector<ImVec2>& points); // Fit spline to a set of points
+    void fitToCurve(const std::vector<glm::dvec2>& points); // Fit spline to a set of points
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         if (controlPoints.empty()) {
-            min = max = ImVec2(0, 0);
+            min = max = glm::dvec2(0, 0);
             return;
         }
         
@@ -86,7 +87,7 @@ struct Spline : public Shape {
 
 class BezierCurve : public Shape {
 public:
-    std::vector<ImVec2> controlPoints;
+    std::vector<glm::dvec2> controlPoints;
     bool showControlPoints{true};
     bool showBoundingBox{false};
     bool showExtremities{false};
@@ -98,7 +99,7 @@ public:
     bool isSelected{false};
     int selectedPoint{-1};
 
-    BezierCurve(const std::vector<ImVec2>& points = {}, ImU32 color = Colors::BEZIER, float thickness = Constants::DEFAULT_LINE_THICKNESS)
+    BezierCurve(const std::vector<glm::dvec2>& points = {}, ImU32 color = Colors::BEZIER, float thickness = Constants::DEFAULT_LINE_THICKNESS)
         : Shape(ShapeType::BEZIER, color, thickness), controlPoints(points) {}
     
     bool isValid() const override {
@@ -115,31 +116,31 @@ public:
     float calculateLength() const;
     
     // Analysis methods
-    std::vector<ImVec2> findExtrema() const;
-    std::vector<ImVec2> findInflections() const;
-    ImVec2 findNearestPoint(const ImVec2& point) const;
+    std::vector<glm::dvec2> findExtrema() const;
+    std::vector<glm::dvec2> findInflections() const;
+    glm::dvec2 findNearestPoint(const glm::dvec2& point) const;
     
     // Curve manipulation
     void generateOffsetCurve(float distance);
-    void fitToCurve(const std::vector<ImVec2>& points);
-    void moveEntireCurve(const ImVec2& delta);
-    void moveControlPoint(size_t index, const ImVec2& newPos);
-    void adjustSymmetrically(size_t index, const ImVec2& newPos);
+    void fitToCurve(const std::vector<glm::dvec2>& points);
+    void moveEntireCurve(const glm::dvec2& delta);
+    void moveControlPoint(size_t index, const glm::dvec2& newPos);
+    void adjustSymmetrically(size_t index, const glm::dvec2& newPos);
     void splitCurve(float t);
     void elevateOrder();
     void reduceOrder();
-    int findNearestControlPoint(const ImVec2& point, float threshold) const;
-    bool isPointNear(const ImVec2& point, float threshold) const override;
+    int findNearestControlPoint(const glm::dvec2& point, float threshold) const;
+    bool isPointNear(const glm::dvec2& point, float threshold) const override;
     
     // Helper methods
-    ImVec2 calculatePoint(float t) const;
-    ImVec2 calculateDerivative(float t) const;
+    glm::dvec2 calculatePoint(float t) const;
+    glm::dvec2 calculateDerivative(float t) const;
     float calculateCurvature(float t) const;
-    std::vector<ImVec2> calculatePoints(float step = 0.01f) const;
+    std::vector<glm::dvec2> calculatePoints(float step = 0.01f) const;
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         if (controlPoints.empty()) {
-            min = max = ImVec2(0, 0);
+            min = max = glm::dvec2(0, 0);
             return;
         }
         
@@ -155,22 +156,22 @@ public:
 
 // Enhanced UI helper functions
 namespace CurveUI {
-    void drawControlPoint(ImDrawList* drawList, const ImVec2& pos, bool isSelected, float size = 5.0f);
-    void drawControlPolygon(ImDrawList* drawList, const std::vector<ImVec2>& points, bool isSelected);
-    void drawTangentHandles(ImDrawList* drawList, const ImVec2& point, const ImVec2& tangent, bool isSelected);
-    void drawCurveManipulator(ImDrawList* drawList, const ImVec2& pos, float size, bool isSelected);
-    void drawTangentVector(ImDrawList* drawList, const ImVec2& point, const ImVec2& tangent, 
+    void drawControlPoint(ImDrawList* drawList, const glm::dvec2& pos, bool isSelected, float size = 5.0f);
+    void drawControlPolygon(ImDrawList* drawList, const std::vector<glm::dvec2>& points, bool isSelected);
+    void drawTangentHandles(ImDrawList* drawList, const glm::dvec2& point, const glm::dvec2& tangent, bool isSelected);
+    void drawCurveManipulator(ImDrawList* drawList, const glm::dvec2& pos, float size, bool isSelected);
+    void drawTangentVector(ImDrawList* drawList, const glm::dvec2& point, const glm::dvec2& tangent, 
                           bool isSelected, float scale = 1.0f);
-    void drawCurvature(ImDrawList* drawList, const ImVec2& point, float curvature, 
+    void drawCurvature(ImDrawList* drawList, const glm::dvec2& point, float curvature, 
                       float scale = 1.0f);
-    void drawExtremityPoint(ImDrawList* drawList, const ImVec2& pos, bool isSelected);
-    void drawInflectionPoint(ImDrawList* drawList, const ImVec2& pos, bool isSelected);
-    void drawBoundingBox(ImDrawList* drawList, const std::vector<ImVec2>& points, bool isSelected);
-    void drawHodograph(ImDrawList* drawList, const std::vector<ImVec2>& velocities, bool isSelected);
-    void drawWeightIndicator(ImDrawList* drawList, const ImVec2& pos, float weight, bool isSelected);
-    void drawAdaptiveSampling(ImDrawList* drawList, const std::vector<ImVec2>& points, 
+    void drawExtremityPoint(ImDrawList* drawList, const glm::dvec2& pos, bool isSelected);
+    void drawInflectionPoint(ImDrawList* drawList, const glm::dvec2& pos, bool isSelected);
+    void drawBoundingBox(ImDrawList* drawList, const std::vector<glm::dvec2>& points, bool isSelected);
+    void drawHodograph(ImDrawList* drawList, const std::vector<glm::dvec2>& velocities, bool isSelected);
+    void drawWeightIndicator(ImDrawList* drawList, const glm::dvec2& pos, float weight, bool isSelected);
+    void drawAdaptiveSampling(ImDrawList* drawList, const std::vector<glm::dvec2>& points, 
                              const std::vector<float>& curvatures);
-    void drawOffsetCurve(ImDrawList* drawList, const std::vector<ImVec2>& points, 
+    void drawOffsetCurve(ImDrawList* drawList, const std::vector<glm::dvec2>& points, 
                         float offset, bool isSelected);
 }
 
@@ -191,7 +192,7 @@ public:
     bool isSelected = false;              // Selection state
     
     // Position and orientation
-    ImVec2 position = ImVec2(0, 0);       // Bellows origin position
+    glm::dvec2 position = glm::dvec2(0, 0);       // Bellows origin position
     float angle = 0.0f;                   // Bellows rotation angle
 
     // Constructor
@@ -213,13 +214,13 @@ public:
         return std::make_unique<Bellows>(*this);
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override;
+    bool isPointNear(const glm::dvec2& point, float threshold) const override;
     
     // Generate bellows profile points
-    std::vector<ImVec2> generateProfile() const;
+    std::vector<glm::dvec2> generateProfile() const;
     
     // Generate dimension lines and labels
-    std::vector<std::pair<ImVec2, ImVec2>> generateDimensionLines() const;
+    std::vector<std::pair<glm::dvec2, glm::dvec2>> generateDimensionLines() const;
     
     // Calculate overall length
     float calculateOverallLength() const {
@@ -261,7 +262,7 @@ public:
     // Calculate bounding box for fit-to-view functionality
     ImVec4 calculateBoundingBox() const {
         // Get cached profile points to avoid expensive regeneration
-        const std::vector<ImVec2>& profile = getCachedProfile();
+        const std::vector<glm::dvec2>& profile = getCachedProfile();
         
         // Find min/max coordinates
         float minX = profile[0].x;
@@ -298,12 +299,12 @@ public:
         wallThickness = 2.0f;
     }
 
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         // Get cached profile points to avoid expensive regeneration
-        const std::vector<ImVec2>& profile = getCachedProfile();
+        const std::vector<glm::dvec2>& profile = getCachedProfile();
         
         if (profile.empty()) {
-            min = max = ImVec2(0, 0);
+            min = max = glm::dvec2(0, 0);
             return;
         }
         
@@ -327,14 +328,14 @@ public:
     }
 
     // Get cached profile with efficient regeneration only when needed
-    const std::vector<ImVec2>& getCachedProfile() const;
+    const std::vector<glm::dvec2>& getCachedProfile() const;
     
     // Force profile regeneration (call after parameter changes)
     void invalidateCache() const { profileCached = false; }
 
 private:
     // Profile caching to prevent expensive regeneration every frame
-    mutable std::vector<ImVec2> cachedProfile;
+    mutable std::vector<glm::dvec2> cachedProfile;
     mutable bool profileCached = false;
     
     // Cache validation - stores parameters used for last cached profile
@@ -347,7 +348,7 @@ private:
     mutable float cachedConvolutedSectionLength = -1.0f;
     mutable int cachedNumConvolutions = -1;
     mutable float cachedWallThickness = -1.0f;
-    mutable ImVec2 cachedPosition = ImVec2(-9999, -9999);
+    mutable glm::dvec2 cachedPosition = glm::dvec2(-9999, -9999);
     mutable float cachedAngle = -9999.0f;
     
     // Check if cache is still valid
@@ -371,7 +372,7 @@ public:
     bool isSelected = false;             // Selection state
     
     // Position and orientation
-    ImVec2 position = ImVec2(0, 0);      // Bearing origin position
+    glm::dvec2 position = glm::dvec2(0, 0);      // Bearing origin position
     float angle = 0.0f;                  // Bearing rotation angle
 
     // Constructor
@@ -395,23 +396,23 @@ public:
         return std::make_unique<BallBearing>(*this);
     }
 
-    bool isPointNear(const ImVec2& point, float threshold) const override;
+    bool isPointNear(const glm::dvec2& point, float threshold) const override;
     
     // Required Shape interface implementation
-    void getBounds(ImVec2& min, ImVec2& max) const override {
+    void getBounds(glm::dvec2& min, glm::dvec2& max) const override {
         float radius = outerDiameter / 2.0f;
-        min = ImVec2(position.x - radius, position.y - radius);
-        max = ImVec2(position.x + radius, position.y + radius);
+        min = glm::dvec2(position.x - radius, position.y - radius);
+        max = glm::dvec2(position.x + radius, position.y + radius);
     }
     
     // Generate ball bearing profile points
-    std::vector<ImVec2> generateProfile() const;
+    std::vector<glm::dvec2> generateProfile() const;
     
     // Generate ball positions for 3D rendering
-    std::vector<ImVec2> generateBallPositions() const;
+    std::vector<glm::dvec2> generateBallPositions() const;
     
     // Generate dimension lines and labels
-    std::vector<std::pair<ImVec2, ImVec2>> generateDimensionLines() const;
+    std::vector<std::pair<glm::dvec2, glm::dvec2>> generateDimensionLines() const;
     
     // Calculate pitch circle diameter (center of balls)
     float calculatePitchCircleDiameter() const {

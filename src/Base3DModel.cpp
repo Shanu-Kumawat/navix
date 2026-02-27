@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #include "Base3DModel.hpp"
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
@@ -193,7 +194,7 @@ void Base3DModel::updateModelMatrix() {
     model = glm::rotate(model, glm::radians(modelRotationY), glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
-void Base3DModel::revolveProfile(const std::vector<ImVec2>& profile, int segments, float yOffset, float yScale) {
+void Base3DModel::revolveProfile(const std::vector<glm::dvec2>& profile, int segments, float yOffset, float yScale) {
     if (profile.empty()) return;
     
     const float PI = 3.14159265359f;
@@ -243,7 +244,7 @@ void Base3DModel::revolveProfile(const std::vector<ImVec2>& profile, int segment
     }
 }
 
-void Base3DModel::revolveProfileAroundX(const std::vector<ImVec2>& profile, int segments, float xOffset, float xScale) {
+void Base3DModel::revolveProfileAroundX(const std::vector<glm::dvec2>& profile, int segments, float xOffset, float xScale) {
     if (profile.empty()) return;
     
     const float PI = 3.14159265359f;

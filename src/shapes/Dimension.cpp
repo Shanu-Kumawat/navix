@@ -1,15 +1,17 @@
+#include <glm/glm.hpp>
 #include "shapes/BasicShapes.hpp"
 #include "Canvas.hpp"
 #include <cmath>
 #include <string>
 
 namespace Drawing {
+using namespace Drawing::Math;
 
 void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
     // Transform coordinates
-    ImVec2 transformedStart = canvas->transformCoordinates(start);
-    ImVec2 transformedEnd = canvas->transformCoordinates(end);
-    ImVec2 transformedTextPos = canvas->transformCoordinates(textPosition);
+    glm::dvec2 transformedStart = canvas->transformCoordinates(start);
+    glm::dvec2 transformedEnd = canvas->transformCoordinates(end);
+    glm::dvec2 transformedTextPos = canvas->transformCoordinates(textPosition);
     
     // Calculate angle and offsets
     float dx = end.x - start.x;
@@ -18,7 +20,7 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
     float perpAngle = angle + M_PI / 2.0f;
     
     float extension = 20.0f * canvas->getZoomLevel();
-    ImVec2 offsetVec(extension * std::cos(perpAngle), extension * std::sin(perpAngle));
+    glm::dvec2 offsetVec(extension * std::cos(perpAngle), extension * std::sin(perpAngle));
     
     switch (dimType) {
         case DimensionType::Linear: {
@@ -27,10 +29,10 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
             
             // Draw extension lines perpendicular to the main dimension line
             drawList->AddLine(transformedStart, 
-                            ImVec2(transformedStart.x + offsetVec.x, transformedStart.y + offsetVec.y), 
+                            glm::dvec2(transformedStart.x + offsetVec.x, transformedStart.y + offsetVec.y), 
                             color, thickness * 0.5f * canvas->getZoomLevel());
             drawList->AddLine(transformedEnd, 
-                            ImVec2(transformedEnd.x + offsetVec.x, transformedEnd.y + offsetVec.y), 
+                            glm::dvec2(transformedEnd.x + offsetVec.x, transformedEnd.y + offsetVec.y), 
                             color, thickness * 0.5f * canvas->getZoomLevel());
             
             break;
@@ -101,18 +103,18 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
     }
     
     // Draw the text
-    ImVec2 textSize = ImGui::CalcTextSize(displayText.c_str());
+    glm::dvec2 textSize = ImGui::CalcTextSize(displayText.c_str());
     
     // Background for better visibility
     drawList->AddRectFilled(
-        ImVec2(transformedTextPos.x - textSize.x * 0.5f - 2.0f, transformedTextPos.y - textSize.y * 0.5f - 2.0f),
-        ImVec2(transformedTextPos.x + textSize.x * 0.5f + 2.0f, transformedTextPos.y + textSize.y * 0.5f + 2.0f),
+        glm::dvec2(transformedTextPos.x - textSize.x * 0.5f - 2.0f, transformedTextPos.y - textSize.y * 0.5f - 2.0f),
+        glm::dvec2(transformedTextPos.x + textSize.x * 0.5f + 2.0f, transformedTextPos.y + textSize.y * 0.5f + 2.0f),
         IM_COL32(240, 240, 240, 220)
     );
     
     // Text
     drawList->AddText(
-        ImVec2(transformedTextPos.x - textSize.x * 0.5f, transformedTextPos.y - textSize.y * 0.5f),
+        glm::dvec2(transformedTextPos.x - textSize.x * 0.5f, transformedTextPos.y - textSize.y * 0.5f),
         IM_COL32(0, 0, 0, 255),
         displayText.c_str()
     );
@@ -124,7 +126,7 @@ void Dimension::draw(ImDrawList* drawList, Canvas* canvas) const {
     }
 }
 
-bool Dimension::isPointNear(const ImVec2& point, float threshold) const {
+bool Dimension::isPointNear(const glm::dvec2& point, float threshold) const {
     // Check if the point is near any of the dimension lines or the text
     
     // Check start and end points
@@ -183,11 +185,11 @@ bool Dimension::isValid() const {
     return (start.x != end.x) || (start.y != end.y);
 }
 
-ImVec2 Dimension::getCenter() const {
-    return ImVec2((start.x + end.x) / 2.0f, (start.y + end.y) / 2.0f);
+glm::dvec2 Dimension::getCenter() const {
+    return glm::dvec2((start.x + end.x) / 2.0f, (start.y + end.y) / 2.0f);
 }
 
-void Dimension::move(const ImVec2& delta) {
+void Dimension::move(const glm::dvec2& delta) {
     start.x += delta.x;
     start.y += delta.y;
     end.x += delta.x;
@@ -197,7 +199,7 @@ void Dimension::move(const ImVec2& delta) {
 }
 
 void Dimension::scale(float factor) {
-    ImVec2 center = getCenter();
+    glm::dvec2 center = getCenter();
     start.x = center.x + (start.x - center.x) * factor;
     start.y = center.y + (start.y - center.y) * factor;
     end.x = center.x + (end.x - center.x) * factor;
@@ -206,7 +208,7 @@ void Dimension::scale(float factor) {
     textPosition.y = center.y + (textPosition.y - center.y) * factor;
 }
 
-void Dimension::rotate(float angle, const ImVec2& center) {
+void Dimension::rotate(float angle, const glm::dvec2& center) {
     float s = sin(angle);
     float c = cos(angle);
     

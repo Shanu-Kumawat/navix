@@ -1,3 +1,4 @@
+#include <glm/glm.hpp>
 #ifndef BALL_BEARING_MODEL_3D_HPP
 #define BALL_BEARING_MODEL_3D_HPP
 
@@ -25,7 +26,7 @@ private:
     
     // Ball bearing-specific helper methods
     void generateRaceGeometry(const Drawing::BallBearing* ballBearing);
-    void generateBallGeometry(const std::vector<ImVec2>& ballPositions, float ballRadius, float scale);
+    void generateBallGeometry(const std::vector<glm::dvec2>& ballPositions, float ballRadius, float scale);
     void generateSeparateRaces(float innerRadius, float outerRadius, float width, int segments);
 };
 
