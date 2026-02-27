@@ -66,3 +66,7 @@ This document logs all major architectural decisions, design changes, and subsys
 - **Context**: The `Core::Topology::TopologyManager` holds agnostic engineering objects (Nodes, Edges, Faces). Gmsh requires these models fed exclusively into its OpenCASCADE (OCC) kernel dynamically before a mesh can be generated.
 - **Decision**: Created `Core::Meshing::GmshTranslator`, acting as a bridge specifically compiling topology variables to Gmsh CAD structures via `gmsh::model::occ`. `Nodes` cast to Points, `Edges` to Lines, and `Faces` assemble via explicit `CurveLoops` bounding `PlaneSurfaces`.
 - **Consequences**: Navix topology definitions remain decoupled independently in `/topology` while `/meshing` completely abstracts third-party `gmsh.h` imports exclusively via `#ifdef USE_GMSH` compiler blocks. Prevents external library rot into main UI structures. The user interface does not map meshing paths directly; it acts only on `GmsTranslator.translateTopologyToGmsh()`.
+ADR-012: Phase 3 (Meshing) Data Extraction
+Context: Standardizing outputs after meshing from Gmsh. Directly exporting native unstructured data.
+Decision: Created Core::Meshing::GmshExtractor resolving gmsh outputs dynamically back into explicit Mesh structs (MeshNode, MeshElement).
+Consequences: FEA and Rendering decoupled securely from standard Gmsh memory blocks. Meshing output is completely portable inside application topology variables.
