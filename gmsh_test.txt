@@ -1,0 +1,13 @@
+-- Found Gmsh: /home/shanu/dev/production/cpp/navix/external/gmsh/lib/libgmsh.so
+-- Gmsh found: Meshing enabled
+-- Using standard OpenGL paths
+-- SDL2_image found - image loading will be enabled
+-- OpenGL libraries: /usr/lib/libOpenGL.so;/usr/lib/libGLX.so;/usr/lib/libGLU.so
+-- OpenGL include dir: /usr/include
+-- SDL2 libraries: SDL2
+-- SDL2 include dirs: /usr/include;/usr/include/SDL2
+-- SDL2_image libraries: SDL2_image;SDL2
+-- SDL2_image include dirs: /usr/include/SDL2;/usr/include;/usr/include/libpng16;/usr/include/rav1e;/usr/include/svt-av1;/usr/include/webp
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/shanu/dev/production/cpp/navix/build

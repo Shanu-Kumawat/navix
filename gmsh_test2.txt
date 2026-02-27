@@ -1,0 +1,73 @@
+make: Entering directory '/home/shanu/dev/production/cpp/navix/build'
+-- Gmsh found: Meshing enabled
+-- Using standard OpenGL paths
+-- SDL2_image found - image loading will be enabled
+-- OpenGL libraries: /usr/lib/libOpenGL.so;/usr/lib/libGLX.so;/usr/lib/libGLU.so
+-- OpenGL include dir: /usr/include
+-- SDL2 libraries: SDL2
+-- SDL2 include dirs: /usr/include;/usr/include/SDL2
+-- SDL2_image libraries: SDL2_image;SDL2
+-- SDL2_image include dirs: /usr/include/SDL2;/usr/include;/usr/include/libpng16;/usr/include/rav1e;/usr/include/svt-av1;/usr/include/webp
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/shanu/dev/production/cpp/navix/build
+[  2%] Building C object CMakeFiles/glad.dir/glad/src/glad.c.o
+[  6%] Building CXX object CMakeFiles/imgui.dir/imgui/backends/imgui_impl_sdl2.cpp.o
+[  6%] Building CXX object CMakeFiles/imgui.dir/imgui/imgui_widgets.cpp.o
+[  8%] Building CXX object CMakeFiles/imgui.dir/imgui/imgui_demo.cpp.o
+[ 10%] Building CXX object CMakeFiles/imgui.dir/imgui/imgui_draw.cpp.o
+[ 12%] Building CXX object CMakeFiles/imgui.dir/imgui/backends/imgui_impl_opengl3.cpp.o
+[ 14%] Building CXX object CMakeFiles/imgui.dir/imgui/imgui.cpp.o
+[ 16%] Building CXX object CMakeFiles/imgui.dir/imgui/imgui_tables.cpp.o
+[ 18%] Linking C static library libglad.a
+[ 18%] Built target glad
+[ 20%] Linking CXX static library libimgui.a
+[ 20%] Built target imgui
+[ 22%] Building CXX object CMakeFiles/drawing.dir/src/SceneModel.cpp.o
+[ 25%] Building CXX object CMakeFiles/drawing.dir/src/Canvas.cpp.o
+[ 27%] Building CXX object CMakeFiles/drawing.dir/src/commands/CommandManager.cpp.o
+[ 29%] Building CXX object CMakeFiles/drawing.dir/src/InputController.cpp.o
+[ 35%] Building CXX object CMakeFiles/drawing.dir/src/core/ImGuiRenderer.cpp.o
+[ 35%] Building CXX object CMakeFiles/drawing.dir/src/ApplicationContext.cpp.o
+[ 35%] Building CXX object CMakeFiles/drawing.dir/src/Renderer2D.cpp.o
+[ 37%] Building CXX object CMakeFiles/drawing.dir/src/ui/TopRibbon.cpp.o
+[ 39%] Building CXX object CMakeFiles/drawing.dir/src/ui/UIState.cpp.o
+[ 43%] Building CXX object CMakeFiles/drawing.dir/src/ui/PropertyPanel.cpp.o
+[ 43%] Building CXX object CMakeFiles/drawing.dir/src/topology/TopologyManager.cpp.o
+[ 45%] Building CXX object CMakeFiles/drawing.dir/src/ui/UIHelpers.cpp.o
+[ 47%] Building CXX object CMakeFiles/drawing.dir/src/ui/StatusBar.cpp.o
+[ 50%] Building CXX object CMakeFiles/drawing.dir/src/ui/CanvasView.cpp.o
+[ 52%] Building CXX object CMakeFiles/drawing.dir/src/shapes/ComplexShapes.cpp.o
+[ 54%] Building CXX object CMakeFiles/drawing.dir/src/ui/Viewers3DUI.cpp.o
+[ 56%] Building CXX object CMakeFiles/drawing.dir/src/shapes/Bellows.cpp.o
+[ 58%] Building CXX object CMakeFiles/drawing.dir/src/shapes/BallBearing.cpp.o
+/home/shanu/dev/production/cpp/navix/src/ui/PropertyPanel.cpp: In static member function ‘static void UI::PropertyPanel::Render(Drawing::Canvas&, Core::ApplicationContext&)’:
+/home/shanu/dev/production/cpp/navix/src/ui/PropertyPanel.cpp:916:46: warning: narrowing conversion of ‘bellows->Drawing::Bellows::position.glm::vec<2, double, glm::packed_highp>::<anonymous>.glm::vec<2, double, glm::packed_highp>::<unnamed union>::x’ from ‘double’ to ‘float’ [-Wnarrowing]
+  916 |       float position[2] = {bellows->position.x, bellows->position.y};
+      |                            ~~~~~~~~~~~~~~~~~~^
+/home/shanu/dev/production/cpp/navix/src/ui/PropertyPanel.cpp:916:67: warning: narrowing conversion of ‘bellows->Drawing::Bellows::position.glm::vec<2, double, glm::packed_highp>::<anonymous>.glm::vec<2, double, glm::packed_highp>::<unnamed union>::y’ from ‘double’ to ‘float’ [-Wnarrowing]
+  916 |       float position[2] = {bellows->position.x, bellows->position.y};
+      |                                                 ~~~~~~~~~~~~~~~~~~^
+[ 60%] Building CXX object CMakeFiles/drawing.dir/src/shapes/ShockAbsorberBottomEnd.cpp.o
+[ 62%] Building CXX object CMakeFiles/drawing.dir/src/shapes/Dimension.cpp.o
+[ 64%] Building CXX object CMakeFiles/drawing.dir/src/shapes/BasicShapes.cpp.o
+[ 66%] Building CXX object CMakeFiles/drawing.dir/src/utils/MathUtils.cpp.o
+[ 68%] Building CXX object CMakeFiles/drawing.dir/src/Shader.cpp.o
+[ 70%] Building CXX object CMakeFiles/drawing.dir/src/Base3DViewer.cpp.o
+[ 72%] Building CXX object CMakeFiles/drawing.dir/src/Base3DModel.cpp.o
+[ 75%] Building CXX object CMakeFiles/drawing.dir/src/BellowsModel3D.cpp.o
+[ 77%] Building CXX object CMakeFiles/drawing.dir/src/BellowsViewer3D.cpp.o
+[ 79%] Building CXX object CMakeFiles/drawing.dir/src/BallBearingModel3D.cpp.o
+[ 81%] Building CXX object CMakeFiles/drawing.dir/src/BallBearingViewer3D.cpp.o
+[ 83%] Building CXX object CMakeFiles/drawing.dir/src/Camera.cpp.o
+[ 85%] Building CXX object CMakeFiles/drawing.dir/src/SpringModel3D.cpp.o
+[ 87%] Building CXX object CMakeFiles/drawing.dir/src/SpringViewer3D.cpp.o
+[ 89%] Building CXX object CMakeFiles/drawing.dir/src/ShockAbsorberModel3D.cpp.o
+[ 91%] Building CXX object CMakeFiles/drawing.dir/src/ShockAbsorberViewer3D.cpp.o
+[ 93%] Building CXX object CMakeFiles/drawing.dir/src/ComplexShape3DManager.cpp.o
+[ 95%] Linking CXX static library libdrawing.a
+[ 95%] Built target drawing
+[ 97%] Building CXX object CMakeFiles/main.dir/main.cpp.o
+[100%] Linking CXX executable main
+[100%] Built target main
+make: Leaving directory '/home/shanu/dev/production/cpp/navix/build'

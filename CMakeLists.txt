@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.10)
 project(opengl_project LANGUAGES C CXX)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+# Optional Gmsh dependency for meshing
+find_package(Gmsh)
+if(GMSH_FOUND)
+    add_definitions(-DUSE_GMSH)
+    include_directories(${GMSH_INCLUDE_DIR})
+    message(STATUS "Gmsh found: Meshing enabled")
+else()
+    message(WARNING "Gmsh NOT found. Meshing features will be disabled.")
+endif()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -253,3 +264,6 @@ target_include_directories(drawing PUBLIC
 
 # Copy shader files to build directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR}) 
+if(GMSH_FOUND)
+    target_link_libraries(main PRIVATE ${GMSH_LIBRARY})
+endif()

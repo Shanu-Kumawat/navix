@@ -1,25 +1,10 @@
 #!/bin/bash
 
-# Define the build directory
-BUILD_DIR="build"
-
-# Check if the build directory exists
-if [ ! -d "$BUILD_DIR" ]; then
-    echo "Build directory not found. Creating..."
-    mkdir "$BUILD_DIR"
+# Update library path for Gmsh if it exists locally
+if [ -d "$(pwd)/external/gmsh/lib" ]; then
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/external/gmsh/lib
 fi
 
-# Enter the build directory
-cd "$BUILD_DIR" || exit
-
-# Run CMake
-cmake ..
-
-# Compile the project
-make
-
-# Run the compiled program
-./main
-
-# Return to the previous directory
-cd ..
+# Set directory so icons load relative to binary correctly
+cd build
+./main "$@"
