@@ -12,6 +12,26 @@ else()
     message(WARNING "Gmsh NOT found. Meshing features will be disabled.")
 endif()
 
+# Eigen3 for FEA Solver
+find_package(Eigen3 QUIET)
+if(Eigen3_FOUND)
+    message(STATUS "Eigen3 found in system: ${EIGEN3_INCLUDE_DIRS}")
+    include_directories(${EIGEN3_INCLUDE_DIRS})
+else()
+    message(STATUS "Eigen3 not found in system. Fetching from GitLab...")
+    include(FetchContent)
+    FetchContent_Declare(
+        eigen
+        URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+    )
+    FetchContent_GetProperties(eigen)
+    if(NOT eigen_POPULATED)
+        FetchContent_Populate(eigen)
+    endif()
+    include_directories(${eigen_SOURCE_DIR})
+    message(STATUS "Eigen3 fetched and included from: ${eigen_SOURCE_DIR}")
+endif()
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -142,6 +162,7 @@ add_library(drawing STATIC
     src/Canvas.cpp
     src/commands/CommandManager.cpp
     src/topology/TopologyManager.cpp
+    src/fem/MaterialManager.cpp
     src/meshing/GmshTranslator.cpp
     src/meshing/Mesh.cpp
     src/meshing/GmshExtractor.cpp

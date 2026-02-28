@@ -38,11 +38,13 @@ struct Shape {
     ShapeType type;
     ImU32 color;
     float thickness;
+    uint32_t materialId = 1; // 1 = Default Material (Structural Steel)
 
-    Shape(ShapeType t, ImU32 c = Colors::LINE, float th = Constants::DEFAULT_LINE_THICKNESS) 
+    Shape(ShapeType t, ImU32 c = Colors::LINE, float th = Constants::DEFAULT_LINE_THICKNESS)
         : type(t), color(c), thickness(th) {}
-    
+
     virtual ~Shape() = default;
+
     virtual std::unique_ptr<Shape> clone() const = 0;
     virtual bool isValid() const = 0;
     virtual bool isPointNear(const glm::dvec2& point, float threshold) const = 0;

@@ -41,6 +41,7 @@ Canvas::Canvas() :
     selectedShape(nullptr),
     isDraggingCanvas(false),
     topologyManager(std::make_unique<Core::Topology::TopologyManager>()),
+    materialManager(std::make_unique<Core::FEM::MaterialManager>()),
     showGrid(true)
 {
     // Add initial state with current view settings

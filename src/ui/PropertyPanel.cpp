@@ -983,12 +983,70 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
       
       // ... rest of the bellows properties section ...
     }
-    
-    // Ensure we pop the style color for header
-    ImGui::PopStyleColor();
   }
-  
-  // End the scrollable child region
+
+  // --- FEA Materials Section ---
+  if (ImGui::CollapsingHeader("FEA Materials", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Indent(10);
+      Drawing::Shape* selShape = canvas.getSelectedShape();
+      if (selShape) {
+          uint32_t currentMatId = selShape->materialId;
+          auto materials = canvas.getMaterialManager()->getAllMaterials();
+          
+          ImGui::Text("Material Assignment");
+          if (ImGui::BeginCombo("##ShapeMat", currentMatId == 0 ? "None" : canvas.getMaterialManager()->getMaterial(currentMatId)->name.c_str())) {
+              if (ImGui::Selectable("None", currentMatId == 0)) {
+                  selShape->materialId = 0;
+              }
+              for (const auto& mat : materials) {
+                  bool is_selected = (currentMatId == mat.id);
+                  if (ImGui::Selectable(mat.name.c_str(), is_selected)) {
+                      selShape->materialId = mat.id;
+                  }
+                  if (is_selected) {
+                      ImGui::SetItemDefaultFocus();
+                  }
+              }
+              ImGui::EndCombo();
+          }
+
+          if (currentMatId != 0) {
+              const Core::FEM::Material* mat = canvas.getMaterialManager()->getMaterial(currentMatId);
+              if (mat) {
+                  ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "Properties:");
+                  ImGui::Text("E: %.1f GPa", mat->youngsModulus / 1e9);
+                  ImGui::Text("v: %.3f", mat->poissonsRatio);
+                  ImGui::Text("p: %.1f kg/m^3", mat->density);
+              }
+          }
+      } else {
+          ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Select an object to assign\na material.");
+      }
+      
+      ImGui::Separator();
+      if (ImGui::Button("Manage Global Library")) {
+          ImGui::OpenPopup("Material Library Info##LibPopup");
+      }
+      
+      if (ImGui::BeginPopupModal("Material Library Info##LibPopup", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+          ImGui::Text("Current Global Materials:");
+          ImGui::Separator();
+          auto materials = canvas.getMaterialManager()->getAllMaterials();
+          for (const auto& mat : materials) {
+              ImGui::BulletText("%s (E=%.1f GPa, v=%.2f)", mat.name.c_str(), mat.youngsModulus / 1e9, mat.poissonsRatio);
+          }
+          ImGui::Separator();
+          if (ImGui::Button("Close", ImVec2(120, 0))) {
+              ImGui::CloseCurrentPopup();
+          }
+          ImGui::EndPopup();
+      }
+
+      ImGui::Unindent(10);
+  }
+
+  // Ensure we pop the style color for header -> matches line 204
+  ImGui::PopStyleColor();
   ImGui::EndChild();
   
   ImGui::End();

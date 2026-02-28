@@ -74,3 +74,15 @@ ADR-013: Rendering Extracted Mesh
 Context: Displaying parsed mesh data directly on the main viewport seamlessly mapped over B-REP elements.
 Decision: Extended pure abstract Core::Renderer and specifically the Graphic::ImGuiRenderer backends to accept Meshing::Mesh inputs, rendering the explicit edge bounds of parsed unstructured Gmsh 2D outputs.
 Consequences: Users can dynamically click buttons inside the active UI layout to push Topology, trigger Meshing explicitly, and retrieve the graphic outputs correctly overlaid against user shapes allowing rapid iteration/review loops directly within the Navix interface.
+
+## ADR-014: Eigen3 Integration for FEA Solver
+- **Date**: February 28, 2026
+- **Context**: Navix requires a highly performant and stable linear algebra library to solve finite element sparse matrices structurally (stiffness matrix inversion).
+- **Decision**: Integrated **Eigen3** via \CMakeLists.txt\. The script first looks for the standard system paths using \ind_package(Eigen3 QUIET)\. If it's isolated or not available (e.g. on Windows without proper paths), it securely falls back to CMake's \FetchContent\ to pull the exact \3.4.0\ headers gracefully. 
+- **Consequences**: Zero required system dependencies. Ensures Phase 4 operations can directly include \<Eigen/Dense>\ and \<Eigen/Sparse>\ across the workspace automatically. Fast setup since Eigen handles headers locally without compiling complex targets.
+
+## ADR-015: Material Manager Subsystem (Phase 4)
+- **Date**: February 28, 2026
+- **Context**: FEA solvers strictly require physical material parameters (Youngs Modulus, Poisson's Ratio, Density) mapped against discretized elements.
+- **Decision**: Implemented \Core::FEM::MaterialManager\ mapped globally against \Canvas\ for accessibility. A Material holds baseline mechanical profiles. \Shape\ boundaries and explicit \Face\ topological entities both received a \uint32_t materialId\. 
+- **Consequences**: Shapes on the 2D Viewport can have standard engineering materials assigned directly via the property panel. When \GmshTranslator\ pulls from these properties in future Phase 4 steps, elements generated across a Face will natively inherit this structural physical identity ensuring clean separation of FEA variables and pure geometry.

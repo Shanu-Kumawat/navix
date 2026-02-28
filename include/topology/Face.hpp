@@ -12,8 +12,12 @@ public:
 
     const std::vector<uint64_t>& getEdgeIds() const { return edgeIds; }
 
+    uint32_t getMaterialId() const { return materialId; }
+    void setMaterialId(uint32_t id) { materialId = id; }
+
 private:
     std::vector<uint64_t> edgeIds;
+    uint32_t materialId = 0; // 0 = no material, or default material
 };
 
 } // namespace Topology

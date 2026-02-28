@@ -25,8 +25,8 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 
 ## Phase 4: FEA Solver & Post-Processing (Current Focus)
 **Goal**: Perform structural analysis and visualize results.
-- **Priority 1**: Integrate the **Eigen** library for sparse matrix operations.
-- **Priority 2**: Implement APIs and UI for assigning Materials (Young's Modulus, Poisson's ratio).
+- **Priority 1**: [COMPLETED] Integrate the **Eigen** library for sparse matrix operations.
+- **Priority 2**: [COMPLETED] Implement APIs and UI for assigning Materials (Young's Modulus, Poisson's ratio).
 - **Priority 3**: Implement Boundary Conditions (Dirichlet/Fixities).
 - **Priority 4**: Implement Load interfaces (Neumann/Force vectors).
 - **Priority 5**: Implement the structural stiffness matrix assembly and solver kernel mappings.

@@ -11,6 +11,7 @@
 #include "shapes/ComplexShapes.hpp"
 #include "commands/CommandManager.hpp"
 #include "topology/TopologyManager.hpp"
+#include "fem/MaterialManager.hpp"
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "utils/MathUtils.hpp"
 #include "Constants.hpp"
@@ -226,6 +227,10 @@ public:
         return result;
     }
     
+    // Sub-system access
+    Core::Topology::TopologyManager* getTopologyManager() const { return topologyManager.get(); }
+    Core::FEM::MaterialManager* getMaterialManager() const { return materialManager.get(); }
+
     // Legacy methods for backward compatibility
     const Bellows* findOrCreateBellows() const;
     const BallBearing* findOrCreateBallBearing() const;
@@ -337,7 +342,8 @@ private:
     // History management
     Core::Commands::CommandManager commandManager;
     std::unique_ptr<Core::Topology::TopologyManager> topologyManager;
-    
+    std::unique_ptr<Core::FEM::MaterialManager> materialManager;
+
     glm::dvec2 mousePos;
     glm::dvec2 lastMousePos;
     std::vector<glm::dvec2> splinePoints;
