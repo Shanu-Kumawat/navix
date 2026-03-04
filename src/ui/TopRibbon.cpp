@@ -1,6 +1,5 @@
-#include "ui/UIState.hpp"
-#include "ui/UIHelpers.hpp"
 #include "ui/TopRibbon.hpp"
+#include "ui/UIHelpers.hpp"
 #include <imgui.h>
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
@@ -235,6 +234,12 @@ void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appCon
     appContext.consoleMessage = "All shapes cleared";
   }
   
+  // Duplicate selected shape
+  if (IconButton("duplicate_btn", "Duplicate", "Duplicate: Clone selected shape (Ctrl+D)", ImVec2(textButtonWidth, textButtonHeight))) {
+    canvas.duplicateSelectedShape();
+    appContext.consoleMessage = "Duplicated selected shape";
+  }
+  
   ImGui::EndChild();
   ImGui::PopStyleColor();
   ImGui::EndGroup();
@@ -281,6 +286,55 @@ void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appCon
   ImGui::PopStyleColor();
   ImGui::EndGroup();
   
+  // Mesh Panel
+  ImGui::SameLine(0, panelSpacing);
+  ImGui::BeginGroup();
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
+  ImGui::BeginChild("MeshPanel", ImVec2(panelWidth, panelHeight), true);
+  
+  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
+  ImGui::Text("Mesh");
+  ImGui::PopStyleColor();
+  ImGui::PopFont();
+  
+  ImGui::Dummy(ImVec2(0, 2));
+  
+  // Generate Mesh button
+  if (IconButton("mesh_gen", "Generate", "Generate Mesh: Create FEM mesh from shapes", ImVec2(textButtonWidth, textButtonHeight))) {
+    bool ok = canvas.generateMesh(canvas.getMeshElementSize());
+    if (ok) {
+      appContext.consoleMessage = "Mesh generated successfully";
+    } else {
+      appContext.consoleMessage = "Mesh generation failed - draw closed shapes first";
+    }
+  }
+  
+  // Clear Mesh button
+  if (IconButton("mesh_clr", "Clear Mesh", "Clear Mesh: Remove generated mesh", ImVec2(textButtonWidth, textButtonHeight))) {
+    canvas.clearMesh();
+    appContext.consoleMessage = "Mesh cleared";
+  }
+  
+  // Show/hide mesh toggle
+  bool meshVisible = canvas.isMeshVisible();
+  if (ImGui::Checkbox("Show", &meshVisible)) {
+    canvas.setMeshVisible(meshVisible);
+    appContext.consoleMessage = meshVisible ? "Mesh: Visible" : "Mesh: Hidden";
+  }
+  
+  // Element size control
+  ImGui::PushItemWidth(80.0f);
+  float elemSize = static_cast<float>(canvas.getMeshElementSize());
+  if (ImGui::SliderFloat("Elem", &elemSize, 1.0f, 50.0f, "%.1f")) {
+    canvas.setMeshElementSize(static_cast<double>(elemSize));
+  }
+  ImGui::PopItemWidth();
+  
+  ImGui::EndChild();
+  ImGui::PopStyleColor();
+  ImGui::EndGroup();
+  
   // Right-aligned section for 3D view button
   ImGui::SameLine();
   
@@ -296,17 +350,29 @@ void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appCon
   if (selectedShape) {
     if (selectedShape->type == Drawing::ShapeType::BELLOWS) {
       if (ImGui::Button("3D Bellows", ImVec2(100, 30))) {
-        UIState::showBellows3DView = true;
+        appContext.showBellows3DView = true;
         appContext.consoleMessage = "Opening 3D Bellows View";
       }
       hasComplexShapes = true;
     }
     else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
       if (ImGui::Button("3D Ball Bearing", ImVec2(100, 30))) {
-        UIState::showBallBearing3DView = true;
+        appContext.showBallBearing3DView = true;
         appContext.consoleMessage = "Opening 3D Ball Bearing View";
       }
       hasComplexShapes = true;
+    }
+    else if (selectedShape->type == Drawing::ShapeType::SPRING2D) {
+      if (ImGui::Button("3D Spring", ImVec2(100, 30))) {
+        appContext.showSpring3DView = true;
+        appContext.consoleMessage = "Opening 3D Spring View";
+      }
+      hasComplexShapes = true;
+      ImGui::SameLine();
+      if (ImGui::Button("3D Shock Abs.", ImVec2(100, 30))) {
+        appContext.showShockAbsorber3DView = true;
+        appContext.consoleMessage = "Opening 3D Shock Absorber View";
+      }
     }
   }
   

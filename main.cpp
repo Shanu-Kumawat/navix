@@ -4,10 +4,9 @@
 #include "ui/CanvasView.hpp"
 #include "ui/PropertyPanel.hpp"
 #include "ui/StatusBar.hpp"
-#include "ui/UIState.hpp"
+#include "ui/TopRibbon.hpp"
 #include "ui/UIHelpers.hpp"
 #include "ui/UIColors.hpp"
-#include "ui/TopRibbon.hpp"
 #include <glad/glad.h>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
@@ -325,12 +324,12 @@ int main(int argc, char* argv[]) {
         UI::StatusBar::Render(canvas, appContext);
 
         // Render 3D views if enabled
-        if (UIState::showBellows3DView) {
-          UI::Viewers3DUI::RenderBellows3DViewWindow(canvas);
+        if (appContext.showBellows3DView) {
+          UI::Viewers3DUI::RenderBellows3DViewWindow(canvas, appContext);
         }
         
-        if (UIState::showBallBearing3DView) {
-          UI::Viewers3DUI::RenderBallBearing3DViewWindow(canvas);
+        if (appContext.showBallBearing3DView) {
+          UI::Viewers3DUI::RenderBallBearing3DViewWindow(canvas, appContext);
         }
         
         // Note: The 3D views need to be implemented to work with the canvas shapes

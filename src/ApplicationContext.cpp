@@ -1,5 +1,4 @@
 #include "ApplicationContext.hpp"
-#include "Constants.hpp"
 #include <cstring>
 
 namespace Core {
@@ -14,10 +13,30 @@ ApplicationContext::ApplicationContext()
       fixedSquareSize(false),
       fixedTriangleSize(false),
       fixedRectangleSize(false),
+      // Formerly UIState globals
+      userPropertyPanelWidth(280.0f),
+      activeLayer(0),
+      layerNames({"Layer 0"}),
+      layerVisibility({true}),
+      layerColors({IM_COL32(255, 255, 255, 255)}),
+      units(Drawing::UnitSystem::Millimeters),
+      unitScale(1.0f),
+      currentWorkspace("2D Drafting"),
+      darkMode(false),
+      spring3DViewInitialized(false),
+      shockAbsorberViewerInitialized(false),
+      bellows3DViewInitialized(false),
+      ballBearing3DViewInitialized(false),
+      // 3D view show flags
       showSpring3DView(false),
       showShockAbsorber3DView(false),
+      showBellows3DView(false),
+      showBallBearing3DView(false),
+      showShockAbsorber3DViewUnified(false),
+      // Command line
       focusCommandLine(false),
       commandHistoryPos(-1),
+      // View settings
       showRulers(true),
       showCoordinates(true),
       zoomLevel(1.0f),

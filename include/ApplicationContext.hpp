@@ -4,17 +4,21 @@
 #include <string>
 #include <vector>
 #include <imgui.h>
-#include "Canvas.hpp"
+#include "Constants.hpp"
+#include "SpringViewer3D.hpp"
+#include "ShockAbsorberViewer3D.hpp"
+#include "BellowsViewer3D.hpp"
+#include "BallBearingViewer3D.hpp"
+#include "ComplexShape3DManager.hpp"
 
 namespace Core {
 
 /**
  * @brief Encapsulates all application-level state.
  * 
- * This class replaces the global `namespace UIState` previously found in main.cpp.
- * It holds the current state of the UI, active tools, view settings, and command history.
- * By passing this context object to the components that need it, we eliminate global state,
- * making the application more testable and scalable.
+ * Replaces the former global `namespace UIState`. Holds the current state of the UI,
+ * active tools, view settings, command history, layers, units, and 3D viewers.
+ * Passed by reference to components that need it, eliminating global state.
  */
 class ApplicationContext {
 public:
@@ -34,9 +38,47 @@ public:
     bool fixedTriangleSize;
     bool fixedRectangleSize;
 
-    // 3D view settings
+    // --- Formerly UIState globals ---
+
+    // Resizable property panel width (user can drag to resize)
+    float userPropertyPanelWidth;
+
+    // Layer system
+    int activeLayer;
+    std::vector<std::string> layerNames;
+    std::vector<bool> layerVisibility;
+    std::vector<ImU32> layerColors;
+
+    // Unit system
+    Drawing::UnitSystem units;
+    float unitScale;
+
+    // Recent files
+    std::vector<std::string> recentFiles;
+
+    // Workspace settings
+    std::string currentWorkspace;
+    bool darkMode;
+
+    // 3D viewer instances
+    SpringViewer3D springViewer;
+    bool spring3DViewInitialized;
+    ShockAbsorberViewer3D shockAbsorberViewer;
+    bool shockAbsorberViewerInitialized;
+    BellowsViewer3D bellowsViewer;
+    bool bellows3DViewInitialized;
+    BallBearingViewer3D ballBearingViewer;
+    bool ballBearing3DViewInitialized;
+
+    // Unified 3D Manager for all complex shapes
+    ComplexShape3DManager shape3DManager;
+
+    // 3D view show flags
     bool showSpring3DView;
     bool showShockAbsorber3DView;
+    bool showBellows3DView;
+    bool showBallBearing3DView;
+    bool showShockAbsorber3DViewUnified;
 
     // Command line
     char commandBuffer[256];
@@ -54,7 +96,7 @@ public:
     void addCommandToHistory(const std::string& command);
     void setConsoleMessage(const std::string& message, bool isError = false);
     
-    // Optional: Add a flag to indicate if the message is an error for UI styling
+    // Flag to indicate if the message is an error for UI styling
     bool isConsoleMessageError;
 };
 

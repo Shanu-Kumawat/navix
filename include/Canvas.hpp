@@ -10,12 +10,21 @@
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
 #include "commands/CommandManager.hpp"
+#include "commands/AddShapeCommand.hpp"
+#include "commands/DeleteShapeCommand.hpp"
+#include "commands/MoveShapeCommand.hpp"
+#include "commands/DuplicateShapeCommand.hpp"
+#include "commands/RotateShapeCommand.hpp"
+#include "commands/ScaleShapeCommand.hpp"
 #include "topology/TopologyManager.hpp"
 #include "fem/MaterialManager.hpp"
 #include "shapes/ShockAbsorberBottomEnd.hpp"
 #include "utils/MathUtils.hpp"
 #include "Constants.hpp"
 #include "Renderer2D.hpp"
+#include "core/ImGuiRenderer.hpp"
+#include "meshing/GmshTranslator.hpp"
+#include "meshing/Mesh.hpp"
 #include "InputController.hpp"
 #include "SceneModel.hpp"
 
@@ -29,7 +38,38 @@ class CanvasSnapshotCommand;
 class Canvas {
 public:
     friend class CanvasSnapshotCommand;
-    void render(ImDrawList* drawList) { if (renderer) renderer->render(drawList, *sceneModel); }
+    void render(ImDrawList* drawList) {
+        if (renderer) {
+            // Render grid via the renderer
+            if (showGrid) renderer->renderGrid(drawList);
+            // Render shapes from SceneModel (the canonical source of truth)
+            // Canvas::shapes is a reference to sceneModel->getShapesMutable()
+            renderer->renderShapes(drawList, shapes);
+        }
+        // Render topology overlay (nodes/edges) via ImGuiRenderer — hidden by default
+        if (showTopologyOverlay && topoRenderer && topologyManager) {
+            topoRenderer->beginFrame(drawList);
+            // Use (0,0) for windowPos because shapes use transformCoordinates() which
+            // doesn't include window position — keep coordinate systems consistent
+            topoRenderer->setTransform(panOffset, zoomLevel, glm::dvec2(0, 0));
+            for (const auto& [id, edge] : topologyManager->getEdges()) {
+                auto n1 = topologyManager->getNode(edge->getStartNodeId());
+                auto n2 = topologyManager->getNode(edge->getEndNodeId());
+                topoRenderer->drawEdge(edge.get(), n1.get(), n2.get());
+            }
+            for (const auto& [id, node] : topologyManager->getNodes()) {
+                topoRenderer->drawNode(node.get());
+            }
+        }
+        // Render mesh overlay if available
+        if (showMesh && !currentMesh.isEmpty() && renderer) {
+            renderer->beginFrame(drawList);
+            // Use (0,0) for windowPos because shapes use transformCoordinates() which
+            // doesn't include window position — keep coordinate systems consistent
+            renderer->setTransform(panOffset, zoomLevel, glm::dvec2(0, 0));
+            renderer->drawMesh(currentMesh, glm::dvec3(0.0, 0.5, 1.0));
+        }
+    }
     std::vector<glm::dvec2> calculateSplinePoints(const std::vector<glm::dvec2>& controlPoints, bool isClosed) const;
 
     // Getters for Renderer2D
@@ -41,14 +81,17 @@ public:
     float getWindowHeight() const { return windowHeight; }
     float getWindowX() const { return windowX; }
     float getWindowY() const { return windowY; }
-    bool getIsDrawing() const { return isDrawing; }
-    glm::dvec2 getStartPoint() const { return startPoint; }
-    int getClickCount() const { return clickCount; }
-    const std::array<glm::dvec2, 3>& getTrianglePoints() const { return trianglePoints; }
-    const std::vector<glm::dvec2>& getCurrentSplinePoints() const { return currentSplinePoints; }
-    const std::vector<glm::dvec2>& getCurrentCurvePoints() const { return currentCurvePoints; }
     bool getShowControlPoints() const { return showControlPoints; }
-    Shape* getSelectedShape() const { return selectedShape; }
+    Shape* getSelectedShape() const { return selectedShape; } // Synced with SceneModel
+    DrawingMode getCurrentMode() const { return currentMode; }
+
+    // Drawing state — forwarded to InputController (canonical owner)
+    bool getIsDrawing() const;
+    glm::dvec2 getStartPoint() const;
+    int getClickCount() const;
+    const std::array<glm::dvec2, 3>& getTrianglePoints() const;
+    const std::vector<glm::dvec2>& getCurrentSplinePoints() const;
+    const std::vector<glm::dvec2>& getCurrentCurvePoints() const;
     
     // Make these public for now
     
@@ -113,8 +156,8 @@ public:
     void setFixedTriangleSize(bool fixed) { fixedTriangleSize = fixed; }
     bool isFixedTriangleSize() const { return fixedTriangleSize; }
 
-    // Selection methods
-    void selectShape(Shape* shape) { selectedShape = shape; }
+    // Selection methods — synced with SceneModel
+    void selectShape(Shape* shape) { selectedShape = shape; if (sceneModel) sceneModel->selectShape(shape); }
     void clearSelection();
 
     // Shape manipulation methods
@@ -129,6 +172,16 @@ public:
     void redo();
     void saveToHistory();
 
+    // Shape creation (used by InputController)
+    void addShapeWithCommand(std::unique_ptr<Shape> shape);
+    void createTopologyForShape(Shape* shape);
+    void removeTopologyForShape(Shape* shape);
+    void updateTopologyPositions(Shape* shape);
+
+    // Snapping (used by InputController)
+    glm::dvec2 getSnappedPoint(const glm::dvec2& point) const;
+    glm::dvec2 findNearestSnapPoint(const glm::dvec2& pos) const;
+
     void setWindowInfo(float x, float y, float width, float height) {
         windowX = x;
         windowY = y;
@@ -137,6 +190,16 @@ public:
     }
 
     void clearAll();
+
+    // Meshing
+    bool generateMesh(double elementSize = 10.0);
+    void clearMesh();
+    bool hasMesh() const;
+    const Core::Meshing::Mesh& getMesh() const { return currentMesh; }
+    void setMeshElementSize(double size) { meshElementSize = size; }
+    double getMeshElementSize() const { return meshElementSize; }
+    bool isMeshVisible() const { return showMesh; }
+    void setMeshVisible(bool visible) { showMesh = visible; }
 
     struct SnapPoint {
         glm::dvec2 point;
@@ -260,7 +323,7 @@ public:
                 transformedMax.y < 0 || transformedMin.y > windowHeight);
     }
 
-    void addShape(std::unique_ptr<Shape> shape) { shapes.push_back(std::move(shape)); }
+    void addShape(std::unique_ptr<Shape> shape) { shapes.push_back(std::move(shape)); } // Pushes to SceneModel via reference
 
     // Update all ShockAbsorberEnd2D shapes for a given parent spring
     void updateShockAbsorberEndsForSpring(const Drawing::Spring2D* spring);
@@ -281,17 +344,15 @@ public:
     bool hasCompleteShockAbsorberAssembly() const;
 
 private:
-    std::unique_ptr<Core::Renderer2D> renderer;
-    std::unique_ptr<Core::InputController> inputController;
+    // SceneModel must be declared first since shapes is a reference into it
     std::unique_ptr<Core::SceneModel> sceneModel;
+    std::unique_ptr<Core::Renderer2D> renderer;
+    std::unique_ptr<Core::Graphics::ImGuiRenderer> topoRenderer; // For topology overlay
+    std::unique_ptr<Core::InputController> inputController;
 
-    // Drawing state
+    // Drawing state (currentMode stays here; drawing interaction state is in InputController)
     DrawingMode currentMode{DrawingMode::None};
-    bool isDrawing{false};
-    bool isFirstClick{true};
-    int clickCount{0};
     bool snapToGrid{true};
-    bool isDraggingCanvas{false};
     
     // Transform state
     float zoomLevel{1.0f};
@@ -303,20 +364,8 @@ private:
     float gridSpacing{Constants::DEFAULT_GRID_SPACING};
     bool showGrid{true};
     
-    // Shape collections
-    std::vector<std::unique_ptr<Shape>> shapes;
-    
-    // Temporary drawing state
-    glm::dvec2 startPoint{0.0f, 0.0f};
-    glm::dvec2 endPoint{0.0f, 0.0f};
-    std::array<glm::dvec2, 3> trianglePoints{};
-    std::vector<glm::dvec2> currentSplinePoints;
-    
-    // Curve editing state
-    std::vector<glm::dvec2> currentCurvePoints;
-    bool isEditingCurve{false};
-    float curveStartT{0.0f};
-    float curveEndT{1.0f};
+    // Shape collection — reference to SceneModel's canonical shapes vector
+    std::vector<std::unique_ptr<Shape>>& shapes;
     
     // Line specific state
     
@@ -334,6 +383,7 @@ private:
     float windowHeight{0.0f};
 
     bool showControlPoints{true};
+    bool showTopologyOverlay{false};
     Shape* selectedShape{nullptr};
 
     // Drawing data
@@ -343,6 +393,14 @@ private:
     Core::Commands::CommandManager commandManager;
     std::unique_ptr<Core::Topology::TopologyManager> topologyManager;
     std::unique_ptr<Core::FEM::MaterialManager> materialManager;
+
+    // Shape ↔ Topology mapping — tracks which topology IDs belong to each shape
+    struct ShapeTopology {
+        std::vector<uint64_t> nodeIds;
+        std::vector<uint64_t> edgeIds;
+        std::vector<uint64_t> faceIds;
+    };
+    std::unordered_map<Drawing::Shape*, ShapeTopology> shapeTopoMap;
 
     glm::dvec2 mousePos;
     glm::dvec2 lastMousePos;
@@ -366,31 +424,13 @@ private:
     
     // Helper methods
     void restoreHistoryState(const HistoryState& state);
-    glm::dvec2 getSnappedPoint(const glm::dvec2& point) const;
     bool trySnapToExistingPoint(glm::dvec2& point) const;
     void renderPreview(ImDrawList* drawList, const glm::dvec2& currentPos) const;
     std::optional<glm::dvec2> findNearestPoint(const glm::dvec2& point, float threshold) const;
-    glm::dvec2 findNearestSnapPoint(const glm::dvec2& pos) const;
     
-    // Vector math helpers
-    static glm::dvec2 normalizeVector(const glm::dvec2& vec) {
-        float length = std::sqrt(vec.x * vec.x + vec.y * vec.y);
-        if (length < 0.0001f) return glm::dvec2(1.0f, 0.0f); // Avoid division by zero
-        return glm::dvec2(vec.x / length, vec.y / length);
-    }
+
     
-    // Drawing handlers
-    void handlePointDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleLineDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleCircleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleTriangleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleSquareDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleRectangleDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleSplineDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleBezierDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleBellowsDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleBallBearingDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
-    void handleSpring2DDrawing(ImDrawList* drawList, const glm::dvec2& currentPos);
+    // Drawing handlers — moved to InputController
     
     // Preview methods
     void previewPoint(ImDrawList* drawList, const glm::dvec2& pos) const;
@@ -432,6 +472,12 @@ private:
     Drawing::UnitSystem currentUnits = Drawing::UnitSystem::Millimeters;
     float conversionFactor = 1.0f;
     float dpi = 96.0f;
+
+    // Meshing state
+    Core::Meshing::GmshTranslator gmshTranslator;
+    Core::Meshing::Mesh currentMesh;
+    double meshElementSize{10.0};
+    bool showMesh{true};
 
     void updateConversionFactor() {
         switch(currentUnits) {

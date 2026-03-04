@@ -1,5 +1,5 @@
 #include "ui/PropertyPanel.hpp"
-#include "ui/UIState.hpp"
+
 #include "ui/UIHelpers.hpp"
 #include "ui/UIColors.hpp"
 #include <imgui.h>
@@ -14,10 +14,10 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
   const float statusBarHeight = 28.0f;
   
   // Clamp user width to valid range
-  UIState::userPropertyPanelWidth = std::max(propertyPanelMinWidth, std::min(propertyPanelMaxWidth, UIState::userPropertyPanelWidth));
+  appContext.userPropertyPanelWidth = std::max(propertyPanelMinWidth, std::min(propertyPanelMaxWidth, appContext.userPropertyPanelWidth));
   
-  ImGui::SetNextWindowPos(ImVec2(screenWidth - UIState::userPropertyPanelWidth, ribbonHeight), ImGuiCond_Always);
-  ImGui::SetNextWindowSize(ImVec2(UIState::userPropertyPanelWidth, ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight), ImGuiCond_Always);
+  ImGui::SetNextWindowPos(ImVec2(screenWidth - appContext.userPropertyPanelWidth, ribbonHeight), ImGuiCond_Always);
+  ImGui::SetNextWindowSize(ImVec2(appContext.userPropertyPanelWidth, ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight), ImGuiCond_Always);
   
   // Allow horizontal resize only (NoMove keeps vertical position fixed)
   ImGui::Begin("Properties", nullptr,
@@ -25,8 +25,8 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
   
   // Update stored width if user resized the window
   ImVec2 currentSize = ImGui::GetWindowSize();
-  if (currentSize.x != UIState::userPropertyPanelWidth) {
-    UIState::userPropertyPanelWidth = currentSize.x;
+  if (currentSize.x != appContext.userPropertyPanelWidth) {
+    appContext.userPropertyPanelWidth = currentSize.x;
   }
 
   // Get the selected shape
@@ -781,7 +781,7 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
         // Unified 3D View button for Bellows
         ImGui::Separator();
         if (ComplexShape3DManager::render3DViewButton("3D Bellows View", "Open 3D visualization of the bellows")) {
-          UIState::showBellows3DView = true;
+          appContext.showBellows3DView = true;
         }
       }
       // Add Ball Bearing shape properties
@@ -889,7 +889,7 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
         // Unified 3D View button for Ball Bearing
         ImGui::Separator();
         if (ComplexShape3DManager::render3DViewButton("3D Ball Bearing View", "Open 3D visualization of the ball bearing")) {
-          UIState::showBallBearing3DView = true;
+          appContext.showBallBearing3DView = true;
         }
       }
     }
@@ -983,70 +983,12 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
       
       // ... rest of the bellows properties section ...
     }
+    
+    // Ensure we pop the style color for header
+    ImGui::PopStyleColor();
   }
-
-  // --- FEA Materials Section ---
-  if (ImGui::CollapsingHeader("FEA Materials", ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::Indent(10);
-      Drawing::Shape* selShape = canvas.getSelectedShape();
-      if (selShape) {
-          uint32_t currentMatId = selShape->materialId;
-          auto materials = canvas.getMaterialManager()->getAllMaterials();
-          
-          ImGui::Text("Material Assignment");
-          if (ImGui::BeginCombo("##ShapeMat", currentMatId == 0 ? "None" : canvas.getMaterialManager()->getMaterial(currentMatId)->name.c_str())) {
-              if (ImGui::Selectable("None", currentMatId == 0)) {
-                  selShape->materialId = 0;
-              }
-              for (const auto& mat : materials) {
-                  bool is_selected = (currentMatId == mat.id);
-                  if (ImGui::Selectable(mat.name.c_str(), is_selected)) {
-                      selShape->materialId = mat.id;
-                  }
-                  if (is_selected) {
-                      ImGui::SetItemDefaultFocus();
-                  }
-              }
-              ImGui::EndCombo();
-          }
-
-          if (currentMatId != 0) {
-              const Core::FEM::Material* mat = canvas.getMaterialManager()->getMaterial(currentMatId);
-              if (mat) {
-                  ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "Properties:");
-                  ImGui::Text("E: %.1f GPa", mat->youngsModulus / 1e9);
-                  ImGui::Text("v: %.3f", mat->poissonsRatio);
-                  ImGui::Text("p: %.1f kg/m^3", mat->density);
-              }
-          }
-      } else {
-          ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Select an object to assign\na material.");
-      }
-      
-      ImGui::Separator();
-      if (ImGui::Button("Manage Global Library")) {
-          ImGui::OpenPopup("Material Library Info##LibPopup");
-      }
-      
-      if (ImGui::BeginPopupModal("Material Library Info##LibPopup", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-          ImGui::Text("Current Global Materials:");
-          ImGui::Separator();
-          auto materials = canvas.getMaterialManager()->getAllMaterials();
-          for (const auto& mat : materials) {
-              ImGui::BulletText("%s (E=%.1f GPa, v=%.2f)", mat.name.c_str(), mat.youngsModulus / 1e9, mat.poissonsRatio);
-          }
-          ImGui::Separator();
-          if (ImGui::Button("Close", ImVec2(120, 0))) {
-              ImGui::CloseCurrentPopup();
-          }
-          ImGui::EndPopup();
-      }
-
-      ImGui::Unindent(10);
-  }
-
-  // Ensure we pop the style color for header -> matches line 204
-  ImGui::PopStyleColor();
+  
+  // End the scrollable child region
   ImGui::EndChild();
   
   ImGui::End();
@@ -1089,7 +1031,7 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
     // Unified 3D Shock Absorber button using the new manager
     ImGui::Separator();
     if (ComplexShape3DManager::render3DViewButton("3D Shock Absorber View (Unified)", "Open unified 3D visualization of the complete shock absorber assembly")) {
-      UIState::showShockAbsorber3DViewUnified = true;
+      appContext.showShockAbsorber3DViewUnified = true;
     }
   }
 }

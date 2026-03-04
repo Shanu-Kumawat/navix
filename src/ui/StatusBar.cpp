@@ -1,5 +1,4 @@
 #include "ui/StatusBar.hpp"
-#include "ui/UIState.hpp"
 #include "ui/UIHelpers.hpp"
 #include "ui/UIColors.hpp"
 #include <imgui.h>
@@ -35,7 +34,7 @@ void UI::StatusBar::Render(Drawing::Canvas &canvas, Core::ApplicationContext& ap
   
   // Units-aware coordinate display
   std::string unitSuffix;
-  switch (UIState::units) {
+  switch (appContext.units) {
     case Drawing::UnitSystem::Pixels:
       unitSuffix = "px";
       break;
@@ -50,8 +49,8 @@ void UI::StatusBar::Render(Drawing::Canvas &canvas, Core::ApplicationContext& ap
       break;
   }
   
-  float scaledX = mousePos.x / UIState::unitScale;
-  float scaledY = mousePos.y / UIState::unitScale;
+  float scaledX = mousePos.x / appContext.unitScale;
+  float scaledY = mousePos.y / appContext.unitScale;
   
   // Section 1: Coordinates
   ImGui::Text("X: %.1f%s  Y: %.1f%s", scaledX, unitSuffix.c_str(), scaledY, unitSuffix.c_str());

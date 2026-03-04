@@ -14,8 +14,8 @@ namespace Colors {
     const ImU32 RECTANGLE = IM_COL32(30, 30, 30, 255);     // Dark gray
     const ImU32 SPLINE = IM_COL32(30, 30, 30, 255);        // Dark gray
     const ImU32 BEZIER = IM_COL32(30, 30, 30, 255);        // Dark gray
-    const ImU32 PREVIEW = IM_COL32(120, 120, 120, 180);    // Medium gray with opacity
-    const ImU32 PREVIEW_LIGHT = IM_COL32(150, 150, 150, 180); // Medium-light gray
+    const ImU32 PREVIEW = IM_COL32(0, 120, 255, 220);        // Bright blue for clear preview visibility
+    const ImU32 PREVIEW_LIGHT = IM_COL32(80, 160, 255, 200); // Lighter blue for secondary preview
     const ImU32 CONTROL_POINT = IM_COL32(45, 175, 175, 255);  // Teal control points
     const ImU32 CONTROL_LINE = IM_COL32(100, 100, 100, 180);  // Medium gray for control lines
     const ImU32 GRID_MINOR = IM_COL32(205, 180, 140, 120);    // Light wood/beige for minor grid lines
