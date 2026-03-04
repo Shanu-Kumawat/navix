@@ -2,7 +2,7 @@
 
 This document outlines the phased approach to refactoring NAVIX and preparing it for meshing and FEA solver integration.
 
-**Last audited: March 1, 2026 (evening session 3)** — Status verified against actual source code.
+**Last audited: March 4, 2026** — Status verified against actual source code and git history.
 
 ## Phase 1: Stabilization & Decoupling (COMPLETE)
 **Goal**: Establish a clean, modular architecture and eliminate technical debt.
@@ -27,6 +27,14 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 - **Priority 5**: [COMPLETED] Meshing UI. TopRibbon "Mesh" panel with Generate, Clear Mesh buttons, Show toggle, and Element Size slider. Canvas exposes `generateMesh()`, `clearMesh()`, `hasMesh()`, `setMeshElementSize()`, `setMeshVisible()`.
 - **Cleanup**: Legacy `GmshIntegration` class removed from build (was an inferior duplicate of `GmshTranslator`; only translated nodes, not edges/faces).
 
+### Phase 3.5: 3D FEM Mesh Generation (COMPLETE)
+**Goal**: Generate and display FEM meshes directly on 3D model surfaces.
+- **Priority 1**: [COMPLETED] FEM mesh infrastructure in `Base3DModel`. Virtual `generateFEMMesh()`, mesh storage, wireframe buffer setup, bright green wireframe rendering. `showFEMMesh` defaults to `true`.
+- **Priority 2**: [COMPLETED] Bellows FEM mesh. OCC revolve of de-duplicated bellows profile wire around X-axis. Per-line try/catch for robustness. Result: 678 nodes, 1216 elements.
+- **Priority 3**: [COMPLETED] BallBearing FEM mesh. OCC cylinders with boolean cuts + spheres for ball geometry.
+- **Priority 4**: [COMPLETED] ShockAbsorber FEM mesh. 10 OCC components including stacked tori for coil spring (replacing BSpline pipe which caused hangs). Result: 1619 nodes, 2376 elements.
+- **Priority 5**: [COMPLETED] Auto-mesh on 3D surfaces. All viewers auto-generate FEM mesh when model lacks mesh data.
+
 ## Phase 4: FEA Solver & Post-Processing (Next Focus)
 **Goal**: Perform structural analysis and visualize results.
 - **Priority 1**: [PARTIAL] Eigen3 integration. CMakeLists correctly finds system Eigen3 or fetches 3.4.0 via FetchContent. **Zero source files actually `#include <Eigen/...>`**. No FEA compute code exists.
@@ -37,7 +45,7 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 - **Priority 6**: [NOT STARTED] Post-processing rendering (stress contours).
 - **Priority 7**: [NOT STARTED] Complete UI/UX Redesign.
 
-## What Actually Works (March 1, 2026)
+## What Actually Works (March 4, 2026)
 These features are **verified functional** in the running application:
 
 ### Drawing Tools (all with live previews)
@@ -57,6 +65,13 @@ These features are **verified functional** in the running application:
 - Ball Bearing 3D viewer (select ball bearing → click "3D Ball Bearing" button)
 - Spring 3D viewer (select spring → click "3D Spring" button)
 - Shock Absorber 3D viewer (requires assembly: spring + top/bottom end)
+
+### 3D FEM Meshing (NEW — Phase 3.5)
+- FEM mesh auto-generated on all 3D model surfaces
+- Bellows: 678 nodes, 1216 elements via OCC revolve
+- ShockAbsorber: 1619 nodes, 2376 elements via OCC primitives + tori
+- BallBearing: OCC cylinders + boolean cuts + spheres
+- Green wireframe overlay on 3D surfaces (toggle via UI)
 
 ### Core Features
 - Undo/Redo (Ctrl+Z / Ctrl+Y, 6 granular commands + snapshot for clearAll)
