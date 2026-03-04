@@ -4,7 +4,6 @@
 #include <vector>
 #include <string>
 #include "meshing/Mesh.hpp"
-#include "meshing/Mesh.hpp"
 
 namespace Core {
 namespace Meshing {
@@ -50,14 +49,15 @@ public:
      */
     void launchGmshGUI();
 
-private:
-    bool isInitialized = false;
     /**
      * @brief Extract the generated mesh from Gmsh
      * @param outMesh Mesh storage container
      * @param dim Dimension of mesh to extract
      */
     bool extractGeneratedMesh(Mesh& outMesh, int dim = 2);
+
+private:
+    bool isInitialized = false;
 };
 
 } // namespace Meshing

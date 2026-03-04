@@ -166,10 +166,8 @@ add_library(drawing STATIC
     src/meshing/GmshTranslator.cpp
     src/meshing/Mesh.cpp
     src/meshing/GmshExtractor.cpp
-    src/topology/GmshIntegration.cpp
     src/core/ImGuiRenderer.cpp
     src/ui/TopRibbon.cpp
-    src/ui/UIState.cpp
     src/ui/UIHelpers.cpp
     src/ui/PropertyPanel.cpp
     src/ui/StatusBar.cpp

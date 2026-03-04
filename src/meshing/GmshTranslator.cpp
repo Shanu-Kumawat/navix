@@ -11,7 +11,6 @@ namespace Core {
 namespace Meshing {
 
 bool GmshTranslator::initialize() {
-#include "meshing/GmshExtractor.hpp"
 #ifdef USE_GMSH
     if (isInitialized) return true;
     try {
@@ -32,7 +31,6 @@ bool GmshTranslator::initialize() {
 }
 
 void GmshTranslator::finalize() {
-#include "meshing/GmshExtractor.hpp"
 #ifdef USE_GMSH
     if (isInitialized) {
         gmsh::finalize();
@@ -43,7 +41,6 @@ void GmshTranslator::finalize() {
 }
 
 bool GmshTranslator::translateTopologyToGmsh(const Core::Topology::TopologyManager& topologyManager, bool synchronize) {
-#include "meshing/GmshExtractor.hpp"
 #ifdef USE_GMSH
     if (!isInitialized && !initialize()) return false;
 
@@ -99,7 +96,6 @@ bool GmshTranslator::translateTopologyToGmsh(const Core::Topology::TopologyManag
 }
 
 void GmshTranslator::generateMesh(int dimensions, double elementSize) {
-#include "meshing/GmshExtractor.hpp"
 #ifdef USE_GMSH
     if (!isInitialized) return;
     try {
@@ -116,7 +112,6 @@ void GmshTranslator::generateMesh(int dimensions, double elementSize) {
 }
 
 void GmshTranslator::launchGmshGUI() {
-#include "meshing/GmshExtractor.hpp"
 #ifdef USE_GMSH
     if (!isInitialized) return;
     try {
