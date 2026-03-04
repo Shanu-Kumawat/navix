@@ -1,8 +1,13 @@
 #include <glm/glm.hpp>
 #include "ShockAbsorberModel3D.hpp"
+#include "meshing/GmshExtractor.hpp"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+
+#ifdef USE_GMSH
+#include <gmsh.h>
+#endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -712,4 +717,178 @@ void ShockAbsorberModel3D::generateShockAbsorberGeometry() {
 
 std::vector<glm::dvec2> ShockAbsorberModel3D::generateEnhancedSpringProfile() const {
     return std::vector<glm::dvec2>();
+}
+
+bool ShockAbsorberModel3D::generateFEMMesh(float elementSize) {
+#ifdef USE_GMSH
+    if (!currentSpring || !currentEnd || !currentBottomEnd) return false;
+
+    clearFEMMesh();
+    femElementSize = elementSize;
+
+    try {
+        gmsh::initialize();
+        gmsh::option::setNumber("General.Terminal", 0);
+        gmsh::model::add("ShockAbsorber3D");
+
+        // Same scale as visualization
+        float scale = 1.0f / 100.0f;
+
+        float springOuterRadius = (currentSpring->outerDiameter / 2.0f) * scale;
+        float springWireRadius  = (currentSpring->wireDiameter / 2.0f) * scale;
+        float springHelixRadius = springOuterRadius - springWireRadius;
+        float springLength      = currentSpring->freeLength * scale;
+        int   numCoils          = currentSpring->numCoils;
+
+        float pistonRodRadius       = springWireRadius * 0.8f;
+        float damperTubeOuterRadius = springHelixRadius * 0.35f;
+        float damperTubeInnerRadius = damperTubeOuterRadius * 0.7f;
+
+        float springStartY = -springLength * 0.5f;
+        float springEndY   = springStartY + springLength;
+
+        float topNutHeight    = springLength * 0.08f;
+        float topCapHeight    = springLength * 0.06f;
+        float topCollarHeight = springLength * 0.05f;
+        float upperSeatThickness = springLength * 0.035f;
+        float lowerSeatThickness = springLength * 0.035f;
+        float lowerSeatRadius    = springOuterRadius * 1.05f;
+        float upperSeatRadius    = springOuterRadius * 1.05f;
+        float topCollarRadius    = springOuterRadius * 0.5f;
+        float topNutRadius       = springOuterRadius * 0.4f;
+        float topCapRadius       = springOuterRadius * 0.35f;
+        float bottomMountHeight  = springLength * 0.35f;
+        float bottomPlateThickness = springWireRadius * 0.7f;
+        float discHeight  = springLength * 0.04f;
+        float discRadius  = lowerSeatRadius * 1.3f;
+
+        // Helper: add OCC cylinder along Y-axis
+        auto addCyl = [&](float bottomY, float topY, float radius) -> int {
+            float height = topY - bottomY;
+            if (height <= 0 || radius <= 0) return -1;
+            return gmsh::model::occ::addCylinder(0, bottomY, 0, 0, height, 0, radius);
+        };
+
+        // 1. Lower spring seat (annular: outer - inner)
+        int lsSeatOuter = addCyl(springStartY - lowerSeatThickness, springStartY, lowerSeatRadius);
+        int lsSeatInner = addCyl(springStartY - lowerSeatThickness, springStartY, damperTubeOuterRadius);
+        if (lsSeatOuter > 0 && lsSeatInner > 0) {
+            gmsh::vectorpair a = {{3, lsSeatOuter}}, b = {{3, lsSeatInner}}, r;
+            std::vector<gmsh::vectorpair> m;
+            gmsh::model::occ::cut(a, b, r, m);
+        }
+
+        // 2. Upper damper tube (hollow)
+        float upperTubeBottom = springStartY + springLength * 0.3f;
+        float upperTubeTop = springEndY + upperSeatThickness + topCollarHeight + topNutHeight + topCapHeight;
+        int dtOuter = addCyl(upperTubeBottom, upperTubeTop, damperTubeOuterRadius);
+        int dtInner = addCyl(upperTubeBottom, upperTubeTop, damperTubeInnerRadius);
+        if (dtOuter > 0 && dtInner > 0) {
+            gmsh::vectorpair a = {{3, dtOuter}}, b = {{3, dtInner}}, r;
+            std::vector<gmsh::vectorpair> m;
+            gmsh::model::occ::cut(a, b, r, m);
+        }
+
+        // 3. Lower piston rod (solid cylinder)
+        float lowerRodTop = springEndY - springLength * 0.3f;
+        float lowerRodBottom = springStartY - lowerSeatThickness - bottomMountHeight - bottomPlateThickness;
+        addCyl(lowerRodBottom, lowerRodTop, pistonRodRadius);
+
+        // 4. Coil spring — approximate with individual torus sections per coil
+        // (OCC BSpline pipe is too slow for real-time; tori give good visual approximation)
+        {
+            float coilPitch = springLength / numCoils;
+            for (int c = 0; c < numCoils; ++c) {
+                float centerY = springStartY + (c + 0.5f) * coilPitch;
+                // addTorus creates a torus with axis along Z by default
+                // We need the ring in XZ plane (axis along Y)
+                // So create at origin with Z-axis, then rotate to Y-axis
+                int torusTag = gmsh::model::occ::addTorus(0, 0, 0,
+                    springHelixRadius, springWireRadius);
+                // Rotate 90 degrees around X-axis to change axis from Z to Y
+                gmsh::model::occ::rotate({{3, torusTag}}, 0, 0, 0, 1, 0, 0, M_PI / 2.0);
+                // Translate to correct Y position
+                gmsh::model::occ::translate({{3, torusTag}}, 0, centerY, 0);
+            }
+        }
+
+        // 5. Upper spring seat (annular)
+        int usSeatOuter = addCyl(springEndY, springEndY + upperSeatThickness, upperSeatRadius);
+        int usSeatInner = addCyl(springEndY, springEndY + upperSeatThickness, pistonRodRadius);
+        if (usSeatOuter > 0 && usSeatInner > 0) {
+            gmsh::vectorpair a = {{3, usSeatOuter}}, b = {{3, usSeatInner}}, r;
+            std::vector<gmsh::vectorpair> m;
+            gmsh::model::occ::cut(a, b, r, m);
+        }
+
+        // 6. Top collar (hollow)
+        float collarBottom = springEndY + upperSeatThickness;
+        float collarTop = collarBottom + topCollarHeight;
+        int tcOuter = addCyl(collarBottom, collarTop, topCollarRadius);
+        int tcInner = addCyl(collarBottom, collarTop, pistonRodRadius);
+        if (tcOuter > 0 && tcInner > 0) {
+            gmsh::vectorpair a = {{3, tcOuter}}, b = {{3, tcInner}}, r;
+            std::vector<gmsh::vectorpair> m;
+            gmsh::model::occ::cut(a, b, r, m);
+        }
+
+        // 7. Top nut (solid cylinder)
+        float nutBottom = collarTop;
+        float nutTop = nutBottom + topNutHeight;
+        addCyl(nutBottom, nutTop, topNutRadius);
+
+        // 8. Top cap (solid)
+        addCyl(nutTop, nutTop + topCapHeight, topCapRadius);
+
+        // 9. Bottom disc (annular)
+        float discTop = springStartY - lowerSeatThickness;
+        float discBot = discTop - discHeight;
+        int discOuter = addCyl(discBot, discTop, discRadius);
+        int discInner = addCyl(discBot, discTop, pistonRodRadius);
+        if (discOuter > 0 && discInner > 0) {
+            gmsh::vectorpair a = {{3, discOuter}}, b = {{3, discInner}}, r;
+            std::vector<gmsh::vectorpair> m;
+            gmsh::model::occ::cut(a, b, r, m);
+        }
+
+        // 10. Bottom U-mount legs (simplified as 2 boxes)
+        float uMountTop = discBot;
+        float halfW = springOuterRadius * 0.45f;
+        float legWidth = springWireRadius * 1.2f;
+        float legDepth = springWireRadius * 0.9f;
+        float legBottom = uMountTop - bottomMountHeight;
+        gmsh::model::occ::addBox(-halfW, legBottom, -legDepth, legWidth, uMountTop - legBottom, 2 * legDepth);
+        gmsh::model::occ::addBox(halfW - legWidth, legBottom, -legDepth, legWidth, uMountTop - legBottom, 2 * legDepth);
+
+        gmsh::model::occ::synchronize();
+
+        // Use larger element size for this complex model to keep it fast
+        float meshSize = std::max(elementSize, springWireRadius * 1.5f);
+        gmsh::option::setNumber("Mesh.CharacteristicLengthMin", meshSize * 0.5);
+        gmsh::option::setNumber("Mesh.CharacteristicLengthMax", meshSize);
+        gmsh::option::setNumber("Mesh.Algorithm", 6);  // Frontal-Delaunay for speed
+
+        // Generate surface mesh
+        gmsh::model::mesh::generate(2);
+
+        Core::Meshing::GmshExtractor extractor;
+        bool ok = extractor.extractMesh(femMesh, 2);
+        gmsh::finalize();
+
+        if (ok && !femMesh.isEmpty()) {
+            showFEMMesh = true;
+            setupMeshWireframeBuffers();
+            std::cout << "[ShockAbsorberModel3D] FEM mesh: " << femMesh.getNodes().size()
+                      << " nodes, " << femMesh.getElements().size() << " elements." << std::endl;
+            return true;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[ShockAbsorberModel3D] FEM mesh failed: " << e.what() << std::endl;
+        try { gmsh::finalize(); } catch (...) {}
+    }
+    return false;
+#else
+    std::cerr << "[ShockAbsorberModel3D] Built without USE_GMSH." << std::endl;
+    return false;
+#endif
 }

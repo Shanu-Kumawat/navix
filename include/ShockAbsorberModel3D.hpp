@@ -17,6 +17,7 @@ public:
     
     // Base3DModel interface implementation
     void generateMesh() override;
+    bool generateFEMMesh(float elementSize) override;
     
     // Shock absorber-specific mesh generation (takes multiple components)
     void generateMesh(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 

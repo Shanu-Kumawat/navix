@@ -16,6 +16,7 @@ public:
     
     // Base3DModel interface implementation
     void generateMesh() override;
+    bool generateFEMMesh(float elementSize) override;
     
     // Ball bearing-specific mesh generation
     void generateMesh(const Drawing::BallBearing* ballBearing);

@@ -36,6 +36,10 @@ Camera* Base3DViewer::getCamera() const {
 }
 
 void Base3DViewer::setupFramebuffer(int width, int height) {
+    // Guard against zero or negative dimensions 
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
+    
     // Delete existing framebuffer if it exists
     if (framebuffer) {
         glDeleteFramebuffers(1, &framebuffer);
@@ -75,6 +79,10 @@ void Base3DViewer::setupFramebuffer(int width, int height) {
 }
 
 void Base3DViewer::resizeFramebuffer(int width, int height) {
+    // Guard against zero or negative dimensions (can happen on first ImGui frame)
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
+    
     if (width != viewportWidth || height != viewportHeight) {
         setupFramebuffer(width, height);
     }

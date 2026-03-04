@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include "imgui.h"
 #include "Shader.hpp"
+#include "meshing/Mesh.hpp"
 
 /**
  * Base class for all 3D shape models providing standardized mesh handling
@@ -46,6 +47,16 @@ public:
     void setCrossSectionAxis(int axis);
     void setCrossSectionPosition(float position);
     
+    // FEM mesh generation and rendering
+    virtual bool generateFEMMesh(float elementSize);
+    void renderFEMMeshWireframe(const glm::mat4& projection, const glm::mat4& view, const glm::vec3& cameraPos);
+    void clearFEMMesh();
+    bool hasFEMMesh() const { return !femMesh.isEmpty(); }
+    void setShowFEMMesh(bool show) { showFEMMesh = show; }
+    bool getShowFEMMesh() const { return showFEMMesh; }
+    float getFEMElementSize() const { return femElementSize; }
+    void setFEMElementSize(float size) { femElementSize = size; }
+
     // Status queries
     bool isMouseDragging() const { return mouseDragging; }
     bool hasMesh() const { return !indices.empty(); }
@@ -60,6 +71,7 @@ protected:
     void revolveProfileAroundX(const std::vector<glm::dvec2>& profile, int segments, float xOffset = 0.0f, float xScale = 1.0f);
     void generateNormals();
     void clearMesh();
+    void setupMeshWireframeBuffers();
     
     // OpenGL objects
     unsigned int VAO, VBO, EBO;
@@ -99,6 +111,13 @@ protected:
     bool showCrossSection;
     int crossSectionAxis;
     float crossSectionPos;
+    
+    // FEM mesh data
+    Core::Meshing::Mesh femMesh;
+    bool showFEMMesh;
+    float femElementSize;
+    unsigned int meshWireVAO, meshWireVBO;
+    int meshWireVertexCount;
     
 private:
     // Internal helper methods

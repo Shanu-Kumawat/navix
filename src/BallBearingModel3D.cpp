@@ -1,7 +1,16 @@
 #include <glm/glm.hpp>
 #include "BallBearingModel3D.hpp"
+#include "meshing/GmshExtractor.hpp"
 #include <iostream>
 #include <cmath>
+
+#ifdef USE_GMSH
+#include <gmsh.h>
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 BallBearingModel3D::BallBearingModel3D() : Base3DModel(), currentBallBearing(nullptr) {
     // Initialize ball bearing-specific default material properties (metallic)
@@ -176,4 +185,98 @@ void BallBearingModel3D::generateBallGeometry(const std::vector<glm::dvec2>& bal
         
         baseIndex += (ballSegments + 1) * (ballSegments + 1);
     }
+}
+
+bool BallBearingModel3D::generateFEMMesh(float elementSize) {
+#ifdef USE_GMSH
+    if (!currentBallBearing) return false;
+
+    clearFEMMesh();
+    femElementSize = elementSize;
+
+    try {
+        gmsh::initialize();
+        gmsh::option::setNumber("General.Terminal", 0);
+        gmsh::model::add("BallBearing3D");
+
+        // Get parameters and normalize (same as visualization)
+        float outerRadius = currentBallBearing->outerDiameter / 2.0f;
+        float innerRadius = currentBallBearing->innerDiameter / 2.0f;
+        float width = currentBallBearing->width;
+        float maxDim = outerRadius;
+        float scale = 1.0f / maxDim;
+
+        float halfW = (width * scale) / 2.0f;
+        float iR = innerRadius * scale;
+        float oR = outerRadius * scale;
+
+        // Inner race: hollow cylinder revolved around Y-axis
+        // OCC addCylinder creates cylinder from (x,y,z) along direction (dx,dy,dz) with radius r
+        // Inner race outer surface
+        float raceThick = (oR - iR) * 0.18f;
+        float iRaceOuter = iR + raceThick;
+        float oRaceInner = oR - raceThick;
+        float raceH = halfW * 0.7f;
+
+        // Create inner race as a hollow cylinder (using OCC boolean: outer - inner)
+        int innerCylOuter = gmsh::model::occ::addCylinder(0, -raceH, 0, 0, 2 * raceH, 0, iRaceOuter);
+        int innerCylInner = gmsh::model::occ::addCylinder(0, -raceH, 0, 0, 2 * raceH, 0, iR);
+
+        gmsh::vectorpair outerDT, innerDT, cutResult;
+        outerDT.push_back({3, innerCylOuter});
+        innerDT.push_back({3, innerCylInner});
+        std::vector<gmsh::vectorpair> cutMap;
+        gmsh::model::occ::cut(outerDT, innerDT, cutResult, cutMap);
+
+        // Create outer race as a hollow cylinder
+        int outerCylOuter = gmsh::model::occ::addCylinder(0, -raceH, 0, 0, 2 * raceH, 0, oR);
+        int outerCylInner = gmsh::model::occ::addCylinder(0, -raceH, 0, 0, 2 * raceH, 0, oRaceInner);
+
+        gmsh::vectorpair outerDT2, innerDT2, cutResult2;
+        outerDT2.push_back({3, outerCylOuter});
+        innerDT2.push_back({3, outerCylInner});
+        std::vector<gmsh::vectorpair> cutMap2;
+        gmsh::model::occ::cut(outerDT2, innerDT2, cutResult2, cutMap2);
+
+        // Create balls (spheres) if enabled
+        if (currentBallBearing->showBalls) {
+            auto ballPositions = currentBallBearing->generateBallPositions();
+            float ballRadius = currentBallBearing->ballDiameter / 2.0f * scale * 1.5f;
+            for (const auto& pos : ballPositions) {
+                float bx = pos.x * scale;
+                float bz = pos.y * scale;
+                gmsh::model::occ::addSphere(bx, 0, bz, ballRadius);
+            }
+        }
+
+        gmsh::model::occ::synchronize();
+
+        // Set mesh size
+        gmsh::option::setNumber("Mesh.CharacteristicLengthMin", elementSize * 0.5);
+        gmsh::option::setNumber("Mesh.CharacteristicLengthMax", elementSize);
+
+        // Generate surface mesh
+        gmsh::model::mesh::generate(2);
+
+        // Extract
+        Core::Meshing::GmshExtractor extractor;
+        bool ok = extractor.extractMesh(femMesh, 2);
+        gmsh::finalize();
+
+        if (ok && !femMesh.isEmpty()) {
+            showFEMMesh = true;
+            setupMeshWireframeBuffers();
+            std::cout << "[BallBearingModel3D] FEM mesh: " << femMesh.getNodes().size()
+                      << " nodes, " << femMesh.getElements().size() << " elements." << std::endl;
+            return true;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[BallBearingModel3D] FEM mesh failed: " << e.what() << std::endl;
+        try { gmsh::finalize(); } catch (...) {}
+    }
+    return false;
+#else
+    std::cerr << "[BallBearingModel3D] Built without USE_GMSH." << std::endl;
+    return false;
+#endif
 }

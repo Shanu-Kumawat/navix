@@ -46,8 +46,12 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
     resizeFramebuffer(static_cast<int>(windowSize.x), static_cast<int>(windowSize.y));
     
     // Generate/update 3D mesh
-    std::cout << "Generating mesh for shock absorber..." << std::endl;
     shockAbsorberModel->generateMesh(spring, end, bottomEnd);
+    
+    // Auto-generate FEM mesh on surface (once only)
+    if (!shockAbsorberModel->hasFEMMesh()) {
+        shockAbsorberModel->generateFEMMesh(shockAbsorberModel->getFEMElementSize());
+    }
     
     // Set material and lighting properties
     shockAbsorberModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);
@@ -62,17 +66,16 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
     glm::mat4 projection = createProjectionMatrix(aspectRatio);
     glm::mat4 view = camera->GetViewMatrix();
     
-    std::cout << "Rendering 3D model - viewport: " << viewportWidth << "x" << viewportHeight 
-              << ", aspect: " << aspectRatio << std::endl;
-    
     // Render the 3D model
     shockAbsorberModel->render(projection, view, camera->Position);
+    
+    // Render FEM mesh wireframe overlay if enabled
+    shockAbsorberModel->renderFEMMeshWireframe(projection, view, camera->Position);
     
     // Unbind framebuffer
     unbindFramebuffer();
     
     // Display the rendered texture
-    std::cout << "Displaying rendered texture..." << std::endl;
     displayRenderedTexture(windowSize);
     
     // Handle mouse interactions for camera control using ImGui
