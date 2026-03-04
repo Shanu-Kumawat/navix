@@ -67,6 +67,25 @@ void BellowsModel3D::generateBellowsGeometry(const Drawing::Bellows* bellows) {
     // Revolve profile around X-axis to create horizontal 3D geometry
     // Use higher segment count for bellows (72 segments for smooth curves)
     revolveProfileAroundX(bellowsProfile, 72);
+    
+    // Debug: print visual geometry bounding box
+    {
+        float xMin = 1e30f, xMax = -1e30f, yMin = 1e30f, yMax = -1e30f, zMin = 1e30f, zMax = -1e30f;
+        for (size_t i = 0; i < vertices.size() / 6; ++i) {
+            float vx = vertices[i*6+0], vy = vertices[i*6+1], vz = vertices[i*6+2];
+            xMin = std::min(xMin, vx); xMax = std::max(xMax, vx);
+            yMin = std::min(yMin, vy); yMax = std::max(yMax, vy);
+            zMin = std::min(zMin, vz); zMax = std::max(zMax, vz);
+        }
+        static bool printed = false;
+        if (!printed) {
+            std::cout << "[BellowsModel3D] Visual geometry bbox: X[" << xMin << ".." << xMax
+                      << "] Y[" << yMin << ".." << yMax
+                      << "] Z[" << zMin << ".." << zMax << "]"
+                      << " (" << vertices.size()/6 << " verts)" << std::endl;
+            printed = true;
+        }
+    }
 }
 
 bool BellowsModel3D::generateFEMMesh(float elementSize) {

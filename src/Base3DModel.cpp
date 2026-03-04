@@ -471,6 +471,22 @@ void Base3DModel::setupMeshWireframeBuffers() {
     meshWireVertexCount = static_cast<int>(lineVerts.size() / 6);
     if (meshWireVertexCount == 0) return;
 
+    // Print bounding box of ALL wireframe vertices for diagnostics
+    {
+        float xMin = 1e30f, xMax = -1e30f, yMin = 1e30f, yMax = -1e30f, zMin = 1e30f, zMax = -1e30f;
+        for (int v = 0; v < meshWireVertexCount; ++v) {
+            float vx = lineVerts[v * 6 + 0];
+            float vy = lineVerts[v * 6 + 1];
+            float vz = lineVerts[v * 6 + 2];
+            xMin = std::min(xMin, vx); xMax = std::max(xMax, vx);
+            yMin = std::min(yMin, vy); yMax = std::max(yMax, vy);
+            zMin = std::min(zMin, vz); zMax = std::max(zMax, vz);
+        }
+        std::cout << "[Base3DModel] Wireframe bbox: X[" << xMin << ".." << xMax
+                  << "] Y[" << yMin << ".." << yMax
+                  << "] Z[" << zMin << ".." << zMax << "]" << std::endl;
+    }
+
     if (meshWireVAO == 0) {
         glGenVertexArrays(1, &meshWireVAO);
         glGenBuffers(1, &meshWireVBO);
@@ -486,8 +502,15 @@ void Base3DModel::setupMeshWireframeBuffers() {
     glEnableVertexAttribArray(1);
     glBindVertexArray(0);
 
+    std::cout << "[Base3DModel] FEM wireframe: " << meshWireVertexCount / 2 << " line segments, "
+              << meshWireVertexCount << " vertices, VAO=" << meshWireVAO << std::endl;
+    // Print first few vertices to verify coordinates
+    if (lineVerts.size() >= 18) {
+        for (int v = 0; v < 3 && v * 6 + 5 < (int)lineVerts.size(); ++v) {
+            std::cout << "  vert[" << v << "] = (" << lineVerts[v*6] << ", " << lineVerts[v*6+1] << ", " << lineVerts[v*6+2] << ")" << std::endl;
+        }
+    }
 }
-
 
 void Base3DModel::renderFEMMeshWireframe(const glm::mat4& projection, const glm::mat4& view, const glm::vec3& cameraPos) {
     if (!showFEMMesh || !shader || meshWireVAO == 0 || meshWireVertexCount == 0) return;
