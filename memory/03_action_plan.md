@@ -28,7 +28,7 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 - **Cleanup**: Legacy `GmshIntegration` class removed from build (was an inferior duplicate of `GmshTranslator`; only translated nodes, not edges/faces).
 
 ### Phase 3.5: 3D FEM Mesh Generation (COMPLETE)
-**Goal**: Generate and display FEM meshes directly on 3D model surfaces.
+**Goal**: Generate and display FEM meshes directly on 3D modelwsl bash -c "cd /home/suyas/drawing_software && export LD_LIBRARY_PATH=$PWD/external/gmsh/lib:$LD_LIBRARY_PATH && DISPLAY=:0 ./build/main" surfaces.
 - **Priority 1**: [COMPLETED] FEM mesh infrastructure in `Base3DModel`. Virtual `generateFEMMesh()`, mesh storage, wireframe buffer setup, bright green wireframe rendering. `showFEMMesh` defaults to `true`.
 - **Priority 2**: [COMPLETED] Bellows FEM mesh. OCC revolve of de-duplicated bellows profile wire around X-axis. Per-line try/catch for robustness. Result: 678 nodes, 1216 elements.
 - **Priority 3**: [COMPLETED] BallBearing FEM mesh. OCC cylinders with boolean cuts + spheres for ball geometry.
