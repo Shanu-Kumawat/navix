@@ -783,6 +783,64 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
         if (ComplexShape3DManager::render3DViewButton("3D Bellows View", "Open 3D visualization of the bellows")) {
           appContext.showBellows3DView = true;
         }
+        
+        // FEM Surface Meshing controls for Bellows
+        ImGui::Separator();
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.15f, 0.3f, 0.15f, 0.7f));
+        if (ImGui::CollapsingHeader("Surface Meshing", ImGuiTreeNodeFlags_DefaultOpen)) {
+          // Ensure the 3D viewer is initialized so we have a model to mesh
+          if (!appContext.bellows3DViewInitialized) {
+            appContext.bellowsViewer.initialize();
+            appContext.bellows3DViewInitialized = true;
+          }
+          
+          BellowsModel3D* model = appContext.bellowsViewer.getModel();
+          if (model) {
+            ImGui::PushItemWidth(availWidth);
+            
+            // Element size control
+            float elemSize = model->getFEMElementSize();
+            if (ImGui::SliderFloat("Element Size##bellowsMesh", &elemSize, 0.01f, 0.5f, "%.3f")) {
+              model->setFEMElementSize(elemSize);
+            }
+            ImGui::PopItemWidth();
+            
+            // Generate / Clear buttons
+            float meshBtnWidth = availWidth / 2 - 4;
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.5f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.6f, 0.3f, 1.0f));
+            if (ImGui::Button("Generate Mesh##bellows", ImVec2(meshBtnWidth, 28))) {
+              // Update the model geometry from the current bellows shape first
+              model->generateMesh(bellows);
+              model->generateFEMMesh(model->getFEMElementSize());
+            }
+            ImGui::PopStyleColor(2);
+            
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.2f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.3f, 0.3f, 1.0f));
+            if (ImGui::Button("Clear Mesh##bellows", ImVec2(meshBtnWidth, 28))) {
+              model->clearFEMMesh();
+            }
+            ImGui::PopStyleColor(2);
+            
+            // Show/Hide toggle
+            bool showMesh = model->getShowFEMMesh();
+            if (ImGui::Checkbox("Show Surface Mesh##bellows", &showMesh)) {
+              model->setShowFEMMesh(showMesh);
+            }
+            
+            // Mesh statistics
+            if (model->hasFEMMesh()) {
+              const auto& mesh = model->getFEMMesh();
+              ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.5f, 1.0f), 
+                "Nodes: %zu  |  Elements: %zu", mesh.getNodes().size(), mesh.getElements().size());
+            } else {
+              ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No mesh generated");
+            }
+          }
+        }
+        ImGui::PopStyleColor();
       }
       // Add Ball Bearing shape properties
       else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {

@@ -56,6 +56,7 @@ public:
     bool getShowFEMMesh() const { return showFEMMesh; }
     float getFEMElementSize() const { return femElementSize; }
     void setFEMElementSize(float size) { femElementSize = size; }
+    const Core::Meshing::Mesh& getFEMMesh() const { return femMesh; }
 
     // Status queries
     bool isMouseDragging() const { return mouseDragging; }
