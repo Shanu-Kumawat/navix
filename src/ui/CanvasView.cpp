@@ -1,5 +1,4 @@
 #include "ui/CanvasView.hpp"
-#include "ui/UIState.hpp"
 #include "ui/UIHelpers.hpp"
 #include "ui/UIColors.hpp"
 #include <imgui.h>
@@ -15,7 +14,7 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
   // Use the user-resizable property panel width
   float canvasX = 0.0f;
   float canvasY = ribbonHeight;
-  float canvasWidth = ImGui::GetIO().DisplaySize.x - UIState::userPropertyPanelWidth;
+  float canvasWidth = ImGui::GetIO().DisplaySize.x - appContext.userPropertyPanelWidth;
   float canvasHeight = ImGui::GetIO().DisplaySize.y - ribbonHeight - statusBarHeight;
 
   ImGui::SetNextWindowPos(ImVec2(canvasX, canvasY));
@@ -40,11 +39,12 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
   // Create clipping rectangle for the drawing area
   ImGui::PushClipRect(canvasPos, ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + canvasSize.y), true);
   
-  // Handle canvas input and rendering
-  canvas.handleInput();
-
+  // Render grid and existing shapes FIRST (background layer)
   ImDrawList *drawList = ImGui::GetWindowDrawList();
   canvas.render(drawList);
+  
+  // Handle canvas input AFTER render so previews draw ON TOP of grid/shapes
+  canvas.handleInput();
   
   // Add ruler indicators if enabled (AutoCAD has rulers)
   if (appContext.showRulers) {
@@ -81,7 +81,7 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
         
         // Label for major ticks
         char label[16];
-        int value = majorTick * appContext.gridSize / UIState::unitScale;
+        int value = majorTick * appContext.gridSize / appContext.unitScale;
         sprintf(label, "%d", value);
         drawList->AddText(
           ImVec2(x + 2, canvasPos.y + 2),
@@ -114,7 +114,7 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
         
         // Label for major ticks
         char label[16];
-        int value = majorTick * appContext.gridSize / UIState::unitScale;
+        int value = majorTick * appContext.gridSize / appContext.unitScale;
         sprintf(label, "%d", value);
         drawList->AddText(
           ImVec2(canvasPos.x + 2, y + 2),
@@ -165,13 +165,13 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
       float worldY = (mousePos.y - canvasPos.y - appContext.panOffset.y * appContext.zoomLevel) / appContext.zoomLevel;
       
       // Apply unit scaling
-      worldX /= UIState::unitScale;
-      worldY /= UIState::unitScale;
+      worldX /= appContext.unitScale;
+      worldY /= appContext.unitScale;
       
       // Format the coordinates
       char coordinates[64];
       std::string unitSuffix;
-      switch (UIState::units) {
+      switch (appContext.units) {
         case Drawing::UnitSystem::Pixels:
           unitSuffix = "px";
           break;
@@ -262,12 +262,37 @@ void UI::CanvasView::HandleKeyboardShortcuts(Drawing::Canvas &canvas, Core::Appl
       appContext.consoleMessage = "Deleted selected shape";
     }
   }
+
+  // Arrow keys to move selected shape (with Shift for larger steps)
+  {
+    float step = io.KeyShift ? 10.0f : 1.0f;
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
+      canvas.moveSelectedShape(glm::dvec2(0, -step));
+      appContext.consoleMessage = "Move shape up";
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+      canvas.moveSelectedShape(glm::dvec2(0, step));
+      appContext.consoleMessage = "Move shape down";
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) {
+      canvas.moveSelectedShape(glm::dvec2(-step, 0));
+      appContext.consoleMessage = "Move shape left";
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) {
+      canvas.moveSelectedShape(glm::dvec2(step, 0));
+      appContext.consoleMessage = "Move shape right";
+    }
+  }
   
   // Modifier key combinations
   if (io.KeyCtrl) {
     if (ImGui::IsKeyPressed(ImGuiKey_Z)) {
       canvas.undo();
       appContext.consoleMessage = "Undo last action";
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_Y)) {
+      canvas.redo();
+      appContext.consoleMessage = "Redo last action";
     }
     else if (ImGui::IsKeyPressed(ImGuiKey_A)) {
       // Select all - would need implementation

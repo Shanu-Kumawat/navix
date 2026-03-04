@@ -21,6 +21,9 @@ public:
     
     // Ball bearing-specific rendering
     void render(const Drawing::BallBearing* ballBearing, glm::dvec2 windowSize);
+    
+    // Access to 3D model for mesh controls
+    BallBearingModel3D* getModel() const { return ballBearingModel.get(); }
 
 private:
     // Ball bearing-specific 3D model

@@ -121,21 +121,21 @@ void LoadIconTextures() {
   
   // Define icon files and their names based on converted PNG files
   std::vector<std::pair<std::string, std::string>> iconFiles = {
-    {"line", "../icons/png/line-segment.png"},
-    {"circle", "../icons/png/circle.png"},
-    {"rectangle", "../icons/png/rectangle.png"},
-    {"point", "../icons/png/dot.png"},
-    {"triangle", "../icons/png/triangle.png"},
-    {"square", "../icons/png/square.png"},
-    {"spline", "../icons/png/spline-curve.png"},
-    {"bezier", "../icons/png/bezier-curve.png"},
-    {"select", "../icons/png/select.png"},
-    {"undo", "../icons/png/undo.png"},
-    {"redo", "../icons/png/redo.png"},
-    {"clear", "../icons/png/clear.png"},
-    {"bearing", "../icons/png/bearing.png"},
-    {"bellows", "../icons/png/bellows.png"},
-    {"suspension", "../icons/png/suspension.png"}
+    {"line", "icons/png/line-segment.png"},
+    {"circle", "icons/png/circle.png"},
+    {"rectangle", "icons/png/rectangle.png"},
+    {"point", "icons/png/dot.png"},
+    {"triangle", "icons/png/triangle.png"},
+    {"square", "icons/png/square.png"},
+    {"spline", "icons/png/spline-curve.png"},
+    {"bezier", "icons/png/bezier-curve.png"},
+    {"select", "icons/png/select.png"},
+    {"undo", "icons/png/undo.png"},
+    {"redo", "icons/png/redo.png"},
+    {"clear", "icons/png/clear.png"},
+    {"bearing", "icons/png/bearing.png"},
+    {"bellows", "icons/png/bellows.png"},
+    {"suspension", "icons/png/suspension.png"}
   };
   
   // Load each icon

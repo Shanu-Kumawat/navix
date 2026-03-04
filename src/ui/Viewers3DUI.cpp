@@ -1,12 +1,37 @@
 #include "ui/Viewers3DUI.hpp"
-#include "ui/UIState.hpp"
+#include "Base3DModel.hpp"
 #include <imgui.h>
 #include <iostream>
 
+// Helper: Render FEM mesh controls for a 3D model
+static void RenderMeshControls(Base3DModel* model, const char* label) {
+    if (!model) return;
+    ImGui::Separator();
+    ImGui::Text("FEM Mesh (%s)", label);
+    
+    static float meshElemSize = 0.05f;
+    ImGui::SliderFloat("Element Size##mesh3d", &meshElemSize, 0.01f, 0.5f, "%.3f");
+    
+    if (ImGui::Button("Generate 3D Mesh")) {
+        model->generateFEMMesh(meshElemSize);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear Mesh##3d")) {
+        model->clearFEMMesh();
+    }
+    
+    if (model->hasFEMMesh()) {
+        bool show = model->getShowFEMMesh();
+        if (ImGui::Checkbox("Show Mesh##3d", &show)) {
+            model->setShowFEMMesh(show);
+        }
+    }
+}
+
 void UI::Viewers3DUI::RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
-  if (!UIState::spring3DViewInitialized) {
-    UIState::springViewer.initialize();
-    UIState::spring3DViewInitialized = true;
+  if (!appContext.spring3DViewInitialized) {
+    appContext.springViewer.initialize();
+    appContext.spring3DViewInitialized = true;
   }
   
   if (ImGui::Begin("Spring 3D View", &appContext.showSpring3DView)) {
@@ -18,7 +43,7 @@ void UI::Viewers3DUI::RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::Ap
     const Drawing::Shape* selectedShape = canvas.getSelectedShape();
     if (selectedShape && selectedShape->type == Drawing::ShapeType::SPRING2D) {
       const Drawing::Spring2D* spring = static_cast<const Drawing::Spring2D*>(selectedShape);
-      UIState::springViewer.render(spring, viewportSize);
+      appContext.springViewer.render(spring, viewportSize);
     } else {
       ImGui::Text("No Spring2D selected. Please select a Spring2D to view in 3D.");
     }
@@ -27,9 +52,9 @@ void UI::Viewers3DUI::RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::Ap
 }
 
 void UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
-  if (!UIState::shockAbsorberViewerInitialized) {
-    UIState::shockAbsorberViewer.initialize();
-    UIState::shockAbsorberViewerInitialized = true;
+  if (!appContext.shockAbsorberViewerInitialized) {
+    appContext.shockAbsorberViewer.initialize();
+    appContext.shockAbsorberViewerInitialized = true;
   }
   
   if (ImGui::Begin("Shock Absorber 3D View", &appContext.showShockAbsorber3DView)) {
@@ -42,7 +67,8 @@ void UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, C
     if (!assemblies.empty()) {
       // Render the first complete assembly
       const auto& assembly = assemblies[0];
-      UIState::shockAbsorberViewer.render(assembly.spring, assembly.topEnd, assembly.bottomEnd, viewportSize);
+      appContext.shockAbsorberViewer.render(assembly.spring, assembly.topEnd, assembly.bottomEnd, viewportSize);
+      RenderMeshControls(appContext.shockAbsorberViewer.getModel(), "Shock Absorber");
     } else {
       ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "No complete shock absorber assembly found.");
       ImGui::Spacing();
@@ -56,13 +82,13 @@ void UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, C
   ImGui::End();
 }
 
-void UI::Viewers3DUI::RenderBellows3DViewWindow(Drawing::Canvas &canvas) {
-  if (!UIState::bellows3DViewInitialized) {
-    UIState::bellowsViewer.initialize();
-    UIState::bellows3DViewInitialized = true;
+void UI::Viewers3DUI::RenderBellows3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
+  if (!appContext.bellows3DViewInitialized) {
+    appContext.bellowsViewer.initialize();
+    appContext.bellows3DViewInitialized = true;
   }
   
-  if (ImGui::Begin("Bellows 3D View", &UIState::showBellows3DView)) {
+  if (ImGui::Begin("Bellows 3D View", &appContext.showBellows3DView)) {
     // Get available content region size for dynamic viewport
     glm::dvec2 availableSize = Drawing::Math::toDVec2(ImGui::GetContentRegionAvail());
     glm::dvec2 viewportSize = glm::dvec2(availableSize.x, availableSize.y - 20); // Leave some margin
@@ -71,7 +97,8 @@ void UI::Viewers3DUI::RenderBellows3DViewWindow(Drawing::Canvas &canvas) {
     const Drawing::Shape* selectedShape = canvas.getSelectedShape();
     if (selectedShape && selectedShape->type == Drawing::ShapeType::BELLOWS) {
       const Drawing::Bellows* bellows = static_cast<const Drawing::Bellows*>(selectedShape);
-      UIState::bellowsViewer.render(bellows, viewportSize);
+      appContext.bellowsViewer.render(bellows, viewportSize);
+      RenderMeshControls(appContext.bellowsViewer.getModel(), "Bellows");
     } else {
       ImGui::Text("No Bellows selected. Please select a Bellows to view in 3D.");
     }
@@ -79,13 +106,13 @@ void UI::Viewers3DUI::RenderBellows3DViewWindow(Drawing::Canvas &canvas) {
   ImGui::End();
 }
 
-void UI::Viewers3DUI::RenderBallBearing3DViewWindow(Drawing::Canvas &canvas) {
-  if (!UIState::ballBearing3DViewInitialized) {
-    UIState::ballBearingViewer.initialize();
-    UIState::ballBearing3DViewInitialized = true;
+void UI::Viewers3DUI::RenderBallBearing3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
+  if (!appContext.ballBearing3DViewInitialized) {
+    appContext.ballBearingViewer.initialize();
+    appContext.ballBearing3DViewInitialized = true;
   }
   
-  if (ImGui::Begin("Ball Bearing 3D View", &UIState::showBallBearing3DView)) {
+  if (ImGui::Begin("Ball Bearing 3D View", &appContext.showBallBearing3DView)) {
     // Get available content region size for dynamic viewport
     glm::dvec2 availableSize = Drawing::Math::toDVec2(ImGui::GetContentRegionAvail());
     glm::dvec2 viewportSize = glm::dvec2(availableSize.x, availableSize.y - 20); // Leave some margin
@@ -94,7 +121,8 @@ void UI::Viewers3DUI::RenderBallBearing3DViewWindow(Drawing::Canvas &canvas) {
     const Drawing::Shape* selectedShape = canvas.getSelectedShape();
     if (selectedShape && selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
       const Drawing::BallBearing* ballBearing = static_cast<const Drawing::BallBearing*>(selectedShape);
-      UIState::ballBearingViewer.render(ballBearing, viewportSize);
+      appContext.ballBearingViewer.render(ballBearing, viewportSize);
+      RenderMeshControls(appContext.ballBearingViewer.getModel(), "Ball Bearing");
     } else {
       ImGui::Text("No Ball Bearing selected. Please select a Ball Bearing to view in 3D.");
     }

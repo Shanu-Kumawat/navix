@@ -3,12 +3,118 @@
 #include "Canvas.hpp"
 #include "utils/MathUtils.hpp"
 #include "utils/VectorMath.hpp"
+#include "topology/Node.hpp"
+#include "topology/Edge.hpp"
 #include <cmath>
 
 namespace Core {
 using namespace Drawing::Math;
 
 Renderer2D::Renderer2D(Drawing::Canvas* canvas) : canvas(canvas) {}
+
+// ── Core::Renderer interface implementations ────────────────────────────
+
+ImVec2 Renderer2D::toScreen(const glm::dvec2& worldPt) const {
+    return ImVec2(
+        static_cast<float>(currentWindowPos.x + currentPan.x + worldPt.x * currentZoom),
+        static_cast<float>(currentWindowPos.y + currentPan.y + worldPt.y * currentZoom)
+    );
+}
+
+void Renderer2D::beginFrame(ImDrawList* drawList) {
+    currentDrawList = drawList;
+}
+
+void Renderer2D::setTransform(const glm::dvec2& pan, float zoom, const glm::dvec2& windowPos) {
+    currentPan = pan;
+    currentZoom = zoom;
+    currentWindowPos = windowPos;
+}
+
+void Renderer2D::drawLine(const glm::dvec2& start, const glm::dvec2& end, uint32_t color, float thickness) {
+    if (!currentDrawList) return;
+    currentDrawList->AddLine(toScreen(start), toScreen(end), color, thickness);
+}
+
+void Renderer2D::drawDashedLine(const glm::dvec2& start, const glm::dvec2& end, uint32_t color, float thickness, float dashLength) {
+    if (!currentDrawList) return;
+    // Reuse the existing ImVec2 variant
+    drawDashedLine(currentDrawList, toScreen(start), toScreen(end), color, thickness, dashLength);
+}
+
+void Renderer2D::drawCircle(const glm::dvec2& center, float radius, uint32_t color, float thickness, bool fill) {
+    if (!currentDrawList) return;
+    float screenRadius = radius * currentZoom;
+    if (fill) {
+        currentDrawList->AddCircleFilled(toScreen(center), screenRadius, color);
+    } else {
+        currentDrawList->AddCircle(toScreen(center), screenRadius, color, 0, thickness);
+    }
+}
+
+void Renderer2D::drawPolygon(const std::vector<glm::dvec2>& points, uint32_t color, float thickness, bool fill) {
+    if (!currentDrawList || points.empty()) return;
+    std::vector<ImVec2> screenPoints;
+    screenPoints.reserve(points.size());
+    for (const auto& pt : points) screenPoints.push_back(toScreen(pt));
+    if (fill) {
+        currentDrawList->AddConvexPolyFilled(screenPoints.data(), static_cast<int>(screenPoints.size()), color);
+    } else {
+        currentDrawList->AddPolyline(screenPoints.data(), static_cast<int>(screenPoints.size()), color, ImDrawFlags_Closed, thickness);
+    }
+}
+
+void Renderer2D::drawText(const glm::dvec2& pos, const char* text, uint32_t color) {
+    if (!currentDrawList) return;
+    currentDrawList->AddText(toScreen(pos), color, text);
+}
+
+void Renderer2D::drawShape(const Drawing::Shape* shape, bool isSelected) {
+    if (!currentDrawList || !shape) return;
+    // Delegate to the existing high-level renderShape
+    renderShape(currentDrawList, shape, isSelected);
+}
+
+void Renderer2D::drawNode(const Topology::Node* node, bool isSelected) {
+    if (!currentDrawList || !node) return;
+    uint32_t color = isSelected ? IM_COL32(255, 100, 100, 255) : IM_COL32(0, 255, 0, 255);
+    glm::dvec2 pos2d(node->getPosition().x, node->getPosition().y);
+    drawCircle(pos2d, 4.0f / currentZoom, color, 1.0f, true);
+}
+
+void Renderer2D::drawEdge(const Topology::Edge* edge, const Topology::Node* n1, const Topology::Node* n2, bool isSelected) {
+    if (!currentDrawList || !edge || !n1 || !n2) return;
+    uint32_t color = isSelected ? IM_COL32(255, 255, 0, 255) : IM_COL32(0, 255, 255, 255);
+    drawLine(glm::dvec2(n1->getPosition().x, n1->getPosition().y),
+             glm::dvec2(n2->getPosition().x, n2->getPosition().y), color, 2.0f);
+}
+
+void Renderer2D::drawMesh(const Meshing::Mesh& mesh, const glm::dvec3& color) {
+    if (!currentDrawList) return;
+    const auto& nodesList = mesh.getNodes();
+    const auto& elementsList = mesh.getElements();
+    ImU32 col = IM_COL32(static_cast<int>(color.r * 255), static_cast<int>(color.g * 255), static_cast<int>(color.b * 255), 255);
+    for (const auto& elem : elementsList) {
+        if (elem.nodeTags.size() < 2) continue;
+        for (size_t i = 0; i < elem.nodeTags.size(); ++i) {
+            uint64_t nId1 = elem.nodeTags[i];
+            uint64_t nId2 = elem.nodeTags[(i + 1) % elem.nodeTags.size()];
+            const Meshing::MeshNode* node1 = nullptr;
+            const Meshing::MeshNode* node2 = nullptr;
+            for (const auto& n : nodesList) {
+                if (n.tag == nId1) node1 = &n;
+                if (n.tag == nId2) node2 = &n;
+                if (node1 && node2) break;
+            }
+            if (node1 && node2) {
+                drawLine(glm::dvec2(node1->position.x, node1->position.y),
+                         glm::dvec2(node2->position.x, node2->position.y), col, 1.0f);
+            }
+        }
+    }
+}
+
+// ── Existing high-level methods ─────────────────────────────────────────
 
 void Renderer2D::render(ImDrawList* drawList, const SceneModel& model) {
     if (canvas->isGridVisible()) {
@@ -188,11 +294,6 @@ void Renderer2D::renderShape(ImDrawList* drawList, const Drawing::Shape* shape, 
                 std::max(line->thickness * canvas->getZoomLevel(), 2.0f) // Ensure minimum line thickness
             );
             
-            // Debug output
-            std::cout << "Drawing line: (" << line->start.x << "," << line->start.y << ") to (" 
-                      << line->end.x << "," << line->end.y << ") - transformed: (" 
-                      << transformedStart.x << "," << transformedStart.y << ") to ("
-                      << transformedEnd.x << "," << transformedEnd.y << ")" << std::endl;
             break;
         }
         case Drawing::ShapeType::CIRCLE: {

@@ -21,6 +21,9 @@ public:
     
     // Bellows-specific rendering
     void render(const Drawing::Bellows* bellows, glm::dvec2 windowSize);
+    
+    // Access to 3D model for mesh controls
+    BellowsModel3D* getModel() const { return bellowsModel.get(); }
 
 private:
     // Bellows-specific 3D model

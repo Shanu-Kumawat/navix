@@ -116,6 +116,7 @@ add_library(drawing STATIC
     src/Canvas.cpp
     src/commands/CommandManager.cpp
     src/topology/TopologyManager.cpp
+    src/fem/MaterialManager.cpp
     src/meshing/GmshTranslator.cpp
     src/meshing/Mesh.cpp
     src/meshing/GmshExtractor.cpp

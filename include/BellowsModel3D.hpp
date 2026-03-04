@@ -15,6 +15,7 @@ public:
     
     // Base3DModel interface implementation
     void generateMesh() override;
+    bool generateFEMMesh(float elementSize) override;
     
     // Bellows-specific mesh generation
     void generateMesh(const Drawing::Bellows* bellows);

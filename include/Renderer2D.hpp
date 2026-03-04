@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include <vector>
 #include <array>
+#include "core/Renderer.hpp"
 #include "SceneModel.hpp"
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
@@ -17,14 +18,31 @@ namespace Core {
  * @brief The View in the MVC architecture for the Canvas.
  * 
  * Renderer2D is responsible for all ImGui/ImDrawList rendering logic.
- * It takes the SceneModel and the current view state (from Canvas) to draw
- * the grid, shapes, control points, and drawing previews.
+ * It inherits from Core::Renderer so it can be used polymorphically
+ * wherever a Renderer is expected (e.g. drawLine, drawCircle primitives).
+ * It also provides higher-level render methods for shapes, grids, and previews.
  */
-class Renderer2D {
+class Renderer2D : public Renderer {
 public:
     Renderer2D(Drawing::Canvas* canvas);
-    ~Renderer2D() = default;
+    ~Renderer2D() override = default;
 
+    // ── Core::Renderer interface ────────────────────────────────────────
+    void setTransform(const glm::dvec2& pan, float zoom, const glm::dvec2& windowPos) override;
+    void drawLine(const glm::dvec2& start, const glm::dvec2& end, uint32_t color, float thickness) override;
+    void drawDashedLine(const glm::dvec2& start, const glm::dvec2& end, uint32_t color, float thickness, float dashLength) override;
+    void drawCircle(const glm::dvec2& center, float radius, uint32_t color, float thickness, bool fill = false) override;
+    void drawPolygon(const std::vector<glm::dvec2>& points, uint32_t color, float thickness, bool fill = false) override;
+    void drawText(const glm::dvec2& pos, const char* text, uint32_t color) override;
+    void drawShape(const Drawing::Shape* shape, bool isSelected) override;
+    void drawNode(const Topology::Node* node, bool isSelected = false) override;
+    void drawEdge(const Topology::Edge* edge, const Topology::Node* n1, const Topology::Node* n2, bool isSelected = false) override;
+    void drawMesh(const Meshing::Mesh& mesh, const glm::dvec3& color) override;
+
+    // Set the ImDrawList for the current frame (call before issuing draw commands)
+    void beginFrame(ImDrawList* drawList);
+
+    // ── High-level render API (existing) ────────────────────────────────
     // Main render entry point
     void render(ImDrawList* drawList, const SceneModel& model);
 
@@ -63,6 +81,14 @@ public:
 
 private:
     Drawing::Canvas* canvas; // Reference to canvas for view state (zoom, pan, transforms)
+    
+    // Stored per-frame state for Core::Renderer interface
+    ImDrawList* currentDrawList{nullptr};
+    glm::dvec2 currentPan{0.0, 0.0};
+    float currentZoom{1.0f};
+    glm::dvec2 currentWindowPos{0.0, 0.0};
+    
+    ImVec2 toScreen(const glm::dvec2& worldPt) const;
 };
 
 } // namespace Core

@@ -37,6 +37,11 @@ void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, glm::d
     // Generate/update 3D mesh
     ballBearingModel->generateMesh(ballBearing);
     
+    // Auto-generate FEM mesh on surface (once only)
+    if (!ballBearingModel->hasFEMMesh()) {
+        ballBearingModel->generateFEMMesh(ballBearingModel->getFEMElementSize());
+    }
+    
     // Set material and lighting properties for high-quality metallic rendering
     ballBearingModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);
     ballBearingModel->setLight(glm::vec3(3.0f, 4.0f, 3.0f), lightColor);
@@ -59,6 +64,9 @@ void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, glm::d
     
     // Render the 3D model
     ballBearingModel->render(projection, view, camera->Position);
+    
+    // Render FEM mesh wireframe overlay if enabled
+    ballBearingModel->renderFEMMeshWireframe(projection, view, camera->Position);
     
     // Unbind framebuffer
     unbindFramebuffer();

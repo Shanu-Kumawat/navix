@@ -23,6 +23,9 @@ public:
     // Shock absorber-specific rendering (takes multiple components)
     void render(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 
                 const Drawing::ShockAbsorberBottomEnd* bottomEnd, glm::dvec2 windowSize);
+    
+    // Access to 3D model for mesh controls
+    ShockAbsorberModel3D* getModel() const { return shockAbsorberModel.get(); }
 
 private:
     // Shock absorber-specific 3D model

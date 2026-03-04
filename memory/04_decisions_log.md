@@ -74,3 +74,45 @@ ADR-013: Rendering Extracted Mesh
 Context: Displaying parsed mesh data directly on the main viewport seamlessly mapped over B-REP elements.
 Decision: Extended pure abstract Core::Renderer and specifically the Graphic::ImGuiRenderer backends to accept Meshing::Mesh inputs, rendering the explicit edge bounds of parsed unstructured Gmsh 2D outputs.
 Consequences: Users can dynamically click buttons inside the active UI layout to push Topology, trigger Meshing explicitly, and retrieve the graphic outputs correctly overlaid against user shapes allowing rapid iteration/review loops directly within the Navix interface.
+
+## ADR-014: Eigen3 Integration for FEA Solver
+- **Date**: February 28, 2026
+- **Context**: Navix requires a highly performant and stable linear algebra library to solve finite element sparse matrices structurally (stiffness matrix inversion).
+- **Decision**: Integrated **Eigen3** via \CMakeLists.txt\. The script first looks for the standard system paths using \ind_package(Eigen3 QUIET)\. If it's isolated or not available (e.g. on Windows without proper paths), it securely falls back to CMake's \FetchContent\ to pull the exact \3.4.0\ headers gracefully. 
+- **Consequences**: Zero required system dependencies. Ensures Phase 4 operations can directly include \<Eigen/Dense>\ and \<Eigen/Sparse>\ across the workspace automatically. Fast setup since Eigen handles headers locally without compiling complex targets.
+
+## ADR-015: Material Manager Subsystem (Phase 4)
+- **Date**: February 28, 2026
+- **Context**: FEA solvers strictly require physical material parameters (Youngs Modulus, Poisson's Ratio, Density) mapped against discretized elements.
+- **Decision**: Implemented \Core::FEM::MaterialManager\ mapped globally against \Canvas\ for accessibility. A Material holds baseline mechanical profiles. \Shape\ boundaries and explicit \Face\ topological entities both received a \uint32_t materialId\. 
+- **Consequences**: Shapes on the 2D Viewport can have standard engineering materials assigned directly via the property panel. When \GmshTranslator\ pulls from these properties in future Phase 4 steps, elements generated across a Face will natively inherit this structural physical identity ensuring clean separation of FEA variables and pure geometry.
+
+## ADR-016: Phase 2 Completion — Granular Commands, Topology Mapping, Unified Renderer
+- **Date**: March 2, 2026
+- **Context**: Phase 2 was partially complete. Three legacy operations (duplicate/rotate/scale) still used full-state CanvasSnapshotCommand. Topology had no shape↔entity mapping and wasn't synced on delete/move/rotate/scale. Renderer2D and Core::Renderer were parallel unrelated hierarchies.
+- **Decision**: (1) Created `DuplicateShapeCommand`, `RotateShapeCommand`, `ScaleShapeCommand` as header-only granular commands — all support undo/redo by applying inverse operations. `duplicateSelectedShape()` now uses clone() + DuplicateShapeCommand. `rotateSelectedShape()` / `scaleSelectedShape()` compute bounding-box center and delegate to granular commands. Legacy CanvasSnapshotCommand retained ONLY for `clearAll()`. (2) Added `Canvas::ShapeTopology` struct and `shapeTopoMap` to track which topology IDs belong to each shape. `createTopologyForShape()` now records mapping for 8 types (added Spline/Bezier). Added `removeTopologyForShape()` (faces→edges→nodes) and `updateTopologyPositions()` (syncs node positions from shape geometry). Delete/move/rotate/scale all sync topology. (3) Made `Renderer2D : public Core::Renderer`. Implemented all 10 pure virtuals with ImDrawList backend. Added `beginFrame()` / `toScreen()` / transform state. `drawShape()` delegates to existing `renderShape()`.
+- **Consequences**: All shape operations now have proper undo/redo via granular commands. Topology stays in sync with shape geometry at all times. A single unified renderer interface allows polymorphic rendering — both `ImGuiRenderer` and `Renderer2D` can be used interchangeably via `Core::Renderer*`.
+
+## ADR-017: Phase 3 Completion — Gmsh SDK Integration, Meshing Pipeline, and UI
+- **Date**: March 1, 2026
+- **Context**: Phase 3 was scaffolding-only: headers existed but `libgmsh.so` was missing, `USE_GMSH` was never defined, and no UI code triggered meshing. `GmshTranslator.cpp` had misplaced `#include` directives inside function bodies. A legacy `GmshIntegration` class duplicated `GmshTranslator` poorly (only translated nodes, not edges/faces).
+- **Decision**: (1) Downloaded and installed Gmsh 4.13.1 Linux SDK into `external/gmsh/lib/`. CMake now detects it and defines `USE_GMSH`. (2) Fixed `GmshTranslator.cpp` — removed 5 misplaced `#include` directives from inside function bodies. Fixed duplicate include in `.hpp`. Made `extractGeneratedMesh()` public. (3) Removed `GmshIntegration` from the build (legacy duplicate). (4) Added meshing pipeline to Canvas: `generateMesh()` orchestrates init→translate→generate→extract→finalize. `clearMesh()` and `hasMesh()` manage state. `Mesh` object stored as `currentMesh`. (5) Added "Mesh" panel to TopRibbon with Generate, Clear, Show toggle, Element Size slider. (6) Canvas::render() now draws mesh wireframe overlay via `Renderer2D::drawMesh()` when `showMesh` is true and mesh is non-empty.
+- **Consequences**: Full meshing pipeline from drawing to mesh visualization is operational. Users can draw closed shapes (triangles, squares, rectangles), click Generate, and see the FEM mesh overlay. Phase 4 (FEA solver) can now consume `Mesh` data directly.
+
+## ADR-018: 3D FEM Mesh Infrastructure in Base3DModel
+- **Date**: March 3, 2026
+- **Context**: 3D viewers (Bellows, BallBearing, ShockAbsorber) only rendered parametric geometry. Users needed to see FEM meshes directly on 3D surfaces while drawing/viewing, similar to professional FEM software.
+- **Decision**: Added FEM mesh infrastructure to `Base3DModel`: virtual `generateFEMMesh()`, mesh storage (`femNodes`, `femElements`), wireframe buffer setup (`setupMeshWireframeBuffers()`), and `renderFEMMeshWireframe()` rendering bright green wireframe (0.0, 1.0, 0.4) with full ambient. Set `showFEMMesh` default to `true`. Each 3D viewer auto-generates the FEM mesh via `if (!model->hasFEMMesh()) { model->generateFEMMesh(...); }` after `generateMesh()`.
+- **Consequences**: 3D models display FEM wireframe overlay immediately upon opening viewers. The mesh is generated once and cached. Infrastructure is reusable for any future 3D model types.
+
+## ADR-019: Bellows FEM Mesh via OCC Revolve of Profile Wire
+- **Date**: March 3, 2026
+- **Context**: Bellows geometry is inherently axisymmetric — a corrugated profile revolved 360° around the X-axis. Directly creating OCC solid primitives would be complex and lose the parametric profile fidelity.
+- **Decision**: `BellowsModel3D::generateFEMMesh()` extracts the bellows profile points (axial position, radius), de-duplicates consecutive points within `1e-6` tolerance, creates OCC points and lines (with individual try/catch per line for robustness), builds a wire, then revolves 2π around the X-axis via `gmsh::model::occ::revolve`. Fixed "Could not create line" errors caused by near-coincident profile points.
+- **Consequences**: Produces high-quality surface mesh (678 nodes, 1216 elements) that precisely matches the bellows geometry. The de-duplication and per-line error handling makes it robust against floating-point profile point clustering.
+
+## ADR-020: ShockAbsorber Coil Spring Mesh via Stacked Tori
+- **Date**: March 3, 2026
+- **Context**: The shock absorber coil spring is rendered as a 3D helix. Initial approaches to mesh it — (1) BSpline helix pipe via OCC `addPipe`, (2) OCC spline with fewer points — both caused Gmsh/OCC to hang indefinitely due to the complexity of helical pipe operations.
+- **Decision**: Replaced the helical pipe with stacked tori (one torus per coil). Each torus is created at origin with Z-axis orientation, rotated 90° around the X-axis to align with the Y-axis, then translated to the correct vertical position (`centerY`). This preserves the visual approximation of a coil while being computationally tractable. The full shock absorber model generates 10 OCC components: lower seat, damper tube, piston rod, tori coils, upper seat, collar, nut, cap, bottom disc, and U-mount legs.
+- **Consequences**: Produces a complete shock absorber mesh (1619 nodes, 2376 elements) in reasonable time. The tori don't perfectly match the helical coil but provide a sufficiently accurate FEM mesh approximation for structural analysis. If higher fidelity is needed, a segmented approach (half-torus arcs offset per coil) could be explored.
