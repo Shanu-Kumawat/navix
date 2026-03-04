@@ -27,7 +27,7 @@ Base3DModel::Base3DModel()
       crossSectionAxis(0),
       crossSectionPos(0.0f),
       showFEMMesh(true),
-      femElementSize(0.1f),
+      femElementSize(0.02f),
       meshWireVAO(0),
       meshWireVBO(0),
       meshWireVertexCount(0) {
@@ -498,7 +498,15 @@ void Base3DModel::renderFEMMeshWireframe(const glm::mat4& projection, const glm:
     shader->setVec4("clipPlane", glm::vec4(0.0f));
     glDisable(GL_CLIP_DISTANCE0);
 
+    // Depth bias: shrink depth range so wireframe wins depth test against solid surface
+    glDepthRange(0.0, 0.9999);
+    glLineWidth(2.0f);
+
     glBindVertexArray(meshWireVAO);
     glDrawArrays(GL_LINES, 0, meshWireVertexCount);
     glBindVertexArray(0);
+
+    // Restore defaults
+    glDepthRange(0.0, 1.0);
+    glLineWidth(1.0f);
 }
