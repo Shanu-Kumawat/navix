@@ -57,7 +57,18 @@ void Base3DModel::render(const glm::mat4& projection, const glm::mat4& view, con
         glDisable(GL_CLIP_DISTANCE0);
     }
     
+    // Push solid surface back in depth buffer so wireframe overlay can appear on top
+    if (showFEMMesh && meshWireVertexCount > 0) {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f, 1.0f);
+    }
+    
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
+    
+    if (showFEMMesh && meshWireVertexCount > 0) {
+        glDisable(GL_POLYGON_OFFSET_FILL);
+    }
+    
     glBindVertexArray(0);
 }
 
@@ -475,8 +486,8 @@ void Base3DModel::setupMeshWireframeBuffers() {
     glEnableVertexAttribArray(1);
     glBindVertexArray(0);
 
-    std::cout << "[Base3DModel] FEM wireframe: " << meshWireVertexCount / 2 << " line segments." << std::endl;
 }
+
 
 void Base3DModel::renderFEMMeshWireframe(const glm::mat4& projection, const glm::mat4& view, const glm::vec3& cameraPos) {
     if (!showFEMMesh || !shader || meshWireVAO == 0 || meshWireVertexCount == 0) return;
@@ -500,6 +511,7 @@ void Base3DModel::renderFEMMeshWireframe(const glm::mat4& projection, const glm:
 
     // Depth bias: shrink depth range so wireframe wins depth test against solid surface
     glDepthRange(0.0, 0.9999);
+    glDepthFunc(GL_ALWAYS);  // Always draw — guarantees visibility over solid
     glLineWidth(2.0f);
 
     glBindVertexArray(meshWireVAO);
@@ -507,6 +519,7 @@ void Base3DModel::renderFEMMeshWireframe(const glm::mat4& projection, const glm:
     glBindVertexArray(0);
 
     // Restore defaults
+    glDepthFunc(GL_LESS);
     glDepthRange(0.0, 1.0);
     glLineWidth(1.0f);
 }
