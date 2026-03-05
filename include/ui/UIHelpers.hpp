@@ -23,7 +23,7 @@ inline const char* FALLBACK_BELLOWS = "B";
 inline const char* FALLBACK_BEARING = "⚙";
 inline const char* FALLBACK_SUSPENSION = "S";
 
-bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size);
+bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size, bool isActive = false);
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas& canvas, Core::ApplicationContext& appContext, const std::string& message);
 
 void LoadIconTextures();

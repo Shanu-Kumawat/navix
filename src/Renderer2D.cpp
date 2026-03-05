@@ -195,16 +195,17 @@ void Renderer2D::renderGrid(ImDrawList* drawList) {
         );
     }
     
-    // Add axes lines at (0,0) if visible
+    // Add axes lines at (0,0) if visible — CAD-style colored axes
     ImVec2 origin = toImVec2(canvas->transformCoordinates(glm::dvec2(0, 0)));
-    ImU32 axisColor = IM_COL32(140, 100, 60, 240);  // Darker brown for axes (abacus frame)
+    ImU32 axisColorY = IM_COL32(200, 75, 75, 200);   // Red for Y axis
+    ImU32 axisColorX = IM_COL32(75, 180, 100, 200);   // Green for X axis
     
     if (origin.x >= startX && origin.x <= endX) {
         drawList->AddLine(
             ImVec2(origin.x, startY),
             ImVec2(origin.x, endY),
-            axisColor,
-            1.5f
+            axisColorY,
+            1.2f
         );
     }
     
@@ -212,8 +213,8 @@ void Renderer2D::renderGrid(ImDrawList* drawList) {
         drawList->AddLine(
             ImVec2(startX, origin.y),
             ImVec2(endX, origin.y),
-            axisColor,
-            1.5f
+            axisColorX,
+            1.2f
         );
     }
 }

@@ -18,8 +18,15 @@ void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas& canvas, Core::Applic
   appContext.consoleMessage = message;
 }
 
-bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size) {
+bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size, bool isActive) {
   bool pressed = false;
+  
+  // Push active-tool styling
+  if (isActive) {
+    ImGui::PushStyleColor(ImGuiCol_Button, UIColors::TOOL_ACTIVE_BG);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, UIColors::ACCENT_DIM);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, UIColors::ACCENT);
+  }
   
   // Try to use texture icon first
   auto textureIt = iconTextures.find(iconName);
@@ -31,17 +38,31 @@ bool IconButton(const std::string& iconName, const char* fallbackText, const cha
     float scale = std::min(size.x / iconSize.x, size.y / iconSize.y) * 0.8f; // 80% of button size
     ImVec2 scaledSize = ImVec2(iconSize.x * scale, iconSize.y * scale);
     
-    // Create image button with proper styling
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0)); // Transparent background
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, UIColors::BUTTON_HOVERED);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, UIColors::BUTTON_ACTIVE);
+    if (!isActive) {
+      ImGui::PushStyleColor(ImGuiCol_Button, UIColors::BUTTON);
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, UIColors::BUTTON_HOVERED);
+      ImGui::PushStyleColor(ImGuiCol_ButtonActive, UIColors::BUTTON_ACTIVE);
+    }
     
     pressed = ImGui::ImageButton(("##" + iconName).c_str(), (ImTextureID)(uintptr_t)texture, scaledSize);
     
-    ImGui::PopStyleColor(3);
+    if (!isActive) {
+      ImGui::PopStyleColor(3);
+    }
   } else {
     // Fallback to text button
     pressed = ImGui::Button((std::string(fallbackText) + "##" + iconName).c_str(), size);
+  }
+  
+  // Draw active indicator line under the button
+  if (isActive) {
+    ImGui::PopStyleColor(3);
+    ImVec2 rMin = ImGui::GetItemRectMin();
+    ImVec2 rMax = ImGui::GetItemRectMax();
+    ImGui::GetWindowDrawList()->AddLine(
+      ImVec2(rMin.x, rMax.y - 1),
+      ImVec2(rMax.x, rMax.y - 1),
+      IM_COL32(66, 150, 250, 220), 2.0f);
   }
   
   // Add tooltip
@@ -120,22 +141,23 @@ void LoadIconTextures() {
 #endif
   
   // Define icon files and their names based on converted PNG files
+  // Paths are relative to the build/ directory (where the binary runs from)
   std::vector<std::pair<std::string, std::string>> iconFiles = {
-    {"line", "icons/png/line-segment.png"},
-    {"circle", "icons/png/circle.png"},
-    {"rectangle", "icons/png/rectangle.png"},
-    {"point", "icons/png/dot.png"},
-    {"triangle", "icons/png/triangle.png"},
-    {"square", "icons/png/square.png"},
-    {"spline", "icons/png/spline-curve.png"},
-    {"bezier", "icons/png/bezier-curve.png"},
-    {"select", "icons/png/select.png"},
-    {"undo", "icons/png/undo.png"},
-    {"redo", "icons/png/redo.png"},
-    {"clear", "icons/png/clear.png"},
-    {"bearing", "icons/png/bearing.png"},
-    {"bellows", "icons/png/bellows.png"},
-    {"suspension", "icons/png/suspension.png"}
+    {"line", "../icons/png/line-segment.png"},
+    {"circle", "../icons/png/circle.png"},
+    {"rectangle", "../icons/png/rectangle.png"},
+    {"point", "../icons/png/dot.png"},
+    {"triangle", "../icons/png/triangle.png"},
+    {"square", "../icons/png/square.png"},
+    {"spline", "../icons/png/spline-curve.png"},
+    {"bezier", "../icons/png/bezier-curve.png"},
+    {"select", "../icons/png/select.png"},
+    {"undo", "../icons/png/undo.png"},
+    {"redo", "../icons/png/redo.png"},
+    {"clear", "../icons/png/clear.png"},
+    {"bearing", "../icons/png/bearing.png"},
+    {"bellows", "../icons/png/bellows.png"},
+    {"suspension", "../icons/png/suspension.png"}
   };
   
   // Load each icon

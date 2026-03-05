@@ -1,394 +1,302 @@
 #include "ui/TopRibbon.hpp"
 #include "ui/UIHelpers.hpp"
 #include <imgui.h>
+#include <imgui_internal.h>
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
 #include "Constants.hpp"
 
 namespace UI {
 
+// Draw a subtle vertical divider between toolbar sections
+static void ToolbarSep() {
+  ImGui::SameLine(0, 8);
+  ImVec2 p = ImGui::GetCursorScreenPos();
+  ImGui::GetWindowDrawList()->AddLine(
+    ImVec2(p.x, p.y + 2), ImVec2(p.x, p.y + 26),
+    IM_COL32(55, 55, 65, 180), 1.0f);
+  ImGui::Dummy(ImVec2(1, 28));
+  ImGui::SameLine(0, 8);
+}
+
 void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
+  const float toolbarHeight = 80.0f;
+  const float displayWidth = ImGui::GetIO().DisplaySize.x;
+  const float btn = 30.0f;
+  const float sp = 3.0f;
 
-  // Professional style ribbon at the top
   ImGui::SetNextWindowPos(ImVec2(0, 0));
-  ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 145)); // Increased to fit View panel with slider
+  ImGui::SetNextWindowSize(ImVec2(displayWidth, toolbarHeight));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 6));
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, UIColors::TOOLBAR);
+  ImGui::Begin("##Toolbar", nullptr,
+    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
-  ImGui::Begin("Ribbon", nullptr,
-               ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
+  // ============================================================
+  //  ROW 1 — Drawing Tools, Engineering Parts, Edit Actions
+  // ============================================================
 
-  // Calculate adaptive panel and button widths based on screen size
-  const float availWidth = ImGui::GetContentRegionAvail().x;
-  const float panelSpacing = 8.0f;
-  
-  // Total width minus space for 3D button (120px) divided by 3 panels
-  const float panelWidth = (availWidth - 130 - panelSpacing*2) / 3;
-  
-  // Calculate button sizes based on panel width and content
-  const float panelHeight = 125.0f; // Height to fit View panel contents
-  
-  // For icon buttons, calculate size based on icon size and ensure proper centering
-  const float iconSize = 20.0f; // Size of the icon font
-  const float iconButtonPadding = 12.0f; // More padding to center icons properly
-  const float iconButtonSize = iconSize + iconButtonPadding; // Square buttons for icons (32x32)
-  
-  // Calculate how many icon buttons per row based on available width
-  const int iconsPerRow = std::max(2, static_cast<int>((panelWidth - 16.0f) / (iconButtonSize + 6.0f)));
-  // Button spacing between icon buttons
-  const float iconButtonSpacing = 6.0f;
-  
-  // For text buttons (like "Bellows", "Ball Bearing"), use larger size
-  const float textWidth = ImGui::CalcTextSize("Ball Bearing").x;
-  const float textButtonWidth = textWidth + 16.0f;
-  const float textButtonHeight = 30.0f;
-  
-  // Draw Panel
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
-  // Enable vertical scrolling for the drawing tools panel when content overflows
-  ImGui::BeginChild("DrawPanel", ImVec2(panelWidth, panelHeight), true, 
-                    ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_NavFlattened);
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
-  ImGui::Text("Draw");
+  // --- Brand ---
+  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::ACCENT);
+  ImGui::SetCursorPosY(10);
+  ImGui::Text("NAVIX");
   ImGui::PopStyleColor();
-  ImGui::PopFont();
-  
-  ImGui::Dummy(ImVec2(0, 2));
-  
-  // Row 1: Basic drawing tools - use compact icon buttons
-  float y = ImGui::GetCursorPosY();
-  bool selected;
-  
-  // Push style for icon buttons to ensure proper centering
-  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Point;
-  if (IconButton("point", FALLBACK_POINT, "Point Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Point, canvas, appContext, "Point Tool: Click to place points");
-  }
-  
-  ImGui::SameLine(0, iconButtonSpacing);
-  selected = appContext.activeMode == Drawing::DrawingMode::Line;
-  if (IconButton("line", FALLBACK_LINE, "Line Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Line, canvas, appContext, "Line Tool: Click to set start and end points");
-  }
-  
-  if (iconsPerRow > 2) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Circle;
-  if (IconButton("circle", FALLBACK_CIRCLE, "Circle Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Circle, canvas, appContext, "Circle Tool: Click to set center and radius");
-  }
+  ImGui::SameLine(0, 16);
+  ToolbarSep();
 
-  if (iconsPerRow > 3) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Triangle;
-  if (IconButton("triangle", FALLBACK_TRIANGLE, "Triangle Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Triangle, canvas, appContext, "Triangle Tool: Click to set point and direction (dimensions in properties)");
-  }
-
-  if (iconsPerRow > 4) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Square;
-  if (IconButton("square", FALLBACK_SQUARE, "Square Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Square, canvas, appContext, "Square Tool: Click to set corner and direction (side length in properties)");
-  }
-
-  if (iconsPerRow > 5) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Rectangle;
-  if (IconButton("rectangle", FALLBACK_RECTANGLE, "Rectangle Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Rectangle, canvas, appContext, "Rectangle Tool: Click to set corner and direction (dimensions in properties)");
-  }
-  
-  // Pop the icon button style
-  ImGui::PopStyleVar();
-
-  // Start new row for additional tools
-  ImGui::Dummy(ImVec2(0, 2));
-  
-  // Row 2: Additional drawing tools
-  // Push style for icon buttons to ensure proper centering
-  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Spline;
-  if (IconButton("spline", FALLBACK_SPLINE, "Spline Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::Spline, canvas, appContext, "Spline Tool: Click to add control points, double-click to finish");
-  }
-  
-  ImGui::SameLine(0, iconButtonSpacing);
-  selected = appContext.activeMode == Drawing::DrawingMode::BezierCurve;
-  if (IconButton("bezier", FALLBACK_BEZIER, "Bezier Curve Tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    SelectTool(Drawing::DrawingMode::BezierCurve, canvas, appContext, "Bezier Tool: Click to add control points, double-click to finish");
-  }
-  
-  // Pop the icon button style
-  ImGui::PopStyleVar();
-
-  if (iconsPerRow > 2) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Bellows;
-  if (IconButton("bellows", "Bellows", "Bellows Tool: Click to create a parametric bellows", ImVec2(textButtonWidth, textButtonHeight))) {
-    SelectTool(Drawing::DrawingMode::Bellows, canvas, appContext, "Bellows Tool: Click to create a parametric bellows");
-  }
-  
-  if (iconsPerRow > 2) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::BallBearing;
-  if (IconButton("bearing", "Ball Bearing", "Ball Bearing Tool: Click to create a parametric ball bearing", ImVec2(textButtonWidth, textButtonHeight))) {
-    SelectTool(Drawing::DrawingMode::BallBearing, canvas, appContext, "Ball Bearing Tool: Click to create a parametric ball bearing");
-  }
-  
-  ImGui::SameLine(0, iconButtonSpacing);
-  selected = appContext.activeMode == Drawing::DrawingMode::Spring2D;
-  if (IconButton("suspension", "Spring", "Spring Tool: Set parameters in properties panel", ImVec2(textButtonWidth, textButtonHeight))) {
-    SelectTool(Drawing::DrawingMode::Spring2D, canvas, appContext, "Spring Tool: Set parameters in properties panel");
-  }
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor();
-  ImGui::EndGroup();
-  
-  // Edit Panel
-  ImGui::SameLine(0, panelSpacing);
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
-  ImGui::BeginChild("EditPanel", ImVec2(panelWidth, panelHeight), true);
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-  ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
-  ImGui::Text("Edit");
-  ImGui::PopStyleColor();
-  ImGui::PopFont();
-  
-  ImGui::Dummy(ImVec2(0, 2));
-  
-  // Edit tools - use compact icon buttons
-  // Push style for icon buttons to ensure proper centering
-  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
-  
-  selected = appContext.activeMode == Drawing::DrawingMode::Select;
-  if (IconButton("select", FALLBACK_SELECT, "Select Tool", ImVec2(iconButtonSize, iconButtonSize))) {
+  // --- Cursor / Select ---
+  if (IconButton("select", FALLBACK_SELECT, "Select (Esc)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Select)) {
     SelectTool(Drawing::DrawingMode::Select, canvas, appContext, "Select Tool: Click to select objects");
   }
-  
-  ImGui::SameLine(0, iconButtonSpacing);
-  if (IconButton("undo", FALLBACK_UNDO, "Undo", ImVec2(iconButtonSize, iconButtonSize))) {
-    canvas.undo();
-    appContext.consoleMessage = "Undo";
+  ImGui::SameLine(0, 8);
+  ToolbarSep();
+
+  // --- Basic Shapes ---
+  if (IconButton("point", FALLBACK_POINT, "Point (P)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Point))
+    SelectTool(Drawing::DrawingMode::Point, canvas, appContext, "Point Tool: Click to place points");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("line", FALLBACK_LINE, "Line (L)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Line))
+    SelectTool(Drawing::DrawingMode::Line, canvas, appContext, "Line Tool: Click start & end points");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("circle", FALLBACK_CIRCLE, "Circle (C)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Circle))
+    SelectTool(Drawing::DrawingMode::Circle, canvas, appContext, "Circle Tool: Click center, drag radius");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("triangle", FALLBACK_TRIANGLE, "Triangle (T)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Triangle))
+    SelectTool(Drawing::DrawingMode::Triangle, canvas, appContext, "Triangle Tool: Click to place");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("square", FALLBACK_SQUARE, "Square (S)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Square))
+    SelectTool(Drawing::DrawingMode::Square, canvas, appContext, "Square Tool: Click to place");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("rectangle", FALLBACK_RECTANGLE, "Rectangle (R)", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Rectangle))
+    SelectTool(Drawing::DrawingMode::Rectangle, canvas, appContext, "Rectangle Tool: Click to place");
+  ImGui::SameLine(0, 8);
+  ToolbarSep();
+
+  // --- Curves ---
+  if (IconButton("spline", FALLBACK_SPLINE, "Spline", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Spline))
+    SelectTool(Drawing::DrawingMode::Spline, canvas, appContext, "Spline: Left-click points, right-click finish");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("bezier", FALLBACK_BEZIER, "Bezier Curve", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::BezierCurve))
+    SelectTool(Drawing::DrawingMode::BezierCurve, canvas, appContext, "Bezier: Left-click points, right-click finish");
+  ImGui::SameLine(0, 8);
+  ToolbarSep();
+
+  // --- Engineering Components ---
+  if (IconButton("bellows", FALLBACK_BELLOWS, "Bellows", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Bellows))
+    SelectTool(Drawing::DrawingMode::Bellows, canvas, appContext, "Bellows Tool: Click to create");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("bearing", FALLBACK_BEARING, "Ball Bearing", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::BallBearing))
+    SelectTool(Drawing::DrawingMode::BallBearing, canvas, appContext, "Ball Bearing Tool: Click to create");
+  ImGui::SameLine(0, sp);
+
+  if (IconButton("suspension", FALLBACK_SUSPENSION, "Spring", ImVec2(btn, btn),
+      appContext.activeMode == Drawing::DrawingMode::Spring2D))
+    SelectTool(Drawing::DrawingMode::Spring2D, canvas, appContext, "Spring Tool: Set params in properties");
+  ImGui::SameLine(0, 8);
+  ToolbarSep();
+
+  // --- Edit Actions ---
+  if (IconButton("undo", FALLBACK_UNDO, "Undo (Ctrl+Z)", ImVec2(btn, btn))) {
+    canvas.undo(); appContext.consoleMessage = "Undo";
   }
-  
-  // Pop the icon button style
-  ImGui::PopStyleVar();
-  
-  if (iconsPerRow > 2) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
+  ImGui::SameLine(0, sp);
+  if (IconButton("redo", FALLBACK_REDO, "Redo (Ctrl+Y)", ImVec2(btn, btn))) {
+    canvas.redo(); appContext.consoleMessage = "Redo";
   }
-  
-  if (IconButton("redo", FALLBACK_REDO, "##redo_tool", ImVec2(iconButtonSize, iconButtonSize))) {
-    canvas.redo();
-    appContext.consoleMessage = "Redo";
+  ImGui::SameLine(0, sp);
+  if (IconButton("clear", FALLBACK_CLEAR, "Clear All", ImVec2(btn, btn))) {
+    canvas.clearAll(); appContext.consoleMessage = "All shapes cleared";
   }
-  if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip("Redo");
+
+  // --- Right-aligned 3D View Button ---
+  {
+    Drawing::Shape* sel = canvas.getSelectedShape();
+    bool has3D = false;
+    const char* label3D = "3D View";
+    if (sel) {
+      if (sel->type == Drawing::ShapeType::BELLOWS)      { label3D = "3D Bellows"; has3D = true; }
+      else if (sel->type == Drawing::ShapeType::BALL_BEARING) { label3D = "3D Bearing"; has3D = true; }
+      else if (sel->type == Drawing::ShapeType::SPRING2D)     { label3D = "3D Spring";  has3D = true; }
+    }
+
+    float rightX = displayWidth - 122;
+    ImGui::SameLine(rightX);
+
+    if (has3D) {
+      ImGui::PushStyleColor(ImGuiCol_Button, UIColors::ACCENT);
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, UIColors::ACCENT_HOVER);
+      ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_BRIGHT);
+    } else {
+      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.22f, 0.22f, 0.27f, 1.0f));
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.28f, 0.33f, 1.0f));
+      ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
+    }
+
+    if (ImGui::Button(label3D, ImVec2(104, 28)) && has3D) {
+      if (sel->type == Drawing::ShapeType::BELLOWS)           appContext.showBellows3DView = true;
+      else if (sel->type == Drawing::ShapeType::BALL_BEARING) appContext.showBallBearing3DView = true;
+      else if (sel->type == Drawing::ShapeType::SPRING2D)     appContext.showSpring3DView = true;
+    }
+    ImGui::PopStyleColor(3);
+
+    if (!has3D && ImGui::IsItemHovered())
+      ImGui::SetTooltip("Select a component (Bellows / Bearing / Spring) for 3D view");
+
+    // Extra Shock Absorber button when Spring selected
+    if (sel && sel->type == Drawing::ShapeType::SPRING2D) {
+      ImGui::SameLine(0, 4);
+      bool canSA = canvas.hasCompleteShockAbsorberAssembly();
+      if (!canSA) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.22f, 0.22f, 0.27f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
+      } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_BRIGHT);
+      }
+      if (ImGui::Button("S.A.", ImVec2(38, 28)) && canSA)
+        appContext.showShockAbsorber3DView = true;
+      ImGui::PopStyleColor(2);
+      if (!canSA && ImGui::IsItemHovered())
+        ImGui::SetTooltip("Build full assembly (spring + top/bottom ends) first");
+    }
   }
-  
-  if (iconsPerRow > 2) {
-    ImGui::SameLine(0, iconButtonSpacing);
-  } else {
-    ImGui::Dummy(ImVec2(0, 3));
-  }
-  
-  // Add Clear All button using text button size
-  if (IconButton("clear", "Clear All", "Clear All: Remove all shapes from canvas", ImVec2(textButtonWidth, textButtonHeight))) {
-    canvas.clearAll();
-    appContext.consoleMessage = "All shapes cleared";
-  }
-  
-  // Duplicate selected shape
-  if (IconButton("duplicate_btn", "Duplicate", "Duplicate: Clone selected shape (Ctrl+D)", ImVec2(textButtonWidth, textButtonHeight))) {
-    canvas.duplicateSelectedShape();
-    appContext.consoleMessage = "Duplicated selected shape";
-  }
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor();
-  ImGui::EndGroup();
-  
-  // View Panel
-  ImGui::SameLine(0, panelSpacing);
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
-  ImGui::BeginChild("ViewPanel", ImVec2(panelWidth, panelHeight), true);
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+
+  // ============================================================
+  //  ROW 2 — View Controls  |  Mesh  |  info
+  // ============================================================
+  ImGui::SetCursorPosY(46);
+
+  // --- View Toggles ---
   ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
   ImGui::Text("View");
   ImGui::PopStyleColor();
-  ImGui::PopFont();
-  
-  ImGui::Dummy(ImVec2(0, 2));
-  
-  // Grid and snap toggles with reduced width elements
+  ImGui::SameLine(0, 8);
+
   bool showGrid = canvas.isGridVisible();
-  ImGui::PushItemWidth(80.0f); // Fixed width for slider that fits in panel
   if (ImGui::Checkbox("Grid", &showGrid)) {
     canvas.setShowGrid(showGrid);
     appContext.consoleMessage = showGrid ? "Grid: ON" : "Grid: OFF";
   }
-  
+  ImGui::SameLine(0, 10);
+
   bool snapToGrid = canvas.isSnapToGridEnabled();
   if (ImGui::Checkbox("Snap", &snapToGrid)) {
     canvas.setSnapToGrid(snapToGrid);
     appContext.snapEnabled = snapToGrid;
-    appContext.consoleMessage = snapToGrid ? "Snap to Grid: ON" : "Snap to Grid: OFF";
+    appContext.consoleMessage = snapToGrid ? "Snap: ON" : "Snap: OFF";
   }
-  
-  // Grid size slider
+  ImGui::SameLine(0, 10);
+
+  ImGui::PushItemWidth(72);
   float gridSize = appContext.gridSize;
-  if (ImGui::SliderFloat("Size", &gridSize, 5.0f, 50.0f, "%.0f")) {
+  if (ImGui::SliderFloat("##GridSz", &gridSize, 5.0f, 50.0f, "%.0f")) {
     appContext.gridSize = gridSize;
     canvas.setGridSpacing(gridSize);
-    appContext.consoleMessage = "Grid Size Updated";
   }
   ImGui::PopItemWidth();
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor();
-  ImGui::EndGroup();
-  
-  // Mesh Panel
-  ImGui::SameLine(0, panelSpacing);
-  ImGui::BeginGroup();
-  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.98f, 0.98f, 0.98f, 1.0f));
-  ImGui::BeginChild("MeshPanel", ImVec2(panelWidth, panelHeight), true);
-  
-  ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+
+  ImGui::SameLine(0, 16);
+
+  // --- Mesh Controls (right-aligned) ---
+  {
+    // Calculate right-aligned position for mesh controls
+    // Mesh section width: "Mesh" label(30) + Generate(62) + Clear(44) + Show checkbox(50) + slider(64) + gaps ≈ 290
+    float meshSectionWidth = 300.0f;
+    float rightEdge = ImGui::GetWindowWidth() - 12.0f;
+    float meshStartX = rightEdge - meshSectionWidth;
+    if (meshStartX > ImGui::GetCursorPosX() + 20.0f) {
+      ImGui::SetCursorPosX(meshStartX);
+    } else {
+      // Fallback: just add separator and continue inline
+      ImVec2 p = ImGui::GetCursorScreenPos();
+      ImGui::GetWindowDrawList()->AddLine(
+        ImVec2(p.x, p.y + 1), ImVec2(p.x, p.y + 22),
+        IM_COL32(55, 55, 65, 150), 1.0f);
+      ImGui::Dummy(ImVec2(1, 24));
+      ImGui::SameLine(0, 10);
+    }
+  }
+
   ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_DIM);
   ImGui::Text("Mesh");
   ImGui::PopStyleColor();
-  ImGui::PopFont();
-  
-  ImGui::Dummy(ImVec2(0, 2));
-  
-  // Generate Mesh button
-  if (IconButton("mesh_gen", "Generate", "Generate Mesh: Create FEM mesh from shapes", ImVec2(textButtonWidth, textButtonHeight))) {
-    bool ok = canvas.generateMesh(canvas.getMeshElementSize());
-    if (ok) {
-      appContext.consoleMessage = "Mesh generated successfully";
-    } else {
-      appContext.consoleMessage = "Mesh generation failed - draw closed shapes first";
+  ImGui::SameLine(0, 6);
+
+  {
+    Drawing::Shape* sel = canvas.getSelectedShape();
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.34f, 0.20f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.44f, 0.26f, 1.0f));
+    if (ImGui::Button("Generate##mesh", ImVec2(62, 22))) {
+      bool ok;
+      if (sel) {
+        ok = (canvas.generateMeshIncludingShape(sel, canvas.getMeshElementSize()), canvas.hasMesh());
+        appContext.consoleMessage = ok ? "Mesh generated for selected shape" : "Mesh failed";
+      } else {
+        ok = canvas.generateMesh(canvas.getMeshElementSize());
+        appContext.consoleMessage = ok ? "Mesh generated (all shapes)" : "Mesh failed — draw closed shapes";
+      }
     }
+    ImGui::PopStyleColor(2);
+
+    ImGui::SameLine(0, 4);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.34f, 0.18f, 0.18f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.44f, 0.24f, 0.24f, 1.0f));
+    if (ImGui::Button("Clear##mesh", ImVec2(44, 22))) {
+      if (sel) {
+        canvas.clearMeshForShape(sel);
+        appContext.consoleMessage = "Mesh cleared for selected shape";
+      } else {
+        canvas.clearMesh();
+        appContext.consoleMessage = "All meshes cleared";
+      }
+    }
+    ImGui::PopStyleColor(2);
   }
-  
-  // Clear Mesh button
-  if (IconButton("mesh_clr", "Clear Mesh", "Clear Mesh: Remove generated mesh", ImVec2(textButtonWidth, textButtonHeight))) {
-    canvas.clearMesh();
-    appContext.consoleMessage = "Mesh cleared";
-  }
-  
-  // Show/hide mesh toggle
-  bool meshVisible = canvas.isMeshVisible();
-  if (ImGui::Checkbox("Show", &meshVisible)) {
-    canvas.setMeshVisible(meshVisible);
-    appContext.consoleMessage = meshVisible ? "Mesh: Visible" : "Mesh: Hidden";
-  }
-  
-  // Element size control
-  ImGui::PushItemWidth(80.0f);
-  float elemSize = static_cast<float>(canvas.getMeshElementSize());
-  if (ImGui::SliderFloat("Elem", &elemSize, 1.0f, 50.0f, "%.1f")) {
-    canvas.setMeshElementSize(static_cast<double>(elemSize));
-  }
+
+  ImGui::SameLine(0, 8);
+  bool meshVis = canvas.isMeshVisible();
+  if (ImGui::Checkbox("Show##meshVis", &meshVis))
+    canvas.setMeshVisible(meshVis);
+
+  ImGui::SameLine(0, 8);
+  ImGui::PushItemWidth(64);
+  float elemSz = static_cast<float>(canvas.getMeshElementSize());
+  if (ImGui::SliderFloat("##ElemSz", &elemSz, 1.0f, 50.0f, "E:%.0f"))
+    canvas.setMeshElementSize(static_cast<double>(elemSz));
   ImGui::PopItemWidth();
-  
-  ImGui::EndChild();
-  ImGui::PopStyleColor();
-  ImGui::EndGroup();
-  
-  // Right-aligned section for 3D view button
-  ImGui::SameLine();
-  
-  // Shape-specific 3D view buttons
-  ImGui::PushStyleColor(ImGuiCol_Button, UIColors::ACCENT);
-  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.73f, 0.73f, 1.0f));
-  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-  
-  // Check if we have any complex shapes to show 3D views for
-  Drawing::Shape* selectedShape = canvas.getSelectedShape();
-  bool hasComplexShapes = false;
-  
-  if (selectedShape) {
-    if (selectedShape->type == Drawing::ShapeType::BELLOWS) {
-      if (ImGui::Button("3D Bellows", ImVec2(100, 30))) {
-        appContext.showBellows3DView = true;
-        appContext.consoleMessage = "Opening 3D Bellows View";
-      }
-      hasComplexShapes = true;
-    }
-    else if (selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
-      if (ImGui::Button("3D Ball Bearing", ImVec2(100, 30))) {
-        appContext.showBallBearing3DView = true;
-        appContext.consoleMessage = "Opening 3D Ball Bearing View";
-      }
-      hasComplexShapes = true;
-    }
-    else if (selectedShape->type == Drawing::ShapeType::SPRING2D) {
-      if (ImGui::Button("3D Spring", ImVec2(100, 30))) {
-        appContext.showSpring3DView = true;
-        appContext.consoleMessage = "Opening 3D Spring View";
-      }
-      hasComplexShapes = true;
-      ImGui::SameLine();
-      if (ImGui::Button("3D Shock Abs.", ImVec2(100, 30))) {
-        appContext.showShockAbsorber3DView = true;
-        appContext.consoleMessage = "Opening 3D Shock Absorber View";
-      }
-    }
-  }
-  
-  // If no complex shape selected, show a disabled button with tooltip
-  if (!hasComplexShapes) {
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-    ImGui::Button("3D View", ImVec2(100, 30));
-    ImGui::PopStyleColor(1);
-    if (ImGui::IsItemHovered()) {
-      ImGui::SetTooltip("Select a complex shape (Bellows, Ball Bearing, etc.) to view in 3D");
-    }
-  }
-  
-  ImGui::PopStyleColor(3);
-  
+
+  // --- Bottom edge line ---
+  ImVec2 wPos = ImGui::GetWindowPos();
+  ImVec2 wSz  = ImGui::GetWindowSize();
+  ImGui::GetWindowDrawList()->AddLine(
+    ImVec2(wPos.x, wPos.y + wSz.y - 1),
+    ImVec2(wPos.x + wSz.x, wPos.y + wSz.y - 1),
+    IM_COL32(30, 30, 40, 255), 1.0f);
+
   ImGui::End();
+  ImGui::PopStyleColor();
   ImGui::PopStyleVar();
 }
+
 } // namespace UI

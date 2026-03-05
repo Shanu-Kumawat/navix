@@ -190,63 +190,6 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
         ImGui::SetTooltip("Add both top and bottom ends to enable 3D view");
       }
       
-
-      // FEM Surface Meshing controls for Shock Absorber
-      if (hasCompleteAssembly) {
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.15f, 0.3f, 0.15f, 0.7f));
-        if (ImGui::CollapsingHeader("Surface Meshing##shockAbsorber", ImGuiTreeNodeFlags_DefaultOpen)) {
-          if (!appContext.shockAbsorberViewerInitialized) {
-            appContext.shockAbsorberViewer.initialize();
-            appContext.shockAbsorberViewerInitialized = true;
-          }
-
-          ShockAbsorberModel3D* saModel = appContext.shockAbsorberViewer.getModel();
-          if (saModel) {
-            float saAvailWidth = ImGui::GetContentRegionAvail().x;
-            ImGui::PushItemWidth(saAvailWidth);
-
-            float elemSize = saModel->getFEMElementSize();
-            if (ImGui::SliderFloat("Element Size##shockAbsorberMesh", &elemSize, 0.01f, 0.5f, "%.3f")) {
-              saModel->setFEMElementSize(elemSize);
-            }
-            ImGui::PopItemWidth();
-
-            float meshBtnWidth = saAvailWidth / 2 - 4;
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.5f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.6f, 0.3f, 1.0f));
-            if (ImGui::Button("Generate Mesh##shockAbsorber", ImVec2(meshBtnWidth, 28))) {
-              saModel->generateMesh(spring, foundTopEnd, foundBottomEnd);
-              saModel->generateFEMMesh(saModel->getFEMElementSize());
-            }
-            ImGui::PopStyleColor(2);
-
-            ImGui::SameLine();
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.2f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.3f, 0.3f, 1.0f));
-            if (ImGui::Button("Clear Mesh##shockAbsorber", ImVec2(meshBtnWidth, 28))) {
-              saModel->clearFEMMesh();
-            }
-            ImGui::PopStyleColor(2);
-
-            bool showMesh = saModel->getShowFEMMesh();
-            if (ImGui::Checkbox("Show Surface Mesh##shockAbsorber", &showMesh)) {
-              saModel->setShowFEMMesh(showMesh);
-            }
-
-            if (saModel->hasFEMMesh()) {
-              const auto& mesh = saModel->getFEMMesh();
-              ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.5f, 1.0f),
-                "Nodes: %zu  |  Elements: %zu", mesh.getNodes().size(), mesh.getElements().size());
-            } else {
-              ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No mesh generated");
-            }
-          }
-        }
-        ImGui::PopStyleColor();
-      }
-
       ImGui::Unindent(10);
     } else {
       ImGui::PopStyleColor();
@@ -908,58 +851,6 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
         if (ComplexShape3DManager::render3DViewButton("3D Ball Bearing View", "Open 3D visualization of the ball bearing")) {
           appContext.showBallBearing3DView = true;
         }
-
-        // FEM Surface Meshing controls for Ball Bearing
-        ImGui::Separator();
-        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.15f, 0.3f, 0.15f, 0.7f));
-        if (ImGui::CollapsingHeader("Surface Meshing##ballBearing", ImGuiTreeNodeFlags_DefaultOpen)) {
-          if (!appContext.ballBearing3DViewInitialized) {
-            appContext.ballBearingViewer.initialize();
-            appContext.ballBearing3DViewInitialized = true;
-          }
-
-          BallBearingModel3D* bbModel = appContext.ballBearingViewer.getModel();
-          if (bbModel) {
-            ImGui::PushItemWidth(availWidth);
-
-            float elemSize = bbModel->getFEMElementSize();
-            if (ImGui::SliderFloat("Element Size##ballBearingMesh", &elemSize, 0.01f, 0.5f, "%.3f")) {
-              bbModel->setFEMElementSize(elemSize);
-            }
-            ImGui::PopItemWidth();
-
-            float meshBtnWidth = availWidth / 2 - 4;
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.5f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.6f, 0.3f, 1.0f));
-            if (ImGui::Button("Generate Mesh##ballBearing", ImVec2(meshBtnWidth, 28))) {
-              bbModel->generateMesh(ballBearing);
-              bbModel->generateFEMMesh(bbModel->getFEMElementSize());
-            }
-            ImGui::PopStyleColor(2);
-
-            ImGui::SameLine();
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.2f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.3f, 0.3f, 1.0f));
-            if (ImGui::Button("Clear Mesh##ballBearing", ImVec2(meshBtnWidth, 28))) {
-              bbModel->clearFEMMesh();
-            }
-            ImGui::PopStyleColor(2);
-
-            bool showMesh = bbModel->getShowFEMMesh();
-            if (ImGui::Checkbox("Show Surface Mesh##ballBearing", &showMesh)) {
-              bbModel->setShowFEMMesh(showMesh);
-            }
-
-            if (bbModel->hasFEMMesh()) {
-              const auto& mesh = bbModel->getFEMMesh();
-              ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.5f, 1.0f),
-                "Nodes: %zu  |  Elements: %zu", mesh.getNodes().size(), mesh.getElements().size());
-            } else {
-              ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No mesh generated");
-            }
-          }
-        }
-        ImGui::PopStyleColor();
       }
     }
     

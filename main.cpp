@@ -108,7 +108,7 @@ void LoadFonts() {
 // Function declaration prototypes
 void LoadFonts();
 void LoadIconTextures();
-bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size);
+bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size, bool isActive);
 void CleanupIconTextures();
 void SetupHighDPIRendering(SDL_Window* window, ImGuiIO& io);
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas &canvas, Core::ApplicationContext& appContext, const std::string &message);
@@ -125,89 +125,88 @@ void SetupImGuiStyle();
 void SetupImGuiStyle() {
   ImGuiStyle &style = ImGui::GetStyle();
 
-  // Colors - Professional Light Theme
+  // === NAVIX Professional Dark Theme ===
   ImVec4 *colors = style.Colors;
   colors[ImGuiCol_Text] = UIColors::TEXT;
   colors[ImGuiCol_TextDisabled] = UIColors::TEXT_DIM;
   colors[ImGuiCol_WindowBg] = UIColors::PANEL;
-  colors[ImGuiCol_ChildBg] = UIColors::PANEL;
-  colors[ImGuiCol_PopupBg] = UIColors::PANEL;
+  colors[ImGuiCol_ChildBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f); // Transparent children inherit parent
+  colors[ImGuiCol_PopupBg] = ImVec4(0.20f, 0.20f, 0.24f, 0.97f);
   colors[ImGuiCol_Border] = UIColors::BORDER;
   colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-  colors[ImGuiCol_FrameBg] = UIColors::DARK_PANEL;
-  colors[ImGuiCol_FrameBgHovered] = UIColors::BUTTON_HOVERED;
-  colors[ImGuiCol_FrameBgActive] = UIColors::BUTTON_ACTIVE;
-  colors[ImGuiCol_TitleBg] = UIColors::HEADER;
-  colors[ImGuiCol_TitleBgActive] = UIColors::HEADER;
-  colors[ImGuiCol_TitleBgCollapsed] = UIColors::HEADER;
-  colors[ImGuiCol_MenuBarBg] = UIColors::DARK_PANEL;
-  colors[ImGuiCol_ScrollbarBg] = UIColors::DARK_PANEL;
-  colors[ImGuiCol_ScrollbarGrab] = UIColors::BUTTON;
-  colors[ImGuiCol_ScrollbarGrabHovered] = UIColors::BUTTON_HOVERED;
-  colors[ImGuiCol_ScrollbarGrabActive] = UIColors::BUTTON_ACTIVE;
+  colors[ImGuiCol_FrameBg] = ImVec4(0.16f, 0.16f, 0.20f, 1.0f);
+  colors[ImGuiCol_FrameBgHovered] = ImVec4(0.22f, 0.23f, 0.29f, 1.0f);
+  colors[ImGuiCol_FrameBgActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.40f);
+  colors[ImGuiCol_TitleBg] = UIColors::DARK_PANEL;
+  colors[ImGuiCol_TitleBgActive] = ImVec4(0.23f, 0.23f, 0.28f, 1.0f);
+  colors[ImGuiCol_TitleBgCollapsed] = UIColors::DARK_PANEL;
+  colors[ImGuiCol_MenuBarBg] = UIColors::TOOLBAR;
+  colors[ImGuiCol_ScrollbarBg] = ImVec4(0.18f, 0.18f, 0.22f, 0.6f);
+  colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.36f, 0.36f, 0.42f, 1.0f);
+  colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.44f, 0.44f, 0.50f, 1.0f);
+  colors[ImGuiCol_ScrollbarGrabActive] = UIColors::ACCENT;
   colors[ImGuiCol_CheckMark] = UIColors::ACCENT;
-  colors[ImGuiCol_SliderGrab] = UIColors::ACCENT;
+  colors[ImGuiCol_SliderGrab] = ImVec4(0.26f, 0.59f, 0.98f, 0.78f);
   colors[ImGuiCol_SliderGrabActive] = UIColors::ACCENT;
   colors[ImGuiCol_Button] = UIColors::BUTTON;
   colors[ImGuiCol_ButtonHovered] = UIColors::BUTTON_HOVERED;
   colors[ImGuiCol_ButtonActive] = UIColors::BUTTON_ACTIVE;
   colors[ImGuiCol_Header] = UIColors::HEADER;
-  colors[ImGuiCol_HeaderHovered] = UIColors::BUTTON_HOVERED;
-  colors[ImGuiCol_HeaderActive] = UIColors::BUTTON_ACTIVE;
-  colors[ImGuiCol_Separator] = UIColors::BORDER;
-  colors[ImGuiCol_SeparatorHovered] = UIColors::BORDER;
-  colors[ImGuiCol_SeparatorActive] = UIColors::BORDER;
-  colors[ImGuiCol_Tab] = UIColors::BUTTON;
-  colors[ImGuiCol_TabHovered] = UIColors::BUTTON_HOVERED;
-  colors[ImGuiCol_TabActive] = UIColors::BUTTON_ACTIVE;
+  colors[ImGuiCol_HeaderHovered] = UIColors::HEADER_HOVERED;
+  colors[ImGuiCol_HeaderActive] = UIColors::ACCENT_DIM;
+  colors[ImGuiCol_Separator] = ImVec4(0.30f, 0.30f, 0.36f, 1.0f);
+  colors[ImGuiCol_SeparatorHovered] = UIColors::ACCENT_DIM;
+  colors[ImGuiCol_SeparatorActive] = UIColors::ACCENT;
+  colors[ImGuiCol_ResizeGrip] = ImVec4(0.26f, 0.59f, 0.98f, 0.20f);
+  colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.60f);
+  colors[ImGuiCol_ResizeGripActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.90f);
+  colors[ImGuiCol_Tab] = ImVec4(0.24f, 0.24f, 0.29f, 1.0f);
+  colors[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.70f);
+  colors[ImGuiCol_TabActive] = UIColors::TAB_ACTIVE;
   colors[ImGuiCol_TabUnfocused] = UIColors::DARK_PANEL;
-  colors[ImGuiCol_TabUnfocusedActive] = UIColors::BUTTON;
+  colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.24f, 0.24f, 0.29f, 1.0f);
   colors[ImGuiCol_PlotLines] = UIColors::ACCENT;
-  colors[ImGuiCol_PlotLinesHovered] = UIColors::ACCENT;
+  colors[ImGuiCol_PlotLinesHovered] = UIColors::ACCENT_HOVER;
   colors[ImGuiCol_PlotHistogram] = UIColors::ACCENT;
-  colors[ImGuiCol_PlotHistogramHovered] = UIColors::ACCENT;
-  colors[ImGuiCol_TableHeaderBg] = UIColors::DARK_PANEL;
+  colors[ImGuiCol_PlotHistogramHovered] = UIColors::ACCENT_HOVER;
+  colors[ImGuiCol_TableHeaderBg] = ImVec4(0.25f, 0.25f, 0.30f, 1.0f);
   colors[ImGuiCol_TableBorderStrong] = UIColors::BORDER;
-  colors[ImGuiCol_TableBorderLight] = UIColors::BORDER;
-  colors[ImGuiCol_TableRowBg] = UIColors::PANEL;
-  colors[ImGuiCol_TableRowBgAlt] = UIColors::DARK_PANEL;
+  colors[ImGuiCol_TableBorderLight] = ImVec4(0.28f, 0.28f, 0.33f, 1.0f);
+  colors[ImGuiCol_TableRowBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+  colors[ImGuiCol_TableRowBgAlt] = ImVec4(0.18f, 0.18f, 0.21f, 0.40f);
 
-  // Styles - Modern Light Theme
-  style.WindowPadding = ImVec2(10, 10);
-  // Adjust frame padding for better icon centering in buttons
-  style.FramePadding = ImVec2(6, 6);
-  style.CellPadding = ImVec2(6, 4);
-  style.ItemSpacing = ImVec2(10, 8);
-  style.ItemInnerSpacing = ImVec2(8, 6);
+  // Geometry - Modern rounded style
+  style.WindowPadding = ImVec2(8, 8);
+  style.FramePadding = ImVec2(6, 4);
+  style.CellPadding = ImVec2(6, 3);
+  style.ItemSpacing = ImVec2(8, 5);
+  style.ItemInnerSpacing = ImVec2(6, 4);
   style.TouchExtraPadding = ImVec2(2, 2);
-  style.IndentSpacing = 22;
-  style.ScrollbarSize = 14;
-  style.GrabMinSize = 14;
+  style.IndentSpacing = 20;
+  style.ScrollbarSize = 12;
+  style.GrabMinSize = 10;
 
-  // Borders and rounding
+  // Borders - subtle
   style.WindowBorderSize = 1;
   style.ChildBorderSize = 1;
   style.PopupBorderSize = 1;
-  style.FrameBorderSize = 1;
+  style.FrameBorderSize = 0;
   style.TabBorderSize = 0;
 
-  style.WindowRounding = 6;
+  // Rounding - modern
+  style.WindowRounding = 4;
   style.ChildRounding = 4;
-  style.FrameRounding = 4;
+  style.FrameRounding = 3;
   style.PopupRounding = 4;
-  style.ScrollbarRounding = 4;
-  style.GrabRounding = 4;
-  style.TabRounding = 4;
+  style.ScrollbarRounding = 6;
+  style.GrabRounding = 3;
+  style.TabRounding = 3;
   
-  // Window title alignment
-  style.WindowTitleAlign = ImVec2(0.5f, 0.5f); // Center window titles
-  
-  // Extra style tweaks
-  style.DisplaySafeAreaPadding = ImVec2(8, 8);
-  style.DisplayWindowPadding = ImVec2(8, 8);
-  
-  // More button-specific style adjustments
-  style.ButtonTextAlign = ImVec2(0.5f, 0.5f); // Center text in buttons
+  // Alignment
+  style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+  style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
+  style.DisplaySafeAreaPadding = ImVec2(4, 4);
+  style.DisplayWindowPadding = ImVec2(4, 4);
 }
 
 

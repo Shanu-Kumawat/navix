@@ -7,9 +7,8 @@
 
 void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   // Adjust canvas position and size to account for the ribbon and status bar
-  // Using simplified UI layout (no tabs, single row of tools)
-  const float ribbonHeight = 145.0f; // Updated height to match ribbon with View slider
-  const float statusBarHeight = 28.0f; // Just status bar now, no command line
+  const float ribbonHeight = 80.0f;
+  const float statusBarHeight = 28.0f;
   
   // Use the user-resizable property panel width
   float canvasX = 0.0f;
@@ -57,13 +56,13 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
     drawList->AddRectFilled(
       ImVec2(canvasPos.x, canvasPos.y),
       ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + rulerSize),
-      IM_COL32(45, 45, 48, 255) // Dark gray background for rulers
+      IM_COL32(30, 32, 42, 255) // Deep blue-gray ruler background
     );
     
     drawList->AddRectFilled(
       ImVec2(canvasPos.x, canvasPos.y),
       ImVec2(canvasPos.x + rulerSize, canvasPos.y + canvasSize.y),
-      IM_COL32(45, 45, 48, 255) // Dark gray background for rulers
+      IM_COL32(30, 32, 42, 255) // Deep blue-gray ruler background
     );
     
     // Horizontal ruler ticks
@@ -136,7 +135,7 @@ void UI::CanvasView::Render(Drawing::Canvas &canvas, Core::ApplicationContext& a
     drawList->AddRectFilled(
       ImVec2(canvasPos.x, canvasPos.y),
       ImVec2(canvasPos.x + rulerSize, canvasPos.y + rulerSize),
-      IM_COL32(50, 50, 55, 255) // Slightly darker for corner
+      IM_COL32(26, 28, 38, 255) // Slightly darker corner
     );
     
     // Origin indicator

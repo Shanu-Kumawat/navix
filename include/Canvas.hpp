@@ -6,7 +6,8 @@
 #include <vector>
 #include <optional>
 #include <string>
-#include <algorithm>  
+#include <algorithm>
+#include <unordered_set>
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
 #include "commands/CommandManager.hpp"
@@ -194,7 +195,10 @@ public:
     // Meshing
     bool generateMesh(double elementSize = 10.0);
     void clearMesh();
+    void clearMeshForShape(Shape* shape);
+    void generateMeshIncludingShape(Shape* shape, double elementSize);
     bool hasMesh() const;
+    bool isShapeMeshExcluded(Shape* shape) const { return meshExcludedShapes.count(shape) > 0; }
     const Core::Meshing::Mesh& getMesh() const { return currentMesh; }
     void setMeshElementSize(double size) { meshElementSize = size; }
     double getMeshElementSize() const { return meshElementSize; }
@@ -478,6 +482,7 @@ private:
     Core::Meshing::Mesh currentMesh;
     double meshElementSize{10.0};
     bool showMesh{true};
+    std::unordered_set<Drawing::Shape*> meshExcludedShapes;
 
     void updateConversionFactor() {
         switch(currentUnits) {
