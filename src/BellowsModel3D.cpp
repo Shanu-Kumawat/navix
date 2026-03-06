@@ -3,6 +3,7 @@
 #include "meshing/GmshExtractor.hpp"
 #include <iostream>
 #include <cmath>
+#include <unordered_map>
 
 #ifdef USE_GMSH
 #include <gmsh.h>
@@ -205,4 +206,437 @@ bool BellowsModel3D::generateFEMMesh(float elementSize) {
         return true;
     }
     return false;
+}
+
+// ─── FEM Analysis ───────────────────────────────────────────────────
+
+bool BellowsModel3D::runFEMAnalysis(const Core::FEM::AnalysisConfig& config) {
+    if (!currentBellows || femMesh.isEmpty()) {
+        std::cerr << "[BellowsModel3D] Need a bellows and surface mesh before FEM.\n";
+        return false;
+    }
+
+    clearFEMResult();
+
+    Core::FEM::BellowsFEMAnalysis analysis;
+    bool ok = analysis.run(femMesh,
+                           static_cast<double>(currentBellows->wallThickness),
+                           femMaterial, config);
+    if (ok) {
+        femResult = analysis.getResult();
+        setupStressBuffers();
+    }
+    return ok;
+}
+
+// ─── Stress contour rendering helpers ───────────────────────────────
+
+glm::vec3 BellowsModel3D::stressColor(double value, double minVal, double maxVal) const {
+    // Jet colormap: blue → cyan → green → yellow → red
+    double range = maxVal - minVal;
+    double t = (range > 1e-30) ? (value - minVal) / range : 0.5;
+    t = std::max(0.0, std::min(1.0, t));
+
+    float r, g, b;
+    if (t < 0.25) {
+        float s = static_cast<float>(t / 0.25);
+        r = 0.0f; g = s; b = 1.0f;
+    } else if (t < 0.5) {
+        float s = static_cast<float>((t - 0.25) / 0.25);
+        r = 0.0f; g = 1.0f; b = 1.0f - s;
+    } else if (t < 0.75) {
+        float s = static_cast<float>((t - 0.5) / 0.25);
+        r = s; g = 1.0f; b = 0.0f;
+    } else {
+        float s = static_cast<float>((t - 0.75) / 0.25);
+        r = 1.0f; g = 1.0f - s; b = 0.0f;
+    }
+    return glm::vec3(r, g, b);
+}
+
+void BellowsModel3D::cleanupStressBuffers() {
+    if (stressVAO) { glDeleteVertexArrays(1, &stressVAO); stressVAO = 0; }
+    if (stressVBO) { glDeleteBuffers(1, &stressVBO); stressVBO = 0; }
+    stressVertexCount = 0;
+}
+
+void BellowsModel3D::setupStressBuffers() {
+    cleanupStressBuffers();
+    if (!femResult.isValid || femResult.nodeVonMises.empty()) return;
+
+    const auto& nodes = femMesh.getNodes();
+    const auto& elems = femMesh.getElements();
+
+    // Build tag → index map
+    std::unordered_map<uint64_t, int> tagIdx;
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        tagIdx[nodes[i].tag] = i;
+
+    double sMin = femResult.minVonMises;
+    double sMax = femResult.maxVonMises;
+
+    // Vertices: [x, y, z, r, g, b] per vertex, 3 vertices per triangle
+    std::vector<float> verts;
+    verts.reserve(elems.size() * 3 * 6);
+
+    for (const auto& e : elems) {
+        if (e.elementType != 2 || e.nodeTags.size() != 3) continue;
+        for (int n = 0; n < 3; ++n) {
+            auto it = tagIdx.find(e.nodeTags[n]);
+            if (it == tagIdx.end()) continue;
+            int idx = it->second;
+            const auto& nd = nodes[idx];
+            // Position (mesh coordinates — same space as wireframe)
+            verts.push_back(static_cast<float>(nd.position.x));
+            verts.push_back(static_cast<float>(nd.position.y));
+            verts.push_back(static_cast<float>(nd.position.z));
+            // Color from node von Mises
+            double vm = (idx < static_cast<int>(femResult.nodeVonMises.size()))
+                        ? femResult.nodeVonMises[idx] : 0.0;
+            glm::vec3 c = stressColor(vm, sMin, sMax);
+            verts.push_back(c.r);
+            verts.push_back(c.g);
+            verts.push_back(c.b);
+        }
+    }
+
+    stressVertexCount = static_cast<int>(verts.size() / 6);
+    if (stressVertexCount == 0) return;
+
+    glGenVertexArrays(1, &stressVAO);
+    glGenBuffers(1, &stressVBO);
+
+    glBindVertexArray(stressVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, stressVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(verts.size() * sizeof(float)),
+                 verts.data(), GL_STATIC_DRAW);
+
+    // Position attrib (location 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    // Color attrib (location 1)
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                          (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+}
+
+void BellowsModel3D::renderStressContours(const glm::mat4& projection,
+                                           const glm::mat4& view,
+                                           const glm::vec3& cameraPos) {
+    if (!showStressContours || stressVertexCount == 0 || !shader) return;
+
+    shader->use();
+    shader->setMat4("projection", projection);
+    shader->setMat4("view", view);
+    shader->setMat4("model", model);
+    shader->setVec3("viewPos", cameraPos);
+    shader->setVec3("lightPos", lightPos);
+    shader->setVec3("lightColor", lightColor);
+    // Render with per-vertex color flag
+    shader->setInt("useVertexColor", 1);
+    shader->setFloat("ambientStrength", 0.5f);
+    shader->setFloat("diffuseStrength", 0.6f);
+    shader->setFloat("specularStrength", 0.1f);
+    shader->setFloat("shininess", 16.0f);
+
+    glBindVertexArray(stressVAO);
+    glDrawArrays(GL_TRIANGLES, 0, stressVertexCount);
+    glBindVertexArray(0);
+
+    // Reset vertex color flag
+    shader->setInt("useVertexColor", 0);
+}
+
+// ─── Clear FEM result ───────────────────────────────────────────────
+
+void BellowsModel3D::clearFEMResult() {
+    std::cout << "[DEBUG] clearFEMResult called. Was valid=" << femResult.isValid << std::endl;
+    femResult = Core::FEM::FEMResult();
+    showStressContours = false;
+    showDeformed = false;
+    cleanupStressBuffers();
+    cleanupDeformedBuffers();
+    std::cout << "[DEBUG] clearFEMResult done. Now valid=" << femResult.isValid << std::endl;
+}
+
+// ─── Deformed shape overlay ─────────────────────────────────────────
+
+void BellowsModel3D::cleanupDeformedBuffers() {
+    if (deformedVAO) { glDeleteVertexArrays(1, &deformedVAO); deformedVAO = 0; }
+    if (deformedVBO) { glDeleteBuffers(1, &deformedVBO); deformedVBO = 0; }
+    deformedVertexCount = 0;
+}
+
+void BellowsModel3D::setupDeformedBuffers() {
+    cleanupDeformedBuffers();
+    if (!femResult.isValid || femResult.displacements.size() == 0) return;
+
+    const auto& nodes = femMesh.getNodes();
+    const auto& elems = femMesh.getElements();
+
+    std::unordered_map<uint64_t, int> tagIdx;
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        tagIdx[nodes[i].tag] = i;
+
+    const double meshToMeters = 0.1;
+    // Scale factor: deformScale * (mesh units / meters)
+    double dispToMesh = deformScale / meshToMeters;
+
+    // Use a translucent cyan wireframe for the deformed shape
+    std::vector<float> verts;
+    verts.reserve(elems.size() * 3 * 6);
+
+    for (const auto& e : elems) {
+        if (e.elementType != 2 || e.nodeTags.size() != 3) continue;
+        for (int n = 0; n < 3; ++n) {
+            auto it = tagIdx.find(e.nodeTags[n]);
+            if (it == tagIdx.end()) continue;
+            int idx = it->second;
+            const auto& nd = nodes[idx];
+            int base = idx * 6;
+            double ux = femResult.displacements(base + 0) * dispToMesh;
+            double uy = femResult.displacements(base + 1) * dispToMesh;
+            double uz = femResult.displacements(base + 2) * dispToMesh;
+            verts.push_back(static_cast<float>(nd.position.x + ux));
+            verts.push_back(static_cast<float>(nd.position.y + uy));
+            verts.push_back(static_cast<float>(nd.position.z + uz));
+            // Cyan color for deformed shape
+            verts.push_back(0.0f);
+            verts.push_back(0.9f);
+            verts.push_back(1.0f);
+        }
+    }
+
+    deformedVertexCount = static_cast<int>(verts.size() / 6);
+    if (deformedVertexCount == 0) return;
+
+    glGenVertexArrays(1, &deformedVAO);
+    glGenBuffers(1, &deformedVBO);
+    glBindVertexArray(deformedVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, deformedVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(verts.size() * sizeof(float)),
+                 verts.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                          (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+}
+
+void BellowsModel3D::renderDeformed(const glm::mat4& projection,
+                                     const glm::mat4& view,
+                                     const glm::vec3& cameraPos) {
+    if (!showDeformed || deformedVertexCount == 0 || !shader) return;
+
+    shader->use();
+    shader->setMat4("projection", projection);
+    shader->setMat4("view", view);
+    shader->setMat4("model", model);
+    shader->setVec3("viewPos", cameraPos);
+    shader->setVec3("lightPos", lightPos);
+    shader->setVec3("lightColor", lightColor);
+    shader->setInt("useVertexColor", 1);
+    shader->setFloat("ambientStrength", 0.7f);
+    shader->setFloat("diffuseStrength", 0.4f);
+    shader->setFloat("specularStrength", 0.1f);
+    shader->setFloat("shininess", 16.0f);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glBindVertexArray(deformedVAO);
+    glDrawArrays(GL_TRIANGLES, 0, deformedVertexCount);
+    glBindVertexArray(0);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    shader->setInt("useVertexColor", 0);
+}
+
+// ─── Modal analysis ─────────────────────────────────────────────────
+
+bool BellowsModel3D::runModalAnalysis(int numModes) {
+    if (!currentBellows || femMesh.isEmpty()) {
+        std::cerr << "[BellowsModel3D] Need bellows and mesh before modal analysis.\n";
+        return false;
+    }
+
+    clearModalResult();
+
+    Core::FEM::BellowsFEMAnalysis analysis;
+    bool ok = analysis.runModal(femMesh,
+                                static_cast<double>(currentBellows->wallThickness),
+                                femMaterial, numModes, modalResult);
+    if (ok && !modalResult.modes.empty()) {
+        setActiveMode(0);
+    }
+    return ok;
+}
+
+void BellowsModel3D::setActiveMode(int modeIdx) {
+    if (!modalResult.isValid || modeIdx < 0 ||
+        modeIdx >= static_cast<int>(modalResult.modes.size())) {
+        activeMode = -1;
+        cleanupModalBuffers();
+        return;
+    }
+    activeMode = modeIdx;
+    setupModalBuffers();
+}
+
+void BellowsModel3D::cleanupModalBuffers() {
+    if (modalVAO) { glDeleteVertexArrays(1, &modalVAO); modalVAO = 0; }
+    if (modalVBO) { glDeleteBuffers(1, &modalVBO); modalVBO = 0; }
+    modalVertexCount = 0;
+}
+
+void BellowsModel3D::setupModalBuffers() {
+    cleanupModalBuffers();
+    if (!modalResult.isValid || activeMode < 0 ||
+        activeMode >= static_cast<int>(modalResult.modes.size())) return;
+
+    const auto& mode = modalResult.modes[activeMode];
+    const auto& nodes = femMesh.getNodes();
+    const auto& elems = femMesh.getElements();
+
+    std::unordered_map<uint64_t, int> tagIdx;
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        tagIdx[nodes[i].tag] = i;
+
+    // Scale mode shape to be visible (mode vector is max-normalized to 1)
+    // Use a fraction of the bounding box diagonal as scale
+    float scale = 0.3f; // 30% of max mesh dimension
+
+    std::vector<float> verts;
+    verts.reserve(elems.size() * 3 * 6);
+
+    for (const auto& e : elems) {
+        if (e.elementType != 2 || e.nodeTags.size() != 3) continue;
+        for (int n = 0; n < 3; ++n) {
+            auto it = tagIdx.find(e.nodeTags[n]);
+            if (it == tagIdx.end()) continue;
+            int idx = it->second;
+            const auto& nd = nodes[idx];
+            int base = idx * 6;
+            double ux = mode.modeVector(base + 0) * scale;
+            double uy = mode.modeVector(base + 1) * scale;
+            double uz = mode.modeVector(base + 2) * scale;
+
+            // Displacement magnitude for coloring
+            double mag = std::sqrt(ux*ux + uy*uy + uz*uz);
+            glm::vec3 c = stressColor(mag, 0, scale);
+
+            verts.push_back(static_cast<float>(nd.position.x + ux));
+            verts.push_back(static_cast<float>(nd.position.y + uy));
+            verts.push_back(static_cast<float>(nd.position.z + uz));
+            verts.push_back(c.r);
+            verts.push_back(c.g);
+            verts.push_back(c.b);
+        }
+    }
+
+    modalVertexCount = static_cast<int>(verts.size() / 6);
+    if (modalVertexCount == 0) return;
+
+    glGenVertexArrays(1, &modalVAO);
+    glGenBuffers(1, &modalVBO);
+    glBindVertexArray(modalVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, modalVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(verts.size() * sizeof(float)),
+                 verts.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                          (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindVertexArray(0);
+}
+
+void BellowsModel3D::renderModeShape(const glm::mat4& projection,
+                                      const glm::mat4& view,
+                                      const glm::vec3& cameraPos) {
+    if (activeMode < 0 || modalVertexCount == 0 || !shader) return;
+
+    shader->use();
+    shader->setMat4("projection", projection);
+    shader->setMat4("view", view);
+    shader->setMat4("model", model);
+    shader->setVec3("viewPos", cameraPos);
+    shader->setVec3("lightPos", lightPos);
+    shader->setVec3("lightColor", lightColor);
+    shader->setInt("useVertexColor", 1);
+    shader->setFloat("ambientStrength", 0.6f);
+    shader->setFloat("diffuseStrength", 0.5f);
+    shader->setFloat("specularStrength", 0.1f);
+    shader->setFloat("shininess", 16.0f);
+
+    glBindVertexArray(modalVAO);
+    glDrawArrays(GL_TRIANGLES, 0, modalVertexCount);
+    glBindVertexArray(0);
+
+    shader->setInt("useVertexColor", 0);
+}
+
+// ─── Mesh convergence study ─────────────────────────────────────────
+
+bool BellowsModel3D::runConvergenceStudy(const Core::FEM::AnalysisConfig& config, int numPoints) {
+    if (!currentBellows) return false;
+
+    convergenceData.clear();
+
+    // Element sizes from coarse to fine
+    float sizes[] = {0.15f, 0.10f, 0.07f, 0.05f, 0.035f, 0.025f};
+    int count = std::min(numPoints, 6);
+
+    std::cout << "[Convergence] Running " << count << " mesh refinement levels..." << std::endl;
+
+    // Save current FEM mesh state
+    Core::Meshing::Mesh savedMesh = femMesh;
+    bool hadMesh = !femMesh.isEmpty();
+
+    for (int i = 0; i < count; ++i) {
+        float es = sizes[i];
+
+        // Generate mesh at this element size
+        clearFEMMesh();
+        if (!generateFEMMesh(es)) {
+            std::cout << "[Convergence] Failed to generate mesh at element size " << es << std::endl;
+            continue;
+        }
+
+        // Run FEM analysis
+        Core::FEM::BellowsFEMAnalysis analysis;
+        bool ok = analysis.run(femMesh,
+                               static_cast<double>(currentBellows->wallThickness),
+                               femMaterial, config);
+
+        if (ok) {
+            const auto& res = analysis.getResult();
+            Core::FEM::ConvergencePoint pt;
+            pt.elementSize = es;
+            pt.numNodes = static_cast<int>(femMesh.getNodes().size());
+            pt.numElements = static_cast<int>(femMesh.getElements().size());
+            pt.maxStress = res.maxVonMises / 1e6;
+            pt.maxDisplacement = res.maxDisplacement * 1e3;
+            convergenceData.push_back(pt);
+
+            std::cout << "  h=" << es << ": " << pt.numNodes << " nodes, "
+                      << pt.numElements << " elems, σ_max=" << pt.maxStress
+                      << " MPa, u_max=" << pt.maxDisplacement << " mm" << std::endl;
+        }
+    }
+
+    // Restore original mesh
+    clearFEMMesh();
+    femMesh = savedMesh;
+    if (!femMesh.isEmpty()) {
+        showFEMMesh = true;
+        setupMeshWireframeBuffers();
+    }
+
+    std::cout << "[Convergence] Study complete: " << convergenceData.size() << " data points." << std::endl;
+    return !convergenceData.empty();
 }

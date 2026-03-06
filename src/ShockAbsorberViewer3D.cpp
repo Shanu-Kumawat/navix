@@ -48,10 +48,7 @@ void ShockAbsorberViewer3D::render(const Drawing::Spring2D* spring, const Drawin
     // Generate/update 3D mesh
     shockAbsorberModel->generateMesh(spring, end, bottomEnd);
     
-    // Auto-generate FEM mesh on surface (once only)
-    if (!shockAbsorberModel->hasFEMMesh()) {
-        shockAbsorberModel->generateFEMMesh(shockAbsorberModel->getFEMElementSize());
-    }
+    // FEM mesh is generated on demand via PropertyPanel — not auto-generated here
     
     // Set material and lighting properties
     shockAbsorberModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);

@@ -116,3 +116,51 @@ Consequences: Users can dynamically click buttons inside the active UI layout to
 - **Context**: The shock absorber coil spring is rendered as a 3D helix. Initial approaches to mesh it — (1) BSpline helix pipe via OCC `addPipe`, (2) OCC spline with fewer points — both caused Gmsh/OCC to hang indefinitely due to the complexity of helical pipe operations.
 - **Decision**: Replaced the helical pipe with stacked tori (one torus per coil). Each torus is created at origin with Z-axis orientation, rotated 90° around the X-axis to align with the Y-axis, then translated to the correct vertical position (`centerY`). This preserves the visual approximation of a coil while being computationally tractable. The full shock absorber model generates 10 OCC components: lower seat, damper tube, piston rod, tori coils, upper seat, collar, nut, cap, bottom disc, and U-mount legs.
 - **Consequences**: Produces a complete shock absorber mesh (1619 nodes, 2376 elements) in reasonable time. The tori don't perfectly match the helical coil but provide a sufficiently accurate FEM mesh approximation for structural analysis. If higher fidelity is needed, a segmented approach (half-torus arcs offset per coil) could be explored.
+
+## ADR-021: CST+DKT Shell Element Formulation for Bellows FEA
+- **Date**: March 6, 2026
+- **Context**: Bellows are thin-walled axisymmetric pressure vessels. A full 3D solid element approach would require extremely fine through-thickness meshing and be computationally prohibitive. Shell elements are the industry-standard choice for thin-walled structures.
+- **Decision**: Implemented a combined **Constant Strain Triangle (CST)** membrane element and **Discrete Kirchhoff Triangle (DKT)** bending element, yielding 6 DOFs per node (3 translations + 3 rotations). The DKT formulation follows Batoz, Bathe & Ho (1980) with 3-point Gauss quadrature for stiffness integration. Stress recovery computes membrane + bending contributions at element centroids, then von Mises equivalent stress. Node stresses are area-weighted averages of surrounding element stresses. Files: `include/fem/ShellElement.hpp`, `src/fem/ShellElement.cpp` (~350 lines).
+- **Consequences**: Accurate thin-shell structural analysis with minimal mesh requirements. The 6-DOF formulation captures both membrane stretching and plate bending behaviour. The CST membrane component is simple but sufficient for the triangular surface meshes produced by Gmsh. DKT provides Kirchhoff-accurate bending without shear locking.
+
+## ADR-022: Eigen3 Sparse Solver with Penalty Boundary Conditions
+- **Date**: March 6, 2026
+- **Context**: The assembled global stiffness matrix for bellows FEM (~4000+ DOFs) is large and sparse. Boundary conditions must be enforced without destroying matrix symmetry or sparsity patterns.
+- **Decision**: (1) Assembly uses `Eigen::SparseMatrix<double>` built from `Eigen::Triplet<double>` lists for efficient COO→CSC construction. (2) `Eigen::SparseLU` direct solver chosen for robustness over iterative methods. (3) Boundary conditions enforced via the **penalty method**: diagonal entries for constrained DOFs are set to `1e8 × max(diag)`, force vector entries set to `penalty × prescribed_value`. This preserves matrix structure and avoids row/column elimination. (4) Two `solve()` overloads: one accepting explicit force vector, one accepting pressure + axial force with automatic load vector assembly. Files: `include/fem/FEASolver.hpp`, `src/fem/FEASolver.cpp`.
+- **Consequences**: Robust direct solver handles arbitrary mesh sizes. Penalty BCs are simple to implement and maintain sparsity. The 1e8 multiplier provides sufficient accuracy (constraint error ~1e-8 relative). SparseLU handles non-symmetric systems gracefully, supporting future extension to non-symmetric formulations.
+
+## ADR-023: Bellows-Specific FEM Analysis Orchestrator
+- **Date**: March 6, 2026
+- **Context**: The bellows FEM workflow requires domain-specific steps: identifying structural boundaries (cuff A and cuff B), applying physically meaningful BCs (fixed at one cuff, loaded at the other), and converting mesh data between the Gmsh-produced format and the FEA solver input.
+- **Decision**: Created `BellowsFEMAnalysis` as an orchestrator class. It (1) identifies cuff A nodes as those at the axial minimum (within 1% tolerance of total axial span), (2) identifies cuff B nodes at the axial maximum similarly, (3) applies all-DOF-fixed Dirichlet BCs at cuff A, (4) runs the solver with pressure distributed to all elements and axial force concentrated equally on cuff B nodes, (5) returns a `FEMResult` struct with displacement field, element/node stresses, and summary statistics. Files: `include/fem/BellowsFEMAnalysis.hpp`, `src/fem/BellowsFEMAnalysis.cpp`.
+- **Consequences**: Clean separation between generic FEM infrastructure (`ShellElement`, `FEASolver`) and bellows-specific analysis logic. The same solver/element infrastructure can be reused for other component types (ball bearings, shock absorbers) by creating analogous orchestrators.
+
+## ADR-024: Stress Contour Visualization with Shader-Based Vertex Colouring
+- **Date**: March 6, 2026
+- **Context**: Post-processing stress results need to be displayed as colour-mapped contours on the 3D model surface. The existing bellows shader pipeline renders solid-colour geometry with Phong lighting.
+- **Decision**: (1) Added a `useVertexColor` integer uniform to `bellows.vs/fs`. When `useVertexColor == 1`, attribute 1 is interpreted as RGB colour (instead of normal), and the fragment shader uses flat normals via `cross(dFdx(FragPos), dFdy(FragPos))` for per-triangle shading. (2) `BellowsModel3D::setupStressBuffers()` builds a separate VAO/VBO with interleaved position+colour data, where colour is computed from node von Mises stress via a jet colourmap (blue→cyan→green→yellow→red). (3) PropertyPanel displays results (max displacement in mm, max stress in MPa, safety factor) and an interactive colour legend drawn via ImDrawList with per-pixel gradient. (4) Material selector (Steel/SS/Inconel 718) with live E, ν, yield strength display.
+- **Consequences**: Professional-grade stress visualization integrated into the existing rendering pipeline with minimal shader changes. The separate stress VAO avoids interfering with the base geometry buffers. Jet colourmap is the de-facto standard in engineering FEM visualization.
+
+## ADR-025: Deformed Shape Overlay
+- **Date**: March 6, 2026
+- **Context**: Engineers need to visualize structural deformations under load. Deformation magnitudes are typically small relative to geometry, so a scale factor is essential.
+- **Decision**: (1) Separate `deformedVAO/VBO` with displaced node positions (original + scale × displacement). (2) Rendered as cyan wireframe (`GL_LINE` polygon mode) overlaid on undeformed geometry. (3) UI provides toggle + drag-float scale (1–5000×). (4) `setupDeformedBuffers()` called when scale changes, reusing the same VAO/VBO pattern as stress contours.
+- **Consequences**: Clear visual comparison of deformed vs reference configuration. Wireframe avoids occluding stress contours. Scale factor allows examination at any deformation level.
+
+## ADR-026: Reaction Force Computation and Display
+- **Date**: March 6, 2026
+- **Context**: Reaction forces at support BCs are critical for design verification (equilibrium check, support sizing).
+- **Decision**: (1) `FEASolver::computeReactionForces()` reassembles K (without BC penalties) and computes R = K·u − F at constrained DOFs. (2) Results stored as `ReactionForce` structs per constrained node in `FEMResult`. (3) PropertyPanel displays total resultant (Rx, Ry, Rz, |R|) and count of support nodes.
+- **Consequences**: Equilibrium can be verified in the UI. Total reaction magnitude gives an intuitive validation check against applied loads.
+
+## ADR-027: Modal Analysis via Standard Eigenvalue Reformulation
+- **Date**: March 6, 2026
+- **Context**: Natural frequency analysis is essential for vibration-sensitive bellows designs. Need to solve generalised eigenvalue problem K·φ = ω²·M·φ.
+- **Decision**: (1) `ShellElement::massMatrix()` returns lumped (diagonal) mass matrix: translational mass = ρ·t·A/3 per node, rotational inertia = m·t²/12. (2) `FEASolver::solveModal()` eliminates constrained DOFs, then transforms to standard form A = M^{−½}·K·M^{−½} and uses `Eigen::SelfAdjointEigenSolver`. (3) Mode shapes stored in `ModalResult` with frequency and normalized mode vector. (4) Visualized by displacing mesh with mode shape (jet-coloured by displacement magnitude), with mode selector slider and frequency table in UI.
+- **Consequences**: Suitable for moderate DOF counts (Eigen dense solver). Lumped mass is unconditionally positive-diagonal, avoiding M-singularity. M^{−½} reformulation guarantees real eigenvalues for the symmetric positive-definite K, M pair.
+
+## ADR-028: Automated Mesh Convergence Study
+- **Date**: March 6, 2026
+- **Context**: Mesh convergence is required to demonstrate solution independence from mesh density — a fundamental requirement for credible FEM results.
+- **Decision**: (1) `BellowsModel3D::runConvergenceStudy()` iterates predefined element sizes (0.15→0.025), regenerates mesh and reruns FEM at each level. (2) Collects numNodes, numElements, maxStress (MPa), maxDisplacement (mm) per refinement level. (3) Restores original mesh after completion. (4) PropertyPanel shows results in a 4-column table (h, Nodes, σ, u).
+- **Consequences**: Users can verify mesh independence systematically. Automated workflow prevents manual tedium. Restoring original mesh avoids side-effects.

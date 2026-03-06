@@ -6,7 +6,9 @@
 #include <vector>
 #include <optional>
 #include <string>
-#include <algorithm>  
+#include <algorithm>
+#include <functional>
+#include <unordered_set>
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
 #include "commands/CommandManager.hpp"
@@ -160,6 +162,9 @@ public:
     void selectShape(Shape* shape) { selectedShape = shape; if (sceneModel) sceneModel->selectShape(shape); }
     void clearSelection();
 
+    // Callback invoked just before a shape is deleted (e.g. to clear FEA results)
+    void setOnShapeDeleting(std::function<void(Shape*)> callback) { onShapeDeleting = callback; }
+
     // Shape manipulation methods
     void deleteSelectedShape();
     void duplicateSelectedShape();
@@ -194,7 +199,10 @@ public:
     // Meshing
     bool generateMesh(double elementSize = 10.0);
     void clearMesh();
+    void clearMeshForShape(Shape* shape);
+    void generateMeshIncludingShape(Shape* shape, double elementSize);
     bool hasMesh() const;
+    bool isShapeMeshExcluded(Shape* shape) const { return meshExcludedShapes.count(shape) > 0; }
     const Core::Meshing::Mesh& getMesh() const { return currentMesh; }
     void setMeshElementSize(double size) { meshElementSize = size; }
     double getMeshElementSize() const { return meshElementSize; }
@@ -408,6 +416,9 @@ private:
     
     bool isDragging = false;
     bool isPanning = false;
+
+    // Callback for shape deletion notification
+    std::function<void(Shape*)> onShapeDeleting;
     
     // Current dimensions - use fixed defaults
     float lineLength = 100.0f;  // Default line length
@@ -478,6 +489,7 @@ private:
     Core::Meshing::Mesh currentMesh;
     double meshElementSize{10.0};
     bool showMesh{true};
+    std::unordered_set<Drawing::Shape*> meshExcludedShapes;
 
     void updateConversionFactor() {
         switch(currentUnits) {

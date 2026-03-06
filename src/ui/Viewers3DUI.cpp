@@ -3,31 +3,6 @@
 #include <imgui.h>
 #include <iostream>
 
-// Helper: Render FEM mesh controls for a 3D model
-static void RenderMeshControls(Base3DModel* model, const char* label) {
-    if (!model) return;
-    ImGui::Separator();
-    ImGui::Text("FEM Mesh (%s)", label);
-    
-    static float meshElemSize = 0.05f;
-    ImGui::SliderFloat("Element Size##mesh3d", &meshElemSize, 0.01f, 0.5f, "%.3f");
-    
-    if (ImGui::Button("Generate 3D Mesh")) {
-        model->generateFEMMesh(meshElemSize);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Clear Mesh##3d")) {
-        model->clearFEMMesh();
-    }
-    
-    if (model->hasFEMMesh()) {
-        bool show = model->getShowFEMMesh();
-        if (ImGui::Checkbox("Show Mesh##3d", &show)) {
-            model->setShowFEMMesh(show);
-        }
-    }
-}
-
 void UI::Viewers3DUI::RenderSpring3DViewWindow(Drawing::Canvas &canvas, Core::ApplicationContext& appContext) {
   if (!appContext.spring3DViewInitialized) {
     appContext.springViewer.initialize();
@@ -68,7 +43,6 @@ void UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(Drawing::Canvas &canvas, C
       // Render the first complete assembly
       const auto& assembly = assemblies[0];
       appContext.shockAbsorberViewer.render(assembly.spring, assembly.topEnd, assembly.bottomEnd, viewportSize);
-      RenderMeshControls(appContext.shockAbsorberViewer.getModel(), "Shock Absorber");
     } else {
       ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "No complete shock absorber assembly found.");
       ImGui::Spacing();
@@ -98,7 +72,6 @@ void UI::Viewers3DUI::RenderBellows3DViewWindow(Drawing::Canvas &canvas, Core::A
     if (selectedShape && selectedShape->type == Drawing::ShapeType::BELLOWS) {
       const Drawing::Bellows* bellows = static_cast<const Drawing::Bellows*>(selectedShape);
       appContext.bellowsViewer.render(bellows, viewportSize);
-      RenderMeshControls(appContext.bellowsViewer.getModel(), "Bellows");
     } else {
       ImGui::Text("No Bellows selected. Please select a Bellows to view in 3D.");
     }
@@ -122,7 +95,6 @@ void UI::Viewers3DUI::RenderBallBearing3DViewWindow(Drawing::Canvas &canvas, Cor
     if (selectedShape && selectedShape->type == Drawing::ShapeType::BALL_BEARING) {
       const Drawing::BallBearing* ballBearing = static_cast<const Drawing::BallBearing*>(selectedShape);
       appContext.ballBearingViewer.render(ballBearing, viewportSize);
-      RenderMeshControls(appContext.ballBearingViewer.getModel(), "Ball Bearing");
     } else {
       ImGui::Text("No Ball Bearing selected. Please select a Ball Bearing to view in 3D.");
     }

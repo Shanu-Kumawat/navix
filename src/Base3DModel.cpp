@@ -423,11 +423,13 @@ bool Base3DModel::generateFEMMesh(float elementSize) {
 }
 
 void Base3DModel::clearFEMMesh() {
+    std::cout << "[DEBUG] clearFEMMesh called. Had " << femMesh.getNodes().size() << " nodes" << std::endl;
     femMesh.clear();
     if (meshWireVAO) { glDeleteVertexArrays(1, &meshWireVAO); meshWireVAO = 0; }
     if (meshWireVBO) { glDeleteBuffers(1, &meshWireVBO); meshWireVBO = 0; }
     meshWireVertexCount = 0;
     showFEMMesh = false;
+    std::cout << "[DEBUG] clearFEMMesh done. Now " << femMesh.getNodes().size() << " nodes" << std::endl;
 }
 
 void Base3DModel::setupMeshWireframeBuffers() {

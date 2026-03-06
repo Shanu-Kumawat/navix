@@ -107,8 +107,14 @@ void Canvas::deleteSelectedShape() {
     
     if (it != shapes.end()) {
         size_t idx = static_cast<size_t>(std::distance(shapes.begin(), it));
+        // Notify listeners before deletion (e.g. to clear FEA results)
+        std::cout << "[DEBUG] deleteSelectedShape: shape type=" << static_cast<int>(selectedShape->type) << ", calling onShapeDeleting callback" << std::endl;
+        if (onShapeDeleting) onShapeDeleting(selectedShape);
+        else std::cout << "[DEBUG] WARNING: onShapeDeleting callback is NOT set!" << std::endl;
         // Remove associated topology before deleting the shape
         removeTopologyForShape(selectedShape);
+        // Remove from mesh exclusion set
+        meshExcludedShapes.erase(selectedShape);
         clearSelection();
         // Use granular DeleteShapeCommand — executeCommand() calls execute() which removes the shape
         commandManager.executeCommand(std::make_unique<Core::Commands::DeleteShapeCommand>(shapes, idx));
@@ -264,15 +270,31 @@ bool Canvas::generateMesh(double elementSize) {
         std::cerr << "[Canvas] No topology manager — cannot mesh." << std::endl;
         return false;
     }
-    if (topologyManager->getNodes().empty()) {
-        std::cerr << "[Canvas] No topology nodes — draw shapes first." << std::endl;
-        return false;
-    }
 
     meshElementSize = elementSize;
     currentMesh.clear();
 
+    // Temporarily remove topology for excluded shapes
+    struct SavedTopo { Shape* shape; ShapeTopology topo; };
+    std::vector<SavedTopo> saved;
+    for (auto* shape : meshExcludedShapes) {
+        auto it = shapeTopoMap.find(shape);
+        if (it != shapeTopoMap.end()) {
+            saved.push_back({shape, it->second});
+            // Remove from TopologyManager (and shapeTopoMap)
+            removeTopologyForShape(shape);
+        }
+    }
+
+    if (topologyManager->getNodes().empty()) {
+        // Restore excluded shapes' topology before returning
+        for (auto& s : saved) createTopologyForShape(s.shape);
+        std::cerr << "[Canvas] No meshable topology nodes after exclusions." << std::endl;
+        return false;
+    }
+
     if (!gmshTranslator.initialize()) {
+        for (auto& s : saved) createTopologyForShape(s.shape);
         std::cerr << "[Canvas] Failed to initialize Gmsh." << std::endl;
         return false;
     }
@@ -280,6 +302,7 @@ bool Canvas::generateMesh(double elementSize) {
     if (!gmshTranslator.translateTopologyToGmsh(*topologyManager)) {
         std::cerr << "[Canvas] Failed to translate topology to Gmsh." << std::endl;
         gmshTranslator.finalize();
+        for (auto& s : saved) createTopologyForShape(s.shape);
         return false;
     }
 
@@ -287,6 +310,9 @@ bool Canvas::generateMesh(double elementSize) {
 
     bool ok = gmshTranslator.extractGeneratedMesh(currentMesh, 2);
     gmshTranslator.finalize();
+
+    // Restore excluded shapes' topology
+    for (auto& s : saved) createTopologyForShape(s.shape);
 
     if (ok) {
         showMesh = true;
@@ -300,8 +326,25 @@ bool Canvas::generateMesh(double elementSize) {
 
 void Canvas::clearMesh() {
     currentMesh.clear();
+    meshExcludedShapes.clear();
     showMesh = false;
-    std::cout << "[Canvas] Mesh cleared." << std::endl;
+    std::cout << "[Canvas] All meshes cleared." << std::endl;
+}
+
+void Canvas::clearMeshForShape(Shape* shape) {
+    if (!shape) return;
+    meshExcludedShapes.insert(shape);
+    // Regenerate mesh without the excluded shape
+    if (!currentMesh.isEmpty()) {
+        generateMesh(meshElementSize);
+    }
+    std::cout << "[Canvas] Mesh cleared for shape, excluded from future generation." << std::endl;
+}
+
+void Canvas::generateMeshIncludingShape(Shape* shape, double elementSize) {
+    if (!shape) return;
+    meshExcludedShapes.erase(shape);
+    generateMesh(elementSize);
 }
 
 bool Canvas::hasMesh() const {

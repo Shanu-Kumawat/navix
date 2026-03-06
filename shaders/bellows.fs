@@ -3,6 +3,7 @@ out vec4 FragColor;
 
 in vec3 FragPos;
 in vec3 Normal;
+in vec3 VertexColor;
 
 // Material properties
 uniform vec3 viewPos;
@@ -19,9 +20,21 @@ uniform float shininess;
 // Render mode (kept for compatibility)
 uniform int renderMode;
 
+// Vertex color mode (stress contours)
+uniform int useVertexColor;
+
 void main() {
+    // Choose base color
+    vec3 baseColor = (useVertexColor == 1) ? VertexColor : objectColor;
+
     // Use pre-normalized normals and protect from zero-length vectors
-    vec3 norm = normalize(Normal);
+    vec3 norm;
+    if (useVertexColor == 1) {
+        // Flat normals from screen-space derivatives
+        norm = normalize(cross(dFdx(FragPos), dFdy(FragPos)));
+    } else {
+        norm = normalize(Normal);
+    }
     vec3 viewDir = normalize(viewPos - FragPos);
     
     // Increased ambient light to brighten the model overall
@@ -51,7 +64,7 @@ void main() {
     vec3 specular = specularStrength * spec * lightColor;
     
     // Apply a brighter metallic tint
-    vec3 metalColor = objectColor * vec3(1.05, 1.05, 1.05);
+    vec3 metalColor = baseColor * vec3(1.05, 1.05, 1.05);
     
     // Combined lighting with reduced edge sensitivity
     vec3 result = (ambient + diffuse) * metalColor + specular;

@@ -37,10 +37,7 @@ void BellowsViewer3D::render(const Drawing::Bellows* bellows, glm::dvec2 windowS
     // Generate/update 3D mesh
     bellowsModel->generateMesh(bellows);
     
-    // Auto-generate FEM mesh on surface (once only)
-    if (!bellowsModel->hasFEMMesh()) {
-        bellowsModel->generateFEMMesh(bellowsModel->getFEMElementSize());
-    }
+    // FEM mesh is generated on demand via PropertyPanel — not auto-generated here
     
     // Set material and lighting properties
     bellowsModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);
@@ -65,6 +62,15 @@ void BellowsViewer3D::render(const Drawing::Bellows* bellows, glm::dvec2 windowS
     
     // Render FEM mesh wireframe overlay if enabled
     bellowsModel->renderFEMMeshWireframe(projection, view, camera->Position);
+
+    // Render stress contours if FEM results are available
+    bellowsModel->renderStressContours(projection, view, camera->Position);
+
+    // Render deformed shape overlay if enabled
+    bellowsModel->renderDeformed(projection, view, camera->Position);
+
+    // Render active mode shape overlay if modal analysis is available
+    bellowsModel->renderModeShape(projection, view, camera->Position);
     
     // Unbind framebuffer
     unbindFramebuffer();
