@@ -163,6 +163,9 @@ add_library(drawing STATIC
     src/commands/CommandManager.cpp
     src/topology/TopologyManager.cpp
     src/fem/MaterialManager.cpp
+    src/fem/ShellElement.cpp
+    src/fem/FEASolver.cpp
+    src/fem/BellowsFEMAnalysis.cpp
     src/meshing/GmshTranslator.cpp
     src/meshing/Mesh.cpp
     src/meshing/GmshExtractor.cpp

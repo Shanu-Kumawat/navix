@@ -289,6 +289,44 @@ int main(int argc, char* argv[]) {
     // Initialize canvas
     Drawing::Canvas canvas;
 
+    // Clear FEA/modal/convergence results when a shape is deleted
+    canvas.setOnShapeDeleting([&appContext](Drawing::Shape* shape) {
+        if (!shape) return;
+        if (shape->type == Drawing::ShapeType::BELLOWS) {
+            if (appContext.bellows3DViewInitialized) {
+                auto* model = appContext.bellowsViewer.getModel();
+                if (model) {
+                    model->clearFEMResult();
+                    model->clearModalResult();
+                    model->clearConvergenceData();
+                    model->clearFEMMesh();
+                }
+            }
+            appContext.showBellows3DView = false;
+        }
+        else if (shape->type == Drawing::ShapeType::SPRING2D ||
+                 shape->type == Drawing::ShapeType::SHOCK_ABSORBER_END_2D ||
+                 shape->type == Drawing::ShapeType::SHOCK_ABSORBER_BOTTOM_END) {
+            if (appContext.shockAbsorberViewerInitialized) {
+                auto* model = appContext.shockAbsorberViewer.getModel();
+                if (model) {
+                    model->clearFEMMesh();
+                }
+            }
+            appContext.showShockAbsorber3DView = false;
+            appContext.showSpring3DView = false;
+        }
+        else if (shape->type == Drawing::ShapeType::BALL_BEARING) {
+            if (appContext.ballBearing3DViewInitialized) {
+                auto* model = appContext.ballBearingViewer.getModel();
+                if (model) {
+                    model->clearFEMMesh();
+                }
+            }
+            appContext.showBallBearing3DView = false;
+        }
+    });
+
     // Main loop
     bool done = false;
     while (!done) {

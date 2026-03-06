@@ -37,10 +37,7 @@ void BallBearingViewer3D::render(const Drawing::BallBearing* ballBearing, glm::d
     // Generate/update 3D mesh
     ballBearingModel->generateMesh(ballBearing);
     
-    // Auto-generate FEM mesh on surface (once only)
-    if (!ballBearingModel->hasFEMMesh()) {
-        ballBearingModel->generateFEMMesh(ballBearingModel->getFEMElementSize());
-    }
+    // FEM mesh is generated on demand via PropertyPanel — not auto-generated here
     
     // Set material and lighting properties for high-quality metallic rendering
     ballBearingModel->setMaterial(objectColor, ambientStrength, diffuseStrength, specularStrength, shininess);

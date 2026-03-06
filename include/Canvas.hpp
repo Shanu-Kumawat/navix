@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <algorithm>
+#include <functional>
 #include <unordered_set>
 #include "shapes/BasicShapes.hpp"
 #include "shapes/ComplexShapes.hpp"
@@ -160,6 +161,9 @@ public:
     // Selection methods — synced with SceneModel
     void selectShape(Shape* shape) { selectedShape = shape; if (sceneModel) sceneModel->selectShape(shape); }
     void clearSelection();
+
+    // Callback invoked just before a shape is deleted (e.g. to clear FEA results)
+    void setOnShapeDeleting(std::function<void(Shape*)> callback) { onShapeDeleting = callback; }
 
     // Shape manipulation methods
     void deleteSelectedShape();
@@ -412,6 +416,9 @@ private:
     
     bool isDragging = false;
     bool isPanning = false;
+
+    // Callback for shape deletion notification
+    std::function<void(Shape*)> onShapeDeleting;
     
     // Current dimensions - use fixed defaults
     float lineLength = 100.0f;  // Default line length

@@ -247,7 +247,7 @@ void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appCon
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.34f, 0.20f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.44f, 0.26f, 1.0f));
-    if (ImGui::Button("Generate##mesh", ImVec2(62, 22))) {
+    if (ImGui::Button("Generate##mesh", ImVec2(76, 22))) {
       bool ok;
       if (sel) {
         ok = (canvas.generateMeshIncludingShape(sel, canvas.getMeshElementSize()), canvas.hasMesh());
@@ -262,7 +262,7 @@ void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appCon
     ImGui::SameLine(0, 4);
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.34f, 0.18f, 0.18f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.44f, 0.24f, 0.24f, 1.0f));
-    if (ImGui::Button("Clear##mesh", ImVec2(44, 22))) {
+    if (ImGui::Button("Clear##mesh", ImVec2(52, 22))) {
       if (sel) {
         canvas.clearMeshForShape(sel);
         appContext.consoleMessage = "Mesh cleared for selected shape";

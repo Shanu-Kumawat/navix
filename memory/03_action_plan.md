@@ -2,7 +2,7 @@
 
 This document outlines the phased approach to refactoring NAVIX and preparing it for meshing and FEA solver integration.
 
-**Last audited: March 4, 2026** — Status verified against actual source code and git history.
+**Last audited: March 6, 2026** — Status verified against actual source code and git history.
 
 ## Phase 1: Stabilization & Decoupling (COMPLETE)
 **Goal**: Establish a clean, modular architecture and eliminate technical debt.
@@ -37,15 +37,15 @@ This document outlines the phased approach to refactoring NAVIX and preparing it
 
 ## Phase 4: FEA Solver & Post-Processing (Next Focus)
 **Goal**: Perform structural analysis and visualize results.
-- **Priority 1**: [PARTIAL] Eigen3 integration. CMakeLists correctly finds system Eigen3 or fetches 3.4.0 via FetchContent. **Zero source files actually `#include <Eigen/...>`**. No FEA compute code exists.
-- **Priority 2**: [COMPLETED] Material Manager APIs and UI. `MaterialManager` with 4 preloaded materials. `PropertyPanel` shows material assignment combo box. `Shape::materialId` field exists. Limitation: Cannot create/edit materials from UI (read-only library).
-- **Priority 3**: [NOT STARTED] Boundary Conditions (Dirichlet/Fixities).
-- **Priority 4**: [NOT STARTED] Load interfaces (Neumann/Force vectors).
-- **Priority 5**: [NOT STARTED] Stiffness matrix assembly and solver.
-- **Priority 6**: [NOT STARTED] Post-processing rendering (stress contours).
+- **Priority 1**: [COMPLETED] Eigen3 integration. CMakeLists correctly finds system Eigen3 or fetches 3.4.0 via FetchContent. `ShellElement.cpp` and `FEASolver.cpp` both `#include <Eigen/Dense>` and `<Eigen/Sparse>`. Sparse stiffness matrix assembly and SparseLU solver fully operational.
+- **Priority 2**: [COMPLETED] Material Manager APIs and UI. `MaterialManager` with 4 preloaded materials. `PropertyPanel` shows material assignment combo box. `Shape::materialId` field exists. FEM Analysis panel adds Steel/Stainless Steel/Inconel 718 material selector for bellows. Limitation: Cannot create/edit materials from UI (read-only library).
+- **Priority 3**: [COMPLETED] Boundary Conditions (Dirichlet/Fixities). `BellowsFEMAnalysis` identifies cuff A nodes (axial minimum with 1% tolerance) and applies fixed BCs (all 6 DOFs). Penalty method enforcement (1e8 × maxDiag) in `FEASolver`.
+- **Priority 4**: [COMPLETED] Load interfaces (Neumann/Force vectors). `ShellElement::pressureLoadVector()` computes consistent pressure loads on shell elements. `FEASolver::solve()` accepts pressure (distributed to all elements) and axial force (concentrated on cuff B nodes). UI exposes Pressure (kPa) and Axial Force (N) inputs.
+- **Priority 5**: [COMPLETED] Stiffness matrix assembly and solver. `FEASolver` assembles global stiffness via Eigen triplets from CST membrane + DKT bending shell elements (6 DOFs/node). `Eigen::SparseLU` direct solver. Element stress recovery with von Mises computation. `ShellElement` implements Batoz 1980 DKT formulation with 3-point Gauss quadrature.
+- **Priority 6**: [COMPLETED] Post-processing rendering (stress contours). `BellowsModel3D::setupStressBuffers()` builds per-vertex colored VAO from node von Mises stress. Jet colormap (blue→cyan→green→yellow→red). `bellows.vs/fs` shaders support `useVertexColor` uniform for stress contour mode with flat normals via `dFdx/dFdy`. PropertyPanel shows max displacement, max stress, safety factor, stress contour toggle with interactive colour legend.
 - **Priority 7**: [NOT STARTED] Complete UI/UX Redesign.
 
-## What Actually Works (March 4, 2026)
+## What Actually Works (March 6, 2026)
 These features are **verified functional** in the running application:
 
 ### Drawing Tools (all with live previews)
@@ -81,9 +81,22 @@ These features are **verified functional** in the running application:
 - Pan (middle mouse) and Zoom (scroll wheel)
 - Material assignment to shapes
 
+### FEA Solver & Post-Processing (NEW — Phase 4)
+- Shell FEM analysis on bellows 3D models (CST membrane + DKT bending, 6 DOFs/node)
+- Eigen3 SparseLU sparse solver with penalty boundary conditions
+- Material selector (Steel, Stainless Steel, Inconel 718) with E, ν display
+- Pressure (kPa) and Axial Force (N) load inputs
+- Results display: max displacement, max von Mises stress, safety factor
+- Stress contour visualization with jet colormap and interactive legend
+- Fixed BCs at cuff A, pressure + axial loads on cuff B
+- Deformed shape overlay (cyan wireframe, adjustable scale 1–5000×)
+- Reaction forces display (total Rx, Ry, Rz, |R|, support node count)
+- Modal analysis (natural frequencies + mode shapes, Eigen SelfAdjointEigenSolver, mode selector + frequency table)
+- Mesh convergence automation (3–6 refinement levels, results table with h, nodes, σ, u)
+
 ### Known Gaps in Running App
 - No property panel for Spline/Bezier selected shapes
 - No Dimension drawing mode (shape type exists but inaccessible)
 - Meshing requires closed shapes with faces — open lines/points produce only point meshes
-- No FEA computation (Eigen included but unused)
+- FEA currently implemented only for bellows (shell elements); other 3D models not yet wired
 - Topology for complex shapes (Bellows, BallBearing, Spring2D) not yet mapped

@@ -107,6 +107,10 @@ void Canvas::deleteSelectedShape() {
     
     if (it != shapes.end()) {
         size_t idx = static_cast<size_t>(std::distance(shapes.begin(), it));
+        // Notify listeners before deletion (e.g. to clear FEA results)
+        std::cout << "[DEBUG] deleteSelectedShape: shape type=" << static_cast<int>(selectedShape->type) << ", calling onShapeDeleting callback" << std::endl;
+        if (onShapeDeleting) onShapeDeleting(selectedShape);
+        else std::cout << "[DEBUG] WARNING: onShapeDeleting callback is NOT set!" << std::endl;
         // Remove associated topology before deleting the shape
         removeTopologyForShape(selectedShape);
         // Remove from mesh exclusion set
