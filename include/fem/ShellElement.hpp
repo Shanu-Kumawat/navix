@@ -20,6 +20,7 @@ public:
     std::array<Eigen::Vector3d, 3> nodes;
     // Global DOF indices for this element's 18 DOFs
     std::array<int, 18> dofIndices;
+    uint64_t parentTag;
 
     double thickness;      // shell thickness (meters)
     double youngsModulus;   // E (Pa)

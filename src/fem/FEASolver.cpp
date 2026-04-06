@@ -1,3 +1,4 @@
+#include <map>
 #include "fem/FEASolver.hpp"
 #include <Eigen/SparseLU>
 #include <Eigen/SparseCholesky>
@@ -243,34 +244,62 @@ void FEASolver::computeStresses() {
     if (!result.isValid || result.displacements.size() != nDOFs) return;
 
     result.elementStresses.clear();
-    result.elementStresses.reserve(elements.size());
     result.maxVonMises = 0;
     result.minVonMises = 1e30;
 
+    std::map<uint64_t, std::vector<ElementStress>> grouped;
+
     for (size_t e = 0; e < elements.size(); ++e) {
         const auto& elem = elements[e];
-
-        // Extract element displacements from global vector
         Eigen::VectorXd de(18);
         for (int i = 0; i < 18; ++i) {
             de(i) = result.displacements(elem.dofIndices[i]);
         }
-
         auto sr = elem.computeStress(de);
 
         ElementStress es;
-        es.elementTag = e + 1;
+        es.elementTag = elem.parentTag;
         es.membraneStress = sr.membrane;
         es.bendingStressTop = sr.bendingTop;
         es.bendingStressBot = sr.bendingBot;
         es.vonMisesTop = sr.vmTop;
         es.vonMisesBot = sr.vmBot;
         es.vonMisesMax = std::max(sr.vmTop, sr.vmBot);
+        
+        grouped[elem.parentTag].push_back(es);
+    }
 
-        result.maxVonMises = std::max(result.maxVonMises, es.vonMisesMax);
-        result.minVonMises = std::min(result.minVonMises, es.vonMisesMax);
+    for (const auto& pair : grouped) {
+        ElementStress avg;
+        avg.elementTag = pair.first;
+        avg.membraneStress = Eigen::Vector3d::Zero();
+        avg.bendingStressTop = Eigen::Vector3d::Zero();
+        avg.bendingStressBot = Eigen::Vector3d::Zero();
+        avg.vonMisesTop = 0;
+        avg.vonMisesBot = 0;
+        avg.vonMisesMax = 0;
 
-        result.elementStresses.push_back(es);
+        for (const auto& es : pair.second) {
+            avg.membraneStress += es.membraneStress;
+            avg.bendingStressTop += es.bendingStressTop;
+            avg.bendingStressBot += es.bendingStressBot;
+            avg.vonMisesTop += es.vonMisesTop;
+            avg.vonMisesBot += es.vonMisesBot;
+            avg.vonMisesMax += es.vonMisesMax;
+        }
+
+        double n = static_cast<double>(pair.second.size());
+        avg.membraneStress /= n;
+        avg.bendingStressTop /= n;
+        avg.bendingStressBot /= n;
+        avg.vonMisesTop /= n;
+        avg.vonMisesBot /= n;
+        avg.vonMisesMax /= n;
+
+        result.maxVonMises = std::max(result.maxVonMises, avg.vonMisesMax);
+        result.minVonMises = std::min(result.minVonMises, avg.vonMisesMax);
+        
+        result.elementStresses.push_back(avg);
     }
 
     std::cout << "[FEASolver] Stress range: " << result.minVonMises / 1e6 << " - "

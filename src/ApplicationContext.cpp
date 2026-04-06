@@ -33,6 +33,7 @@ ApplicationContext::ApplicationContext()
       showBellows3DView(false),
       showBallBearing3DView(false),
       showShockAbsorber3DViewUnified(false),
+      showFEMAnalysisView(false),
       // Command line
       focusCommandLine(false),
       commandHistoryPos(-1),

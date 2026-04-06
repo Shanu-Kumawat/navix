@@ -36,6 +36,10 @@ public:
     // Deformed shape overlay
     void setShowDeformed(bool show) { showDeformed = show; }
     bool getShowDeformed() const { return showDeformed; }
+    
+    enum class MeshType { TRIANGULAR = 0, QUADRILATERAL = 1 };
+    void setMeshType(MeshType type) { meshType = type; generateFEMMesh(femElementSize); }
+    MeshType getMeshType() const { return meshType; }
     void setDeformScale(float s) { deformScale = s; setupDeformedBuffers(); }
     float getDeformScale() const { return deformScale; }
     void renderDeformed(const glm::mat4& projection, const glm::mat4& view, const glm::vec3& cameraPos);
@@ -70,6 +74,7 @@ private:
     // FEM data
     Core::FEM::FEMResult femResult;
     Core::FEM::Material femMaterial;
+    MeshType meshType = MeshType::TRIANGULAR;
     bool showStressContours = false;
 
     // OpenGL stress visualization buffers

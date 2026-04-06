@@ -789,6 +789,13 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
               model->setShowFEMMesh(showMesh);
             }
             
+            // Mesh Type Selection
+            int meshType = static_cast<int>(model->getMeshType());
+            const char* meshTypes[] = { "Triangular", "Quadrilateral (Mapped)" };
+            if (ImGui::Combo("Mesh Type##bellows", &meshType, meshTypes, 2)) {
+                model->setMeshType(static_cast<BellowsModel3D::MeshType>(meshType));
+            }
+            
             // Mesh statistics
             if (model->hasFEMMesh()) {
               const auto& mesh = model->getFEMMesh();
@@ -858,6 +865,7 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
               cfg.pressure = static_cast<double>(pressureKPa) * 1e3;
               cfg.axialForce = static_cast<double>(axialForceN);
               model2->runFEMAnalysis(cfg);
+              appContext.showFEMAnalysisView = true;
             }
             ImGui::PopStyleColor(2);
 
@@ -890,6 +898,11 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
                   "Max Stress: %.1f MPa", maxMPa);
               }
               ImGui::Text("Safety Factor: %.2f", yieldMPa / std::max(maxMPa, 1e-6));
+              
+              ImGui::Spacing();
+              if (ImGui::Button("Open Advanced Dashboard", ImVec2(ImGui::GetContentRegionAvail().x, 24))) {
+                  appContext.showFEMAnalysisView = true;
+              }
 
               // Stress contour toggle
               bool showContours = model2->getShowStressContours();
