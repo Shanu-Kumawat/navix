@@ -80,6 +80,9 @@ public:
     bool showBallBearing3DView;
     bool showShockAbsorber3DViewUnified;
 
+    // FEM Analysis view flag
+    bool showFEMAnalysisView;
+
     // Command line
     char commandBuffer[256];
     bool focusCommandLine;
