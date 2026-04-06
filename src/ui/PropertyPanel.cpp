@@ -789,6 +789,13 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
               model->setShowFEMMesh(showMesh);
             }
             
+            // Mesh Type Selection
+            int meshType = static_cast<int>(model->getMeshType());
+            const char* meshTypes[] = { "Triangular", "Quadrilateral (Mapped)" };
+            if (ImGui::Combo("Mesh Type##bellows", &meshType, meshTypes, 2)) {
+                model->setMeshType(static_cast<BellowsModel3D::MeshType>(meshType));
+            }
+            
             // Mesh statistics
             if (model->hasFEMMesh()) {
               const auto& mesh = model->getFEMMesh();
