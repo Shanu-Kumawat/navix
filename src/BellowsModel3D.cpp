@@ -122,18 +122,46 @@ bool BellowsModel3D::generateFEMMesh(float elementSize) {
         }
     }
 
-    // Subsample profile based on element size to control mesh density.
-    // Keep minimum distance proportional to element size.
-    double minDist = std::max(static_cast<double>(elementSize) * 0.5, 0.003);
+    // Subsample profile based on element size to control mesh density,
+    // with **curvature-adaptive density** to pack elements tightly at critical bends.
     std::vector<ProfilePt> profile;
     profile.push_back(fullProfile.front());
-    for (size_t i = 1; i < fullProfile.size(); ++i) {
+    
+    for (size_t i = 1; i < fullProfile.size() - 1; ++i) {
         double dx = fullProfile[i].axial - profile.back().axial;
         double dy = fullProfile[i].radius - profile.back().radius;
-        if (std::sqrt(dx * dx + dy * dy) >= minDist) {
+        double dist = std::sqrt(dx * dx + dy * dy);
+        
+        // Calculate local curvature using neighboring points
+        double prev_dx = fullProfile[i].axial - fullProfile[i-1].axial;
+        double prev_dy = fullProfile[i].radius - fullProfile[i-1].radius;
+        double next_dx = fullProfile[i+1].axial - fullProfile[i].axial;
+        double next_dy = fullProfile[i+1].radius - fullProfile[i].radius;
+        
+        double len_prev = std::sqrt(prev_dx*prev_dx + prev_dy*prev_dy);
+        double len_next = std::sqrt(next_dx*next_dx + next_dy*next_dy);
+        
+        double curvature = 0.0;
+        if (len_prev > 1e-6 && len_next > 1e-6) {
+            // Dot product to find angle change
+            double dot = (prev_dx*next_dx + prev_dy*next_dy) / (len_prev * len_next);
+            // Clamp to [-1, 1] to avoid acos domain errors
+            dot = std::max(-1.0, std::min(1.0, dot));
+            curvature = std::acos(dot); // Angle in radians
+        }
+
+        // Base element size, scale down heavily if there is high curvature (tight corners)
+        double adaptiveDist = std::max(static_cast<double>(elementSize) * 0.5, 0.003);
+        if (curvature > 0.05) { // If angle changes by more than ~3 degrees
+            adaptiveDist *= 0.25; // Pack them 4x denser
+            adaptiveDist = std::max(adaptiveDist, 0.0005); // Absolute minimum limit
+        }
+
+        if (dist >= adaptiveDist) {
             profile.push_back(fullProfile[i]);
         }
     }
+
     // Always include the last point
     {
         double dx = fullProfile.back().axial - profile.back().axial;
