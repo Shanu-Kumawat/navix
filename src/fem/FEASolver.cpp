@@ -32,36 +32,71 @@ void FEASolver::buildElements(const Core::Meshing::Mesh& mesh,
         tagToIndex[nodes[i].tag] = i;
     }
 
-    // Build shell elements from triangular elements (type 2 = 3-node triangle)
+    // Build shell elements from triangular (Type 2) and quadrilateral (Type 3) meshes
     for (const auto& elem : elems) {
-        if (elem.elementType != 2 || elem.nodeTags.size() != 3) continue;
+        if (elem.elementType == 2 && elem.nodeTags.size() == 3) {
+            ShellElement se;
+            se.parentTag = elem.tag;
+            se.thickness = thickness;
+            se.youngsModulus = youngsModulus;
+            se.poissonsRatio = poissonsRatio;
+            se.density = dens;
 
-        ShellElement se;
-        se.thickness = thickness;
-        se.youngsModulus = youngsModulus;
-        se.poissonsRatio = poissonsRatio;
-        se.density = dens;
-
-        bool valid = true;
-        for (int n = 0; n < 3; ++n) {
-            auto it = tagToIndex.find(elem.nodeTags[n]);
-            if (it == tagToIndex.end()) { valid = false; break; }
-            int idx = it->second;
-            const auto& node = nodes[idx];
-            // Convert mesh coordinates to meters
-            se.nodes[n] = Eigen::Vector3d(
-                node.position.x * meshToMeters,
-                node.position.y * meshToMeters,
-                node.position.z * meshToMeters
-            );
-            // Global DOF indices
-            for (int d = 0; d < 6; ++d) {
-                se.dofIndices[n * 6 + d] = idx * DOFS_PER_NODE + d;
+            bool valid = true;
+            for (int n = 0; n < 3; ++n) {
+                auto it = tagToIndex.find(elem.nodeTags[n]);
+                if (it == tagToIndex.end()) { valid = false; break; }
+                int idx = it->second;
+                const auto& node = nodes[idx];
+                // Convert mesh coordinates to meters
+                se.nodes[n] = Eigen::Vector3d(
+                    node.position.x * meshToMeters,
+                    node.position.y * meshToMeters,
+                    node.position.z * meshToMeters
+                );
+                // Global DOF indices
+                for (int d = 0; d < 6; ++d) {
+                    se.dofIndices[n * 6 + d] = idx * DOFS_PER_NODE + d;
+                }
             }
-        }
 
-        if (valid && se.area() > 1e-30) {
-            elements.push_back(se);
+            if (valid && se.area() > 1e-30) {
+                elements.push_back(se);
+            }
+        } else if (elem.elementType == 3 && elem.nodeTags.size() == 4) {
+            // Split Quad into 2 Triangles: (0, 1, 2) and (0, 2, 3)
+            int tris[2][3] = {{0, 1, 2}, {0, 2, 3}};
+            for (int t = 0; t < 2; ++t) {
+                ShellElement se;
+                se.parentTag = elem.tag;
+                se.thickness = thickness;
+                se.youngsModulus = youngsModulus;
+                se.poissonsRatio = poissonsRatio;
+                se.density = dens;
+
+                bool valid = true;
+                for (int n = 0; n < 3; ++n) {
+                    uint64_t tag = elem.nodeTags[tris[t][n]];
+                    auto it = tagToIndex.find(tag);
+                    if (it == tagToIndex.end()) { valid = false; break; }
+                    int idx = it->second;
+                    const auto& node = nodes[idx];
+                    // Convert mesh coordinates to meters
+                    se.nodes[n] = Eigen::Vector3d(
+                        node.position.x * meshToMeters,
+                        node.position.y * meshToMeters,
+                        node.position.z * meshToMeters
+                    );
+                    // Global DOF indices
+                    for (int d = 0; d < 6; ++d) {
+                        se.dofIndices[n * 6 + d] = idx * DOFS_PER_NODE + d;
+                    }
+                }
+
+                if (valid && se.area() > 1e-30) {
+                    elements.push_back(se);
+                }
+            }
         }
     }
 
