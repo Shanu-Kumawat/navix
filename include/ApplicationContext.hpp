@@ -10,8 +10,17 @@
 #include "BellowsViewer3D.hpp"
 #include "BallBearingViewer3D.hpp"
 #include "ComplexShape3DManager.hpp"
+#include "modeling3d/Viewport3D.hpp"
 
 namespace Core {
+
+/**
+ * @brief 2D/3D workspace mode for the main canvas area.
+ */
+enum class WorkspaceMode {
+    Mode2D,  ///< Traditional 2D drafting canvas
+    Mode3D   ///< 3D modeling canvas (Blender/ANSYS-like)
+};
 
 /**
  * @brief Encapsulates all application-level state.
@@ -59,6 +68,13 @@ public:
     // Workspace settings
     std::string currentWorkspace;
     bool darkMode;
+
+    // 2D/3D mode switch
+    WorkspaceMode currentWorkspaceMode{WorkspaceMode::Mode2D};
+
+    // 3D Modeling Viewport (lazy-initialized on first use)
+    Modeling3D::Viewport3D viewport3D;
+    bool viewport3DInitialized{false};
 
     // 3D viewer instances
     SpringViewer3D springViewer;

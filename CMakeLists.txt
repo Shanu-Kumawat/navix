@@ -12,6 +12,16 @@ else()
     message(WARNING "Gmsh NOT found. Meshing features will be disabled.")
 endif()
 
+# Open CASCADE Technology for 3D B-Rep modeling
+find_package(OpenCASCADE QUIET)
+if(OpenCASCADE_FOUND)
+    add_definitions(-DUSE_OCCT)
+    include_directories(${OpenCASCADE_INCLUDE_DIR})
+    message(STATUS "OpenCASCADE found: 3D B-Rep modeling enabled")
+else()
+    message(WARNING "OpenCASCADE NOT found. 3D modeling will use mesh-only fallback.")
+endif()
+
 # Eigen3 for FEA Solver
 find_package(Eigen3 QUIET)
 if(Eigen3_FOUND)
@@ -176,6 +186,9 @@ add_library(drawing STATIC
     src/ui/StatusBar.cpp
     src/ui/CanvasView.cpp
     src/ui/Viewers3DUI.cpp
+    src/ui/Toolbar3D.cpp
+    src/ui/PropertyPanel3D.cpp
+    src/ui/FeatureTree3D.cpp
     src/shapes/ComplexShapes.cpp
     src/shapes/Bellows.cpp
     src/shapes/BallBearing.cpp
@@ -196,11 +209,23 @@ add_library(drawing STATIC
     src/ShockAbsorberModel3D.cpp
     src/ShockAbsorberViewer3D.cpp
     src/ComplexShape3DManager.cpp
+    src/export/BellowsExporter.cpp
+    # 3D Modeling system
+    src/modeling3d/WorkPlane3D.cpp
+    src/modeling3d/Sketch3D.cpp
+    src/modeling3d/Body3D.cpp
+    src/modeling3d/Modeling3DScene.cpp
+    src/modeling3d/Viewport3D.cpp
+    src/modeling3d/CommandManager3D.cpp
+    src/modeling3d/Exporter3D.cpp
+    # ImGuizmo (header-only library)
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/ImGuizmo/ImGuizmo.cpp
 )
 
 target_include_directories(drawing PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
 if(WIN32)
@@ -229,6 +254,7 @@ target_include_directories(main PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui/backends
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
     ${SDL2_INCLUDE_DIRS}
     ${SDL2_IMAGE_INCLUDE_DIRS}
     ${OPENGL_INCLUDE_DIR}
@@ -286,12 +312,25 @@ endif()
 target_include_directories(drawing PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
 # Copy shader files to build directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR}) 
 if(GMSH_FOUND)
     target_link_libraries(main PRIVATE ${GMSH_LIBRARY})
+endif()
+
+# Link OpenCASCADE libraries if found
+if(OpenCASCADE_FOUND)
+    target_link_libraries(drawing PUBLIC
+        TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep
+        TKGeomAlgo TKTopAlgo TKPrim TKShHealing TKBO
+        TKBool TKFillet TKMesh TKOffset
+        # Data Exchange (OCCT 7.9+ naming)
+        TKDE TKXSBase TKDESTEP TKDEIGES TKDESTL
+    )
+    message(STATUS "OCCT libraries linked to drawing target (including data exchange)")
 endif()
 
 # Ensure DLL/SO is copied

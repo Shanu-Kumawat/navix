@@ -2,6 +2,7 @@
 
 #include "ui/UIHelpers.hpp"
 #include "ui/UIColors.hpp"
+#include "export/BellowsExporter.hpp"
 #include <imgui.h>
 #include <iostream>
 
@@ -794,6 +795,41 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
               const auto& mesh = model->getFEMMesh();
               ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.5f, 1.0f), 
                 "Nodes: %zu  |  Elements: %zu", mesh.getNodes().size(), mesh.getElements().size());
+
+              // ── Export to ANSYS button ──
+              ImGui::Spacing();
+              ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.35f, 0.55f, 1.0f));
+              ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.45f, 0.65f, 1.0f));
+              ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.10f, 0.30f, 0.50f, 1.0f));
+              float exportBtnWidth = ImGui::GetContentRegionAvail().x;
+              if (ImGui::Button("Export to ANSYS (.inp)##bellows", ImVec2(exportBtnWidth, 30))) {
+                // Export to project root
+                std::string exportPath = "bellows_export.inp";
+                
+                const Core::FEM::FEMResult* femRes = model->hasFEMResult() ? &model->getFEMResult() : nullptr;
+                
+                auto result = Export::BellowsExporter::exportAbaqusINP(
+                    model->getFEMMesh(),
+                    *bellows,
+                    model->getFEMMaterial(),
+                    exportPath,
+                    femRes
+                );
+                
+                if (result.success) {
+                  appContext.consoleMessage = "Exported to " + result.filePath + 
+                    " (" + std::to_string(result.nodeCount) + " nodes, " + 
+                    std::to_string(result.elementCount) + " elements)";
+                  appContext.isConsoleMessageError = false;
+                } else {
+                  appContext.consoleMessage = "Export failed: " + result.errorMessage;
+                  appContext.isConsoleMessageError = true;
+                }
+              }
+              ImGui::PopStyleColor(3);
+              if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Export FEM mesh as Abaqus Input Deck for ANSYS Mechanical import");
+              }
             } else {
               ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No mesh generated");
             }

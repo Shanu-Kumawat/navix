@@ -26,6 +26,12 @@
 #include "ShockAbsorberViewer3D.hpp"
 #include "ComplexShape3DManager.hpp"
 #include "ApplicationContext.hpp"
+#include "ui/Toolbar3D.hpp"
+#include "ui/PropertyPanel3D.hpp"
+#include "ui/FeatureTree3D.hpp"
+#include "modeling3d/CommandManager3D.hpp"
+#include <ImGuizmo/ImGuizmo.h>
+#include <glm/gtc/type_ptr.hpp>
 
 
 
@@ -351,31 +357,183 @@ int main(int argc, char* argv[]) {
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        // Handle keyboard shortcuts
-        UI::CanvasView::HandleKeyboardShortcuts(canvas, appContext);
+        // Main UI rendering — branch on workspace mode
+        if (appContext.currentWorkspaceMode == Core::WorkspaceMode::Mode3D) {
+            // ═══════ 3D MODE ═══════
+            // Initialize viewport on first use
+            if (!appContext.viewport3DInitialized) {
+                appContext.viewport3D.initialize();
+                appContext.viewport3DInitialized = true;
+            }
 
-        // Main UI rendering
-        UI::TopRibbon::Render(canvas, appContext);
-        UI::CanvasView::Render(canvas, appContext);
-        UI::PropertyPanel::Render(canvas, appContext);
-        UI::StatusBar::Render(canvas, appContext);
+            // 3D Toolbar (replaces TopRibbon)
+            UI::Toolbar3D::Render(appContext.viewport3D, appContext);
 
-        // Render 3D views if enabled
-        if (appContext.showBellows3DView) {
-          UI::Viewers3DUI::RenderBellows3DViewWindow(canvas, appContext);
-        }
-        
-        if (appContext.showBallBearing3DView) {
-          UI::Viewers3DUI::RenderBallBearing3DViewWindow(canvas, appContext);
-        }
-        
-        // Note: The 3D views need to be implemented to work with the canvas shapes
-        // For now, the 3D view flags are being set but the rendering needs shape data
-        if (appContext.showSpring3DView) {
-            UI::Viewers3DUI::RenderSpring3DViewWindow(canvas, appContext);
-        }
-        if (appContext.showShockAbsorber3DView) {
-            UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(canvas, appContext);
+            // Feature Tree (left panel)
+            UI::FeatureTree3D::Render(appContext.viewport3D, appContext);
+
+            // 3D Viewport canvas area (center, between feature tree and properties)
+            {
+                const float ribbonHeight = 48.0f;
+                const float statusBarHeight = 28.0f;
+                const float featureTreeWidth = 220.0f;
+                float canvasX = featureTreeWidth;
+                float canvasWidth = io.DisplaySize.x - featureTreeWidth - appContext.userPropertyPanelWidth;
+                float canvasHeight = io.DisplaySize.y - ribbonHeight - statusBarHeight;
+
+                // Render 3D scene to FBO
+                appContext.viewport3D.render(
+                    static_cast<int>(canvasWidth),
+                    static_cast<int>(canvasHeight));
+
+                // Display FBO texture in ImGui
+                ImGui::SetNextWindowPos(ImVec2(canvasX, ribbonHeight));
+                ImGui::SetNextWindowSize(ImVec2(canvasWidth, canvasHeight));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+                ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.11f, 0.12f, 0.14f, 1.0f));
+                ImGui::Begin("##3DCanvas", nullptr,
+                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+                    ImGuiWindowFlags_NoScrollbar);
+
+                ImGui::Image(
+                    (ImTextureID)(intptr_t)appContext.viewport3D.getRenderedTexture(),
+                    ImVec2(canvasWidth, canvasHeight),
+                    ImVec2(0, 1), ImVec2(1, 0)
+                );
+
+                // Handle mouse input in the 3D viewport
+                if (ImGui::IsWindowHovered()) {
+                    ImVec2 windowPos = ImGui::GetWindowPos();
+                    ImVec2 mousePos = ImGui::GetMousePos();
+                    float localX = mousePos.x - windowPos.x;
+                    float localY = mousePos.y - windowPos.y;
+
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        appContext.viewport3D.handleMouseButton(0, true, localX, localY);
+                    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+                        appContext.viewport3D.handleMouseButton(0, false, localX, localY);
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+                        appContext.viewport3D.handleMouseButton(1, true, localX, localY);
+                    if (ImGui::IsMouseReleased(ImGuiMouseButton_Middle))
+                        appContext.viewport3D.handleMouseButton(1, false, localX, localY);
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                        appContext.viewport3D.handleMouseButton(2, true, localX, localY);
+                    if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+                        appContext.viewport3D.handleMouseButton(2, false, localX, localY);
+
+                    appContext.viewport3D.handleMouseMove(localX, localY);
+
+                    float scrollY = io.MouseWheel;
+                    if (scrollY != 0.0f)
+                        appContext.viewport3D.handleMouseScroll(scrollY);
+
+                    appContext.viewport3D.handleKey(340, io.KeyShift);
+                    appContext.viewport3D.handleKey(341, io.KeyCtrl);
+                }
+
+                // ImGui Overlays: View Triad + ViewCube + Snap
+                appContext.viewport3D.renderViewTriad(canvasX, ribbonHeight, canvasWidth, canvasHeight);
+                appContext.viewport3D.renderViewCube(canvasX, ribbonHeight, canvasWidth, canvasHeight);
+                appContext.viewport3D.renderSnapOverlay(canvasX, ribbonHeight);
+
+                ImGui::End();
+                ImGui::PopStyleColor();
+                ImGui::PopStyleVar();
+
+                // === ImGuizmo overlay ===
+                auto tool3d = appContext.viewport3D.getActiveTool();
+                auto* selectedBody = appContext.viewport3D.getScene()->getSelectedBody();
+                if (selectedBody &&
+                    (tool3d == Modeling3D::Tool3DType::Move ||
+                     tool3d == Modeling3D::Tool3DType::Rotate ||
+                     tool3d == Modeling3D::Tool3DType::Scale))
+                {
+                    ImGuizmo::BeginFrame();
+                    ImGuizmo::SetOrthographic(false);
+                    ImGuizmo::SetRect(canvasX, ribbonHeight, canvasWidth, canvasHeight);
+
+                    float aspect = canvasWidth / canvasHeight;
+                    glm::mat4 proj = glm::perspective(
+                        glm::radians(appContext.viewport3D.getCamera()->Zoom),
+                        aspect, 0.1f, 1000.0f);
+                    glm::mat4 view = appContext.viewport3D.getCamera()->GetViewMatrix();
+                    glm::mat4 modelMat = selectedBody->getTransform();
+                    glm::mat4 prevMat = modelMat;
+
+                    ImGuizmo::OPERATION op = ImGuizmo::TRANSLATE;
+                    if (tool3d == Modeling3D::Tool3DType::Rotate)
+                        op = ImGuizmo::ROTATE;
+                    else if (tool3d == Modeling3D::Tool3DType::Scale)
+                        op = ImGuizmo::SCALE;
+
+                    ImGuizmo::Manipulate(
+                        glm::value_ptr(view),
+                        glm::value_ptr(proj),
+                        op,
+                        ImGuizmo::WORLD,
+                        glm::value_ptr(modelMat),
+                        nullptr,
+                        nullptr);
+
+                    if (ImGuizmo::IsUsing()) {
+                        selectedBody->setTransform(modelMat);
+                    }
+
+                    // Create undo command when gizmo interaction finishes
+                    static bool wasUsingGizmo = false;
+                    static glm::mat4 gizmoStartMatrix = glm::mat4(1.0f);
+                    if (ImGuizmo::IsUsing() && !wasUsingGizmo) {
+                        gizmoStartMatrix = prevMat;
+                    }
+                    if (!ImGuizmo::IsUsing() && wasUsingGizmo) {
+                        auto cmd = std::make_unique<Modeling3D::TransformBodyCommand>(
+                            selectedBody, gizmoStartMatrix, modelMat);
+                        appContext.viewport3D.getScene()->getCommandManager().execute(std::move(cmd));
+                    }
+                    wasUsingGizmo = ImGuizmo::IsUsing();
+                }
+            }
+
+            // Keyboard shortcuts for 3D mode
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+                if (appContext.viewport3D.getScene()->undo())
+                    appContext.consoleMessage = "Undo: " + appContext.viewport3D.getScene()->getCommandManager().getUndoDescription();
+            }
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
+                if (appContext.viewport3D.getScene()->redo())
+                    appContext.consoleMessage = "Redo: " + appContext.viewport3D.getScene()->getCommandManager().getRedoDescription();
+            }
+
+            // 3D Property Panel
+            UI::PropertyPanel3D::Render(appContext.viewport3D, appContext);
+
+            // Status bar (shows 3D info)
+            UI::StatusBar::Render(canvas, appContext);
+
+        } else {
+            // ═══════ 2D MODE (existing) ═══════
+            UI::CanvasView::HandleKeyboardShortcuts(canvas, appContext);
+            UI::TopRibbon::Render(canvas, appContext);
+            UI::CanvasView::Render(canvas, appContext);
+            UI::PropertyPanel::Render(canvas, appContext);
+            UI::StatusBar::Render(canvas, appContext);
+
+            // Render 3D views if enabled
+            if (appContext.showBellows3DView) {
+              UI::Viewers3DUI::RenderBellows3DViewWindow(canvas, appContext);
+            }
+            
+            if (appContext.showBallBearing3DView) {
+              UI::Viewers3DUI::RenderBallBearing3DViewWindow(canvas, appContext);
+            }
+            
+            if (appContext.showSpring3DView) {
+                UI::Viewers3DUI::RenderSpring3DViewWindow(canvas, appContext);
+            }
+            if (appContext.showShockAbsorber3DView) {
+                UI::Viewers3DUI::RenderShockAbsorber3DViewWindow(canvas, appContext);
+            }
         }
 
         // Rendering

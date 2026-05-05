@@ -43,7 +43,23 @@ void TopRibbon::Render(Drawing::Canvas &canvas, Core::ApplicationContext& appCon
   ImGui::SetCursorPosY(10);
   ImGui::Text("NAVIX");
   ImGui::PopStyleColor();
-  ImGui::SameLine(0, 16);
+  ImGui::SameLine(0, 12);
+
+  // --- 2D/3D Mode Switch ---
+  {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.42f, 0.55f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.52f, 0.65f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, UIColors::TEXT_BRIGHT);
+    if (ImGui::Button("3D Mode >", ImVec2(80, 28))) {
+      appContext.currentWorkspaceMode = Core::WorkspaceMode::Mode3D;
+      appContext.consoleMessage = "Switched to 3D Modeling Mode";
+    }
+    ImGui::PopStyleColor(3);
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip("Switch to 3D modeling canvas (Blender-like)");
+    }
+  }
+  ImGui::SameLine(0, 8);
   ToolbarSep();
 
   // --- Cursor / Select ---
