@@ -790,6 +790,13 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
               model->setShowFEMMesh(showMesh);
             }
             
+            // Mesh Type Selection
+            int meshType = static_cast<int>(model->getMeshType());
+            const char* meshTypes[] = { "Triangular", "Quadrilateral (Mapped)" };
+            if (ImGui::Combo("Mesh Type##bellows", &meshType, meshTypes, 2)) {
+                model->setMeshType(static_cast<BellowsModel3D::MeshType>(meshType));
+            }
+            
             // Mesh statistics
             if (model->hasFEMMesh()) {
               const auto& mesh = model->getFEMMesh();
@@ -894,6 +901,7 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
               cfg.pressure = static_cast<double>(pressureKPa) * 1e3;
               cfg.axialForce = static_cast<double>(axialForceN);
               model2->runFEMAnalysis(cfg);
+              appContext.showFEMAnalysisView = true;
             }
             ImGui::PopStyleColor(2);
 
@@ -926,6 +934,11 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
                   "Max Stress: %.1f MPa", maxMPa);
               }
               ImGui::Text("Safety Factor: %.2f", yieldMPa / std::max(maxMPa, 1e-6));
+              
+              ImGui::Spacing();
+              if (ImGui::Button("Open Advanced Dashboard", ImVec2(ImGui::GetContentRegionAvail().x, 24))) {
+                  appContext.showFEMAnalysisView = true;
+              }
 
               // Stress contour toggle
               bool showContours = model2->getShowStressContours();
@@ -996,11 +1009,18 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
 
             bool canModal = model2->hasFEMMesh();
             if (!canModal) ImGui::BeginDisabled();
-            if (ImGui::Button("Run Modal Analysis##bel", ImVec2(femFullW, 28))) {
+            if (ImGui::Button("Run Modal Analysis##bel", ImVec2(femBtnW, 28))) {
               model2->runModalAnalysis(numModes);
             }
             if (!canModal) ImGui::EndDisabled();
 
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.2f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.3f, 0.3f, 1.0f));
+            if (ImGui::Button("Clear##modal", ImVec2(femBtnW, 28))) {
+              model2->clearModalResult();
+            }
+            ImGui::PopStyleColor(2);
             if (model2->hasModalResult()) {
               const auto& mr = model2->getModalResult();
               ImGui::TextColored(ImVec4(0.4f, 0.9f, 1.0f, 1.0f), "%s", mr.statusMessage.c_str());
@@ -1040,7 +1060,7 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
 
             bool canConv = model2->hasFEMMesh();
             if (!canConv) ImGui::BeginDisabled();
-            if (ImGui::Button("Run Convergence##bel", ImVec2(femFullW, 28))) {
+            if (ImGui::Button("Run Convergence##bel", ImVec2(femBtnW, 28))) {
               Core::FEM::AnalysisConfig cfg;
               cfg.pressure = static_cast<double>(pressureKPa) * 1e3;
               cfg.axialForce = static_cast<double>(axialForceN);
@@ -1048,6 +1068,13 @@ void UI::PropertyPanel::Render(Drawing::Canvas &canvas, Core::ApplicationContext
             }
             if (!canConv) ImGui::EndDisabled();
 
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.2f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.3f, 0.3f, 1.0f));
+            if (ImGui::Button("Clear##conv", ImVec2(femBtnW, 28))) {
+              model2->clearConvergenceData();
+            }
+            ImGui::PopStyleColor(2);
             if (model2->hasConvergenceData()) {
               const auto& cd = model2->getConvergenceData();
               if (ImGui::BeginTable("##conv", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {

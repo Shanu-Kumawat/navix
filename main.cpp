@@ -3,6 +3,7 @@
 #include "ui/Viewers3DUI.hpp"
 #include "ui/CanvasView.hpp"
 #include "ui/PropertyPanel.hpp"
+#include "ui/FEMAnalysisWindow.hpp"
 #include "ui/StatusBar.hpp"
 #include "ui/TopRibbon.hpp"
 #include "ui/UIHelpers.hpp"
@@ -366,7 +367,7 @@ int main(int argc, char* argv[]) {
                 appContext.viewport3DInitialized = true;
             }
 
-            // 3D Toolbar (replaces TopRibbon)
+            // 3D Toolbar (replaces TopRibbon in 3D mode)
             UI::Toolbar3D::Render(appContext.viewport3D, appContext);
 
             // Feature Tree (left panel)
@@ -518,6 +519,7 @@ int main(int argc, char* argv[]) {
             UI::CanvasView::Render(canvas, appContext);
             UI::PropertyPanel::Render(canvas, appContext);
             UI::StatusBar::Render(canvas, appContext);
+            UI::FEMAnalysisWindow::Render(appContext); // Advanced FEM dashboard
 
             // Render 3D views if enabled
             if (appContext.showBellows3DView) {

@@ -183,6 +183,7 @@ add_library(drawing STATIC
     src/ui/TopRibbon.cpp
     src/ui/UIHelpers.cpp
     src/ui/PropertyPanel.cpp
+    src/ui/FEMAnalysisWindow.cpp
     src/ui/StatusBar.cpp
     src/ui/CanvasView.cpp
     src/ui/Viewers3DUI.cpp

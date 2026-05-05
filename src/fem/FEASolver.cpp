@@ -1,3 +1,4 @@
+#include <map>
 #include "fem/FEASolver.hpp"
 #include <Eigen/SparseLU>
 #include <Eigen/SparseCholesky>
@@ -31,36 +32,71 @@ void FEASolver::buildElements(const Core::Meshing::Mesh& mesh,
         tagToIndex[nodes[i].tag] = i;
     }
 
-    // Build shell elements from triangular elements (type 2 = 3-node triangle)
+    // Build shell elements from triangular (Type 2) and quadrilateral (Type 3) meshes
     for (const auto& elem : elems) {
-        if (elem.elementType != 2 || elem.nodeTags.size() != 3) continue;
+        if (elem.elementType == 2 && elem.nodeTags.size() == 3) {
+            ShellElement se;
+            se.parentTag = elem.tag;
+            se.thickness = thickness;
+            se.youngsModulus = youngsModulus;
+            se.poissonsRatio = poissonsRatio;
+            se.density = dens;
 
-        ShellElement se;
-        se.thickness = thickness;
-        se.youngsModulus = youngsModulus;
-        se.poissonsRatio = poissonsRatio;
-        se.density = dens;
-
-        bool valid = true;
-        for (int n = 0; n < 3; ++n) {
-            auto it = tagToIndex.find(elem.nodeTags[n]);
-            if (it == tagToIndex.end()) { valid = false; break; }
-            int idx = it->second;
-            const auto& node = nodes[idx];
-            // Convert mesh coordinates to meters
-            se.nodes[n] = Eigen::Vector3d(
-                node.position.x * meshToMeters,
-                node.position.y * meshToMeters,
-                node.position.z * meshToMeters
-            );
-            // Global DOF indices
-            for (int d = 0; d < 6; ++d) {
-                se.dofIndices[n * 6 + d] = idx * DOFS_PER_NODE + d;
+            bool valid = true;
+            for (int n = 0; n < 3; ++n) {
+                auto it = tagToIndex.find(elem.nodeTags[n]);
+                if (it == tagToIndex.end()) { valid = false; break; }
+                int idx = it->second;
+                const auto& node = nodes[idx];
+                // Convert mesh coordinates to meters
+                se.nodes[n] = Eigen::Vector3d(
+                    node.position.x * meshToMeters,
+                    node.position.y * meshToMeters,
+                    node.position.z * meshToMeters
+                );
+                // Global DOF indices
+                for (int d = 0; d < 6; ++d) {
+                    se.dofIndices[n * 6 + d] = idx * DOFS_PER_NODE + d;
+                }
             }
-        }
 
-        if (valid && se.area() > 1e-30) {
-            elements.push_back(se);
+            if (valid && se.area() > 1e-30) {
+                elements.push_back(se);
+            }
+        } else if (elem.elementType == 3 && elem.nodeTags.size() == 4) {
+            // Split Quad into 2 Triangles: (0, 1, 2) and (0, 2, 3)
+            int tris[2][3] = {{0, 1, 2}, {0, 2, 3}};
+            for (int t = 0; t < 2; ++t) {
+                ShellElement se;
+                se.parentTag = elem.tag;
+                se.thickness = thickness;
+                se.youngsModulus = youngsModulus;
+                se.poissonsRatio = poissonsRatio;
+                se.density = dens;
+
+                bool valid = true;
+                for (int n = 0; n < 3; ++n) {
+                    uint64_t tag = elem.nodeTags[tris[t][n]];
+                    auto it = tagToIndex.find(tag);
+                    if (it == tagToIndex.end()) { valid = false; break; }
+                    int idx = it->second;
+                    const auto& node = nodes[idx];
+                    // Convert mesh coordinates to meters
+                    se.nodes[n] = Eigen::Vector3d(
+                        node.position.x * meshToMeters,
+                        node.position.y * meshToMeters,
+                        node.position.z * meshToMeters
+                    );
+                    // Global DOF indices
+                    for (int d = 0; d < 6; ++d) {
+                        se.dofIndices[n * 6 + d] = idx * DOFS_PER_NODE + d;
+                    }
+                }
+
+                if (valid && se.area() > 1e-30) {
+                    elements.push_back(se);
+                }
+            }
         }
     }
 
@@ -243,34 +279,62 @@ void FEASolver::computeStresses() {
     if (!result.isValid || result.displacements.size() != nDOFs) return;
 
     result.elementStresses.clear();
-    result.elementStresses.reserve(elements.size());
     result.maxVonMises = 0;
     result.minVonMises = 1e30;
 
+    std::map<uint64_t, std::vector<ElementStress>> grouped;
+
     for (size_t e = 0; e < elements.size(); ++e) {
         const auto& elem = elements[e];
-
-        // Extract element displacements from global vector
         Eigen::VectorXd de(18);
         for (int i = 0; i < 18; ++i) {
             de(i) = result.displacements(elem.dofIndices[i]);
         }
-
         auto sr = elem.computeStress(de);
 
         ElementStress es;
-        es.elementTag = e + 1;
+        es.elementTag = elem.parentTag;
         es.membraneStress = sr.membrane;
         es.bendingStressTop = sr.bendingTop;
         es.bendingStressBot = sr.bendingBot;
         es.vonMisesTop = sr.vmTop;
         es.vonMisesBot = sr.vmBot;
         es.vonMisesMax = std::max(sr.vmTop, sr.vmBot);
+        
+        grouped[elem.parentTag].push_back(es);
+    }
 
-        result.maxVonMises = std::max(result.maxVonMises, es.vonMisesMax);
-        result.minVonMises = std::min(result.minVonMises, es.vonMisesMax);
+    for (const auto& pair : grouped) {
+        ElementStress avg;
+        avg.elementTag = pair.first;
+        avg.membraneStress = Eigen::Vector3d::Zero();
+        avg.bendingStressTop = Eigen::Vector3d::Zero();
+        avg.bendingStressBot = Eigen::Vector3d::Zero();
+        avg.vonMisesTop = 0;
+        avg.vonMisesBot = 0;
+        avg.vonMisesMax = 0;
 
-        result.elementStresses.push_back(es);
+        for (const auto& es : pair.second) {
+            avg.membraneStress += es.membraneStress;
+            avg.bendingStressTop += es.bendingStressTop;
+            avg.bendingStressBot += es.bendingStressBot;
+            avg.vonMisesTop += es.vonMisesTop;
+            avg.vonMisesBot += es.vonMisesBot;
+            avg.vonMisesMax += es.vonMisesMax;
+        }
+
+        double n = static_cast<double>(pair.second.size());
+        avg.membraneStress /= n;
+        avg.bendingStressTop /= n;
+        avg.bendingStressBot /= n;
+        avg.vonMisesTop /= n;
+        avg.vonMisesBot /= n;
+        avg.vonMisesMax /= n;
+
+        result.maxVonMises = std::max(result.maxVonMises, avg.vonMisesMax);
+        result.minVonMises = std::min(result.minVonMises, avg.vonMisesMax);
+        
+        result.elementStresses.push_back(avg);
     }
 
     std::cout << "[FEASolver] Stress range: " << result.minVonMises / 1e6 << " - "
