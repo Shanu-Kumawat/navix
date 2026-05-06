@@ -4,29 +4,24 @@ in vec2 vUV;
 out vec4 FragColor;
 
 void main() {
-    // Studio-dark gradient: deep navy-charcoal top, slightly warmer base
-    vec3 topColor    = vec3(0.072, 0.078, 0.098);   // Very dark blue-slate #121420
-    vec3 midColor    = vec3(0.098, 0.103, 0.128);   // #191a21
-    vec3 botColor    = vec3(0.132, 0.138, 0.162);   // #222329
+    // Match UIColors::GRID_BACKGROUND = (0.078, 0.086, 0.125) = #141620
+    // Slightly lighter at horizon for depth, darker at top and bottom corners
+    vec3 midColor = vec3(0.078f, 0.086f, 0.125f);   // exact 2D canvas BG
+    vec3 topColor = vec3(0.055f, 0.060f, 0.090f);   // slightly deeper at top
+    vec3 botColor = vec3(0.090f, 0.098f, 0.138f);   // slightly warmer at base
 
-    // Two-section gradient for more depth
     float t = vUV.y;
     vec3 bg;
-    if (t > 0.5) {
+    if (t > 0.5)
         bg = mix(midColor, topColor, (t - 0.5) * 2.0);
-    } else {
+    else
         bg = mix(botColor, midColor, t * 2.0);
-    }
 
-    // Radial vignette — darkens corners, focuses center
+    // Subtle vignette — corners darker, focus center
     vec2 uv2 = vUV * 2.0 - 1.0;
     float r2 = dot(uv2, uv2);
-    float vignette = 1.0 - 0.28 * r2 * r2;
+    float vignette = 1.0 - 0.22 * r2 * r2;
     bg *= clamp(vignette, 0.0, 1.0);
-
-    // Very faint horizontal centerline glow (subtle depth cue)
-    float horizGlow = exp(-40.0 * pow(vUV.y - 0.42, 2.0)) * 0.018;
-    bg += vec3(horizGlow * 0.6, horizGlow * 0.7, horizGlow);
 
     FragColor = vec4(bg, 1.0);
 }

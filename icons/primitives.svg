@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- 3D Box: isometric box -->
+  <polygon points="16,3 28,9 28,23 16,29 4,23 4,9" fill="#1e2a3a" stroke="#5adfff" stroke-width="1.5" stroke-linejoin="round"/>
+  <polygon points="16,3 28,9 16,15 4,9" fill="#2a3f5f" stroke="#5adfff" stroke-width="1.5" stroke-linejoin="round"/>
+  <polygon points="16,15 28,9 28,23 16,29" fill="#1a2d45" stroke="#5adfff" stroke-width="1.5" stroke-linejoin="round"/>
+  <line x1="16" y1="15" x2="16" y2="29" stroke="#5adfff" stroke-width="1"/>
+</svg>

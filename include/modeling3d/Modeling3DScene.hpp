@@ -42,10 +42,20 @@ public:
     void beginSketch(const WorkPlane3D& plane);
     void finishSketch();
     void cancelSketch();
+    // Directly make an existing sketch the active one (for sketch-click → extrude workflow)
+    void setActiveSketchDirect(Sketch3D* sk) {
+        if (sk) { activeSketch = sk; activeWorkPlane = sk->getWorkPlane(); }
+    }
     bool isSketchActive() const { return activeSketch != nullptr; }
 
     // Sketch storage
     const std::vector<std::unique_ptr<Sketch3D>>& getSketches() const { return sketches; }
+    void removeSketch(Sketch3D* sk) {
+        if (activeSketch == sk) activeSketch = nullptr;
+        auto it = std::find_if(sketches.begin(), sketches.end(),
+            [sk](const std::unique_ptr<Sketch3D>& s){ return s.get() == sk; });
+        if (it != sketches.end()) sketches.erase(it);
+    }
 
     // Work planes
     const WorkPlane3D& getActiveWorkPlane() const { return activeWorkPlane; }

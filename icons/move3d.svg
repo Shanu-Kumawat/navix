@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Move: 4-directional arrows -->
+  <line x1="16" y1="3" x2="16" y2="29" stroke="#5adfff" stroke-width="2"/>
+  <line x1="3" y1="16" x2="29" y2="16" stroke="#5adfff" stroke-width="2"/>
+  <polyline points="12,7 16,3 20,7" fill="none" stroke="#5adfff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="12,25 16,29 20,25" fill="none" stroke="#5adfff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="7,12 3,16 7,20" fill="none" stroke="#5adfff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="25,12 29,16 25,20" fill="none" stroke="#5adfff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="16" cy="16" r="3" fill="#5adfff"/>
+</svg>

@@ -14,7 +14,10 @@ uniform float diffuseStrength;
 uniform float specularStrength;
 uniform float shininess;
 
-// Render mode: 0 = solid, 1 = wireframe overlay, 2 = edge-only
+// renderMode:
+//   0 = solid (Blinn-Phong lit)
+//   1 = lines / wireframe — full objectColor, no lighting applied
+//   2 = edge darkening overlay (for SolidWithEdges mode)
 uniform int renderMode;
 
 // Selection highlight
@@ -28,17 +31,31 @@ void main() {
         baseColor = mix(baseColor, vec3(0.3, 0.5, 0.9), 0.25);
     }
 
-    vec3 norm = normalize(Normal);
+    // ── Line / wireframe mode: use color directly ──────────────────────────────
+    // No lighting — axes, sketch lines, preview bands all use full objectColor.
+    if (renderMode == 1) {
+        FragColor = vec4(baseColor, 1.0);
+        return;
+    }
+
+    // ── Edge darkening overlay (renderMode == 2) ───────────────────────────────
+    if (renderMode == 2) {
+        FragColor = vec4(baseColor * 0.18, 1.0);
+        return;
+    }
+
+    // ── Solid (renderMode == 0): Blinn-Phong ──────────────────────────────────
+    vec3 norm    = normalize(Normal);
     vec3 viewDir = normalize(viewPos - FragPos);
 
     // Ambient
-    vec3 ambient = ambientStrength * lightColor * 1.15;
+    vec3 ambient = ambientStrength * lightColor;
 
-    // Diffuse — Blinn-Phong with soft wrap
+    // Diffuse — soft wrap lighting
     vec3 lightDir = normalize(lightPos - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
     diff = smoothstep(0.0, 1.0, diff);
-    diff = max(diff, 0.15); // Minimum diffuse to reduce harsh shadows
+    diff = max(diff, 0.15);
     vec3 diffuse = diffuseStrength * diff * lightColor;
 
     // Specular — Blinn-Phong
@@ -47,19 +64,10 @@ void main() {
     spec = smoothstep(0.05, 1.0, spec);
     vec3 specular = specularStrength * spec * lightColor;
 
-    // Metallic tint
-    vec3 metalColor = baseColor * vec3(1.03, 1.03, 1.05);
+    vec3 result = (ambient + diffuse) * baseColor + specular;
 
-    // Combined
-    vec3 result = (ambient + diffuse) * metalColor + specular;
-
-    // Subtle gamma correction for brightness
-    result = pow(result, vec3(0.88));
-
-    // Edge darkening for wireframe mode
-    if (renderMode == 1) {
-        result = baseColor * 0.15;
-    }
+    // Subtle gamma correction
+    result = pow(max(result, vec3(0.0)), vec3(0.88));
 
     FragColor = vec4(result, 1.0);
 }

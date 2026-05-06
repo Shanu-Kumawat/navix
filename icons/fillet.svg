@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Fillet: corner with rounded arc -->
+  <polyline points="5,27 5,5 27,5" fill="none" stroke="#aaaaaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 5,20 A 14,14 0 0 1 20,5" fill="none" stroke="#5adfff" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="5" cy="20" r="2" fill="#5adfff"/>
+  <circle cx="20" cy="5" r="2" fill="#5adfff"/>
+</svg>

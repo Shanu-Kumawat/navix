@@ -318,6 +318,7 @@ target_include_directories(drawing PUBLIC
 
 # Copy shader files to build directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR}) 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/icons DESTINATION ${CMAKE_BINARY_DIR})
 if(GMSH_FOUND)
     target_link_libraries(main PRIVATE ${GMSH_LIBRARY})
 endif()

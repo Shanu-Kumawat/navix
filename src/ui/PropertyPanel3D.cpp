@@ -26,8 +26,8 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
 
     // Title
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.65f, 0.72f, 0.82f, 1.0f));
-    ImGui::Text("PROPERTIES");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.70f, 0.90f, 1.0f));
+    ImGui::TextUnformatted("PROPERTIES");
     ImGui::PopStyleColor();
     ImGui::Separator();
 
@@ -77,6 +77,58 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
         ImGui::Separator();
     }
 
+    // ── Selected Sketch Controls ──────────────────────────────────────────────
+    {
+        auto* selSk = viewport.getSelectedSketch();
+        if (selSk && !viewport.getScene()->isSketchActive()) {
+            if (ImGui::CollapsingHeader("Selected Sketch", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.88f, 0.15f, 1.0f));
+                ImGui::Text("Shapes: %zu", selSk->getShapes().size());
+                ImGui::PopStyleColor();
+
+                // Move sketch (translate all 2D points)
+                ImGui::TextDisabled("Move (dX, dZ, dY):");
+                static float skMoveX{0}, skMoveY{0}, skMoveZ{0};
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##SkMove", &skMoveX, 0.5f, -999.f, 999.f, "%.1f");
+                ImGui::PopItemWidth();
+                if (ImGui::Button("Apply Move##sk", ImVec2(-1, 24))) {
+                    // Translate all shapes in the sketch by (skMoveX, skMoveY) in sketch-plane coords
+                    glm::dvec2 delta(skMoveX, skMoveZ);
+                    for (auto& shape : selSk->getShapesMutable()) {
+                        if (shape->type == Drawing::ShapeType::LINE) {
+                            auto* ln = static_cast<Drawing::Line*>(shape.get());
+                            ln->start += delta; ln->end += delta;
+                        } else if (shape->type == Drawing::ShapeType::CIRCLE) {
+                            auto* c = static_cast<Drawing::Circle*>(shape.get());
+                            c->center += delta;
+                        } else if (shape->type == Drawing::ShapeType::RECTANGLE) {
+                            auto* r = static_cast<Drawing::Rectangle*>(shape.get());
+                            r->topLeft+=delta; r->topRight+=delta;
+                            r->bottomLeft+=delta; r->bottomRight+=delta;
+                        }
+                    }
+                    viewport.markSketchDirty();
+                    skMoveX = skMoveY = skMoveZ = 0;
+                }
+
+                ImGui::Spacing();
+                // Delete selected sketch
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.45f, 0.12f, 0.12f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.58f, 0.18f, 0.18f, 1.0f));
+                if (ImGui::Button("Delete Sketch", ImVec2(-1, 26))) {
+                    viewport.getScene()->removeSketch(selSk);
+                    viewport.setSelectedSketch(nullptr);
+                }
+                ImGui::PopStyleColor(2);
+                ImGui::SameLine();
+                if (ImGui::Button("Deselect##sk", ImVec2(-1, 26)))
+                    viewport.setSelectedSketch(nullptr);
+                ImGui::Separator();
+            }
+        }
+    }
+
     // ── Selected Body Properties ──
     if (selected) {
         if (ImGui::CollapsingHeader("Selected Body", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -117,6 +169,20 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
     // ── Extrude (context-sensitive) ──
     if (tool == Modeling3D::Tool3DType::Extrude) {
         if (ImGui::CollapsingHeader("Extrude", ImGuiTreeNodeFlags_DefaultOpen)) {
+            // Sketch profile status
+            auto* selSk = viewport.getSelectedSketch();
+            auto* actSk = viewport.getScene()->getActiveSketch();
+            if (selSk || actSk) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.88f, 0.15f, 1.0f));
+                ImGui::TextUnformatted("✓ Profile: sketch selected");
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::TextWrapped("Click on sketch lines to select profile");
+                ImGui::PopStyleColor();
+            }
+            ImGui::Spacing();
+
             float dist = viewport.getExtrudeDistance();
             ImGui::PushItemWidth(-1);
             if (ImGui::DragFloat("##ExtDist", &dist, 0.5f, 0.1f, 500.0f, "Distance: %.1f"))
@@ -130,7 +196,7 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
                     appContext.consoleMessage = "Extrude successful";
                     viewport.setActiveTool(Modeling3D::Tool3DType::Select);
                 } else {
-                    appContext.consoleMessage = "Extrude failed — need closed profile";
+                    appContext.consoleMessage = "Extrude failed — select a closed sketch profile first";
                 }
             }
             ImGui::PopStyleColor(2);
@@ -141,6 +207,20 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
     // ── Revolve (context-sensitive) ──
     if (tool == Modeling3D::Tool3DType::Revolve) {
         if (ImGui::CollapsingHeader("Revolve", ImGuiTreeNodeFlags_DefaultOpen)) {
+            // Sketch profile status
+            auto* selSk = viewport.getSelectedSketch();
+            auto* actSk = viewport.getScene()->getActiveSketch();
+            if (selSk || actSk) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.88f, 0.15f, 1.0f));
+                ImGui::TextUnformatted("✓ Profile: sketch selected");
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::TextWrapped("Click on sketch lines to select profile");
+                ImGui::PopStyleColor();
+            }
+            ImGui::Spacing();
+
             // Axis selector
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.65f, 0.80f, 1.0f));
             ImGui::TextUnformatted("Revolve Axis:");
@@ -190,32 +270,63 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
         }
     }
 
-    // ── Fillet / Chamfer (context-sensitive) ──
+    // ── Fillet / Chamfer (context-sensitive — with edge selection) ──
     if (tool == Modeling3D::Tool3DType::Fillet && selected) {
         if (ImGui::CollapsingHeader("Fillet / Chamfer", ImGuiTreeNodeFlags_DefaultOpen)) {
-            static float filletR = 1.0f, chamferD = 1.0f;
+            // Edge selection status
+            int nSel = (int)viewport.filletSelectedEdges.size();
+            if (nSel == 0) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+                ImGui::TextWrapped("Click edges on the body to select them.\n"
+                                   "Leave empty to fillet ALL edges.");
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
+                ImGui::Text("%d edge(s) selected", nSel);
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Clear##FE")) {
+                    viewport.filletSelectedEdges.clear();
+                    viewport.filletHoveredEdge = -1;
+                    viewport.rebuildToolPreview();
+                }
+            }
+            ImGui::Spacing();
+
+            float filletR = viewport.getFilletRadius();
             ImGui::PushItemWidth(-1);
-            ImGui::DragFloat("##FilR", &filletR, 0.1f, 0.1f, 50.0f, "Fillet R: %.1f");
+            if (ImGui::DragFloat("##FilR", &filletR, 0.1f, 0.05f, 50.0f, "Fillet R: %.2f"))
+                viewport.setFilletRadius(filletR);
             ImGui::PopItemWidth();
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.40f, 0.30f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.50f, 0.35f, 1.0f));
-            if (ImGui::Button("Apply Fillet", ImVec2(-1, 26))) {
-                if (selected->filletAllEdges(filletR)) {
+            if (ImGui::Button(nSel > 0 ? "Apply Fillet (Selected)" : "Apply Fillet (All)", ImVec2(-1, 26))) {
+                bool ok = false;
+                if (nSel > 0)
+                    ok = selected->filletEdgesByIndex(viewport.filletSelectedEdges, filletR);
+                else
+                    ok = selected->filletAllEdges(filletR);
+                if (ok) {
                     selected->uploadToGPU();
+                    viewport.filletSelectedEdges.clear();
+                    viewport.filletHoveredEdge = -1;
+                    viewport.rebuildToolPreview();
                     appContext.consoleMessage = "Fillet applied";
                 } else {
-                    appContext.consoleMessage = "Fillet failed";
+                    appContext.consoleMessage = "Fillet failed — needs closed manifold mesh";
                 }
             }
             ImGui::PopStyleColor(2);
 
             ImGui::Spacing();
+            float chamferD = viewport.getChamferDistance();
             ImGui::PushItemWidth(-1);
-            ImGui::DragFloat("##ChamD", &chamferD, 0.1f, 0.1f, 50.0f, "Chamfer D: %.1f");
+            if (ImGui::DragFloat("##ChamD", &chamferD, 0.1f, 0.05f, 50.0f, "Chamfer D: %.2f"))
+                viewport.setChamferDistance(chamferD);
             ImGui::PopItemWidth();
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.30f, 0.30f, 0.40f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.35f, 0.35f, 0.50f, 1.0f));
-            if (ImGui::Button("Apply Chamfer", ImVec2(-1, 26))) {
+            if (ImGui::Button("Apply Chamfer (All)", ImVec2(-1, 26))) {
                 if (selected->chamferAllEdges(chamferD)) {
                     selected->uploadToGPU();
                     appContext.consoleMessage = "Chamfer applied";
@@ -227,6 +338,17 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
             ImGui::Separator();
         }
     }
+
+    // ── Placement Mode hint ──
+    if (tool == Modeling3D::Tool3DType::PlacePrimitive) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+        ImGui::TextWrapped("PLACEMENT MODE\nClick anywhere on canvas to place.\nRMB or Esc to cancel.");
+        ImGui::PopStyleColor();
+        if (ImGui::Button("Cancel Placement", ImVec2(-1, 26)))
+            viewport.cancelPlacement();
+        ImGui::Separator();
+    }
+
 
     // ── Export (only when bodies exist) ──
     if (viewport.getScene()->getBodyCount() > 0) {

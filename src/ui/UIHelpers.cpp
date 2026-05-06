@@ -143,6 +143,7 @@ void LoadIconTextures() {
   // Define icon files and their names based on converted PNG files
   // Paths are relative to the project root (where the binary is launched from)
   std::vector<std::pair<std::string, std::string>> iconFiles = {
+    // 2D tools
     {"line", "icons/png/line-segment.png"},
     {"circle", "icons/png/circle.png"},
     {"rectangle", "icons/png/rectangle.png"},
@@ -157,7 +158,17 @@ void LoadIconTextures() {
     {"clear", "icons/png/clear.png"},
     {"bearing", "icons/png/bearing.png"},
     {"bellows", "icons/png/bellows.png"},
-    {"suspension", "icons/png/suspension.png"}
+    {"suspension", "icons/png/suspension.png"},
+    // 3D tools
+    {"extrude",    "icons/png/extrude.png"},
+    {"revolve",    "icons/png/revolve.png"},
+    {"fillet3d",   "icons/png/fillet.png"},
+    {"move3d",     "icons/png/move3d.png"},
+    {"rotate3d",   "icons/png/rotate3d.png"},
+    {"scale3d",    "icons/png/scale3d.png"},
+    {"primitives", "icons/png/primitives.png"},
+    {"spline3d",   "icons/png/spline3d.png"},
+    {"plane3d",    "icons/png/plane3d.png"},
   };
   
   // Load each icon

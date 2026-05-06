@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Plane icon: XY grid in perspective -->
+  <polygon points="6,22 16,26 26,22 16,18" fill="#1a2a3a" stroke="#5adfff" stroke-width="1.5" stroke-linejoin="round"/>
+  <polygon points="6,14 16,18 26,14 16,10" fill="none" stroke="#5adfff" stroke-width="1" stroke-dasharray="2,2" stroke-linejoin="round"/>
+  <line x1="6" y1="14" x2="6" y2="22" stroke="#5adfff" stroke-width="1"/>
+  <line x1="26" y1="14" x2="26" y2="22" stroke="#5adfff" stroke-width="1"/>
+  <line x1="16" y1="10" x2="16" y2="18" stroke="#5adfff" stroke-width="1"/>
+  <!-- X label -->
+  <text x="24" y="12" font-size="7" fill="#ff5555" font-family="monospace" font-weight="bold">X</text>
+  <text x="5" y="12" font-size="7" fill="#55ff55" font-family="monospace" font-weight="bold">Y</text>
+</svg>

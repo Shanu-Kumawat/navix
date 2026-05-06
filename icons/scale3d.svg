@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Scale: diagonal double arrow + box -->
+  <rect x="9" y="9" width="14" height="14" rx="1.5" fill="none" stroke="#aaaaaa" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <line x1="5" y1="5" x2="27" y2="27" stroke="#5adfff" stroke-width="2" stroke-linecap="round"/>
+  <polyline points="5,11 5,5 11,5" fill="none" stroke="#5adfff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="27,21 27,27 21,27" fill="none" stroke="#5adfff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

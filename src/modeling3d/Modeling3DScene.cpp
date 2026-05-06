@@ -111,24 +111,25 @@ bool Modeling3DScene::extrudeActiveSketch(const glm::dvec3& direction, double di
     }
 
     auto profile = activeSketch->toWireProfile();
-    if (profile.size() < 3) {
-        std::cerr << "Sketch profile too small to extrude" << std::endl;
+    if (profile.size() < 2) {
+        std::cerr << "Sketch profile needs at least 2 points" << std::endl;
         return false;
     }
 
-    Body3D* body = addBody();
+    auto body = std::make_unique<Body3D>();
     body->setName("Extrude " + std::to_string(body->getId()));
     bool ok = body->extrudeProfile(profile, direction, distance);
-    if (!ok) {
-        removeBody(body);
-        return false;
-    }
+    if (!ok) return false;
 
     body->uploadToGPU();
-    selectBody(body);
+    Body3D* ptr = body.get();
+    commandManager.execute(
+        std::make_unique<AddBodyCommand>(this, std::move(body), "Extrude sketch"));
+    selectBody(ptr);
     finishSketch();
     return true;
 }
+
 
 bool Modeling3DScene::revolveActiveSketch(const glm::dvec3& axisOrigin,
                                            const glm::dvec3& axisDir,
@@ -140,20 +141,20 @@ bool Modeling3DScene::revolveActiveSketch(const glm::dvec3& axisOrigin,
 
     auto profile = activeSketch->toWireProfile();
     if (profile.size() < 2) {
-        std::cerr << "Sketch profile too small to revolve" << std::endl;
+        std::cerr << "Sketch profile needs at least 2 points to revolve" << std::endl;
         return false;
     }
 
-    Body3D* body = addBody();
+    auto body = std::make_unique<Body3D>();
     body->setName("Revolve " + std::to_string(body->getId()));
     bool ok = body->revolveProfile(profile, axisOrigin, axisDir, angleDegrees);
-    if (!ok) {
-        removeBody(body);
-        return false;
-    }
+    if (!ok) return false;
 
     body->uploadToGPU();
-    selectBody(body);
+    Body3D* ptr = body.get();
+    commandManager.execute(
+        std::make_unique<AddBodyCommand>(this, std::move(body), "Revolve sketch"));
+    selectBody(ptr);
     finishSketch();
     return true;
 }

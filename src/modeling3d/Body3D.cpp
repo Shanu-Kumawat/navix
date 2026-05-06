@@ -260,8 +260,8 @@ void Body3D::tessellateFromOCCT() {
     triangles.clear();
     edgeVertices.clear();
 
-    // Mesh the shape
-    BRepMesh_IncrementalMesh mesh(occtData->shape, 0.5); // Linear deflection
+    // Mesh the shape — tighter tolerances for smooth curves
+    BRepMesh_IncrementalMesh mesh(occtData->shape, 0.02, false, 0.1); // linear+angular deflection
     mesh.Perform();
 
     // Extract triangulation from faces
@@ -325,7 +325,7 @@ void Body3D::tessellateFromOCCT() {
         if (curve.IsNull()) continue;
 
         gp_Trsf edgeTrsf = loc.Transformation();
-        const int nSteps = 20;
+        const int nSteps = 64;  // 64 segments per edge for smooth wireframe
         for (int i = 0; i < nSteps; ++i) {
             double t1 = first + (last - first) * i / nSteps;
             double t2 = first + (last - first) * (i + 1) / nSteps;
@@ -425,10 +425,45 @@ bool Body3D::chamferAllEdges(double distance) {
     return false;
 #endif
 }
+bool Body3D::filletEdgesByIndex(const std::vector<int>& edgeIndices, double radius) {
+#ifdef USE_OCCT
+    if (!occtData || !occtData->hasShape) return false;
+    if (radius <= 0.0 || edgeIndices.empty()) return filletAllEdges(radius);
 
-// ─────────────────────────────────────────────
-// Boolean Operations (OCCT required)
-// ─────────────────────────────────────────────
+    try {
+        BRepFilletAPI_MakeFillet fillet(occtData->shape);
+
+        // Enumerate all edges, add only those whose index is in edgeIndices
+        int idx = 0;
+        for (TopExp_Explorer exp(occtData->shape, TopAbs_EDGE); exp.More(); exp.Next(), ++idx) {
+            bool inSet = (std::find(edgeIndices.begin(), edgeIndices.end(), idx)
+                          != edgeIndices.end());
+            if (inSet) {
+                fillet.Add(radius, TopoDS::Edge(exp.Current()));
+            }
+        }
+
+        fillet.Build();
+        if (!fillet.IsDone()) {
+            std::cerr << "Fillet (selected edges) failed" << std::endl;
+            return false;
+        }
+        setOCCTShape(fillet.Shape());
+        tessellateFromOCCT();
+        gpuUploaded = false;
+        return true;
+    } catch (const Standard_Failure& e) {
+        std::cerr << "OCCT Fillet error: " << e.GetMessageString() << std::endl;
+        return false;
+    } catch (...) {
+        return false;
+    }
+#else
+    (void)edgeIndices; (void)radius;
+    return filletAllEdges(radius);  // fallback
+#endif
+}
+
 
 bool Body3D::booleanUnion(Body3D& other) {
 #ifdef USE_OCCT

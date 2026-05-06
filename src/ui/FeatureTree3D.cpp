@@ -14,8 +14,8 @@ void FeatureTree3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationCo
 
     ImGui::SetNextWindowPos(ImVec2(0, ribbonHeight));
     ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.13f, 0.14f, 0.16f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.20f, 0.22f, 0.27f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,      ImVec4(0.13f, 0.14f, 0.16f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Header,        ImVec4(0.20f, 0.22f, 0.27f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.25f, 0.28f, 0.35f, 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
     ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 14.0f);
@@ -26,8 +26,8 @@ void FeatureTree3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationCo
         ImGuiWindowFlags_NoScrollbar);
 
     // Title
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.65f, 0.72f, 0.82f, 1.0f));
-    ImGui::Text("FEATURE TREE");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.70f, 0.90f, 1.0f));
+    ImGui::TextUnformatted("FEATURE TREE");
     ImGui::PopStyleColor();
     ImGui::Separator();
 

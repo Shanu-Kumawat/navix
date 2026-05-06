@@ -3,6 +3,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include <imgui.h>
 
 #ifdef USE_OCCT
@@ -92,28 +93,32 @@ void Viewport3D::initialize() {
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
-    // Origin axis VAO — X(red) Y(green) Z(blue) lines from origin
+    // Origin axis VAO — X/Y/Z full-length axes (effectively infinite)
+    // Each axis: negative half (faded) + positive half (bright)
+    // pos(3) per vertex — color set per draw call via uniform
     {
-        // pos(3) + color(3) per vertex
+        const float L = 5000.0f;   // "infinite" length
         float axisLines[] = {
-            // X axis — red
-            0,0,0,  0.95f,0.22f,0.22f,
-            30,0,0, 0.95f,0.22f,0.22f,
-            // Y axis — green
-            0,0,0,  0.22f,0.85f,0.30f,
-            0,30,0, 0.22f,0.85f,0.30f,
-            // Z axis — blue
-            0,0,0,  0.22f,0.48f,0.95f,
-            0,0,30, 0.22f,0.48f,0.95f,
+            // X negative half
+            -L,0,0,  0,0,0,
+            // X positive half
+            0,0,0,   L,0,0,
+            // Y negative half
+            0,-L,0,  0,0,0,
+            // Y positive half
+            0,0,0,   0,L,0,
+            // Z negative half
+            0,0,-L,  0,0,0,
+            // Z positive half
+            0,0,0,   0,0,L,
         };
         glGenVertexArrays(1, &axisVAO);
         glGenBuffers(1, &axisVBO);
         glBindVertexArray(axisVAO);
         glBindBuffer(GL_ARRAY_BUFFER, axisVBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(axisLines), axisLines, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
-        // Note: color attr (location 1) not needed — we set objectColor per draw call
         glBindVertexArray(0);
     }
 
@@ -217,7 +222,7 @@ void Viewport3D::render(int width, int height) {
                 body->draw();
             }
             if (renderMode == RenderMode3D::SolidWithEdges || renderMode == RenderMode3D::Wireframe) {
-                modelShader->setInt("renderMode", 1);
+                modelShader->setInt("renderMode", 2);  // dark edge overlay
                 glLineWidth(1.5f);
                 body->drawEdges();
             }
@@ -227,7 +232,9 @@ void Viewport3D::render(int width, int height) {
     // === All Sketches (active + finished) ===
     renderSketch();
     renderSketchPreview();
-    renderExtrudePreview();
+    renderToolPreview();
+    renderPlacementPreview();       // Ghost primitive following cursor
+    renderFilletEdgeHighlights();   // Hover/selected edge feedback in Fillet mode
 
     // === World Origin Axes (X/Y/Z at center) ===
     renderOriginAxes();
@@ -345,12 +352,18 @@ void Viewport3D::renderSketch() {
     // Render ALL stored sketches (finished and active) so geometry persists
     for (const auto& sk : scene.getSketches()) {
         if (!sk) continue;
-        bool isActive = (sk.get() == scene.getActiveSketch());
-        // Active sketch = bright cyan, finished = dimmer blue
+        bool isActive   = (sk.get() == scene.getActiveSketch());
+        bool isSelected = (sk.get() == selectedSketch && !isActive);
+        // Three visual tiers:
+        // Active (drawing)   → pure white
+        // Selected profile   → vivid yellow (user clicked to use for extrude/revolve)
+        // Finished / stored  → dim grey-white
         if (isActive)
-            modelShader->setVec3("objectColor", glm::vec3(0.3f, 0.85f, 1.0f));
+            modelShader->setVec3("objectColor", glm::vec3(1.0f, 1.0f, 1.0f));
+        else if (isSelected)
+            modelShader->setVec3("objectColor", glm::vec3(1.0f, 0.88f, 0.15f)); // bright yellow
         else
-            modelShader->setVec3("objectColor", glm::vec3(0.25f, 0.45f, 0.65f));
+            modelShader->setVec3("objectColor", glm::vec3(0.65f, 0.68f, 0.75f)); // dim grey
 
         // Build line geometry from this sketch on the fly
         std::vector<glm::vec3> lines;
@@ -416,42 +429,54 @@ void Viewport3D::renderOriginAxes() {
     if (!modelShader || !axisVAO) return;
 
     float aspect = (float)fbWidth / (float)fbHeight;
-    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 1000.0f);
+    // Far plane must be >> axis length (5000) to avoid clipping
+    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 20000.0f);
     glm::mat4 view = camera->GetViewMatrix();
 
     modelShader->use();
     modelShader->setMat4("projection", proj);
     modelShader->setMat4("view", view);
     modelShader->setMat4("model", glm::mat4(1.0f));
-    modelShader->setInt("renderMode", 1);    // line/wireframe mode
+    modelShader->setInt("renderMode", 1);   // full-bright line mode (no lighting)
     modelShader->setInt("isSelected", 0);
     modelShader->setVec4("clipPlane", glm::vec4(0));
-    modelShader->setFloat("ambientStrength", 1.0f);  // full bright
+    // Lighting uniforms don't matter for renderMode==1 but set anyway
+    modelShader->setFloat("ambientStrength", 1.0f);
     modelShader->setFloat("diffuseStrength", 0.0f);
     modelShader->setFloat("specularStrength", 0.0f);
 
-    // Draw through everything so axes are always visible
-    glDisable(GL_DEPTH_TEST);
-    glLineWidth(2.5f);
+    glDisable(GL_DEPTH_TEST);   // always draw on top
+    glLineWidth(3.0f);
     glBindVertexArray(axisVAO);
 
-    // X axis — red
+    // Vertex layout (3 floats, 12 vertices):
+    //  0-1: X negative  |  2-3: X positive
+    //  4-5: Y negative  |  6-7: Y positive
+    //  8-9: Z negative  | 10-11: Z positive
+
+    // ── X axis: vivid red ────────────────────────────────────────
+    modelShader->setVec3("objectColor", glm::vec3(0.40f, 0.10f, 0.10f));
+    glDrawArrays(GL_LINES, 0, 2);   // negative (dim)
     modelShader->setVec3("objectColor", glm::vec3(0.95f, 0.22f, 0.22f));
-    glDrawArrays(GL_LINES, 0, 2);
+    glDrawArrays(GL_LINES, 2, 2);   // positive (vivid)
 
-    // Y axis — green
-    modelShader->setVec3("objectColor", glm::vec3(0.22f, 0.85f, 0.30f));
-    glDrawArrays(GL_LINES, 2, 2);
+    // ── Y axis: vivid green ──────────────────────────────────────
+    modelShader->setVec3("objectColor", glm::vec3(0.12f, 0.40f, 0.16f));
+    glDrawArrays(GL_LINES, 4, 2);   // negative (dim)
+    modelShader->setVec3("objectColor", glm::vec3(0.22f, 0.92f, 0.38f));
+    glDrawArrays(GL_LINES, 6, 2);   // positive (vivid)
 
-    // Z axis — blue
-    modelShader->setVec3("objectColor", glm::vec3(0.22f, 0.48f, 0.95f));
-    glDrawArrays(GL_LINES, 4, 2);
+    // ── Z axis: vivid blue ───────────────────────────────────────
+    modelShader->setVec3("objectColor", glm::vec3(0.10f, 0.22f, 0.50f));
+    glDrawArrays(GL_LINES, 8, 2);   // negative (dim)
+    modelShader->setVec3("objectColor", glm::vec3(0.28f, 0.58f, 1.00f));
+    glDrawArrays(GL_LINES, 10, 2);  // positive (vivid)
 
     glBindVertexArray(0);
     glEnable(GL_DEPTH_TEST);
     glLineWidth(1.0f);
 
-    // Restore lighting defaults
+    // Restore lighting for subsequent draws
     modelShader->setFloat("ambientStrength", 0.35f);
     modelShader->setFloat("diffuseStrength", 0.65f);
     modelShader->setFloat("specularStrength", 0.4f);
@@ -465,24 +490,75 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
     lastMouseX = x;
     lastMouseY = y;
 
-    if (button == 1) { // Middle
+    if (button == 1) { // Middle mouse button
         middleMouseDown = pressed;
     }
-    else if (button == 0) { // Left
+    else if (button == 0) { // Left click
         leftMouseDown = pressed;
         if (pressed) {
+            // ── Primitive placement ──────────────────────────────────────
+            if (activeTool == Tool3DType::PlacePrimitive) {
+                commitPlacement(placementCursorWorld);
+                activeTool = Tool3DType::Select;
+                return;
+            }
+            // ── Fillet edge selection ─────────────────────────────────────
+            if (activeTool == Tool3DType::Fillet && scene.getSelectedBody()) {
+                int edge = pickEdge(x, y);
+                if (edge >= 0) {
+                    auto it = std::find(filletSelectedEdges.begin(),
+                                        filletSelectedEdges.end(), edge);
+                    if (it != filletSelectedEdges.end())
+                        filletSelectedEdges.erase(it);  // deselect if already picked
+                    else
+                        filletSelectedEdges.push_back(edge);
+                }
+                return;
+            }
+            // ── Sketch drawing ────────────────────────────────────────────
             if (scene.isSketchActive() && sketchDrawTool != SketchDrawTool::None) {
                 handleSketchClick(x, y);
-            } else if (activeTool == Tool3DType::Select) {
+            }
+            // ── Extrude/Revolve: click selects a sketch profile ──────────
+            else if (activeTool == Tool3DType::Extrude ||
+                     activeTool == Tool3DType::Revolve) {
+                // Click a sketch line to select it as the profile
+                Sketch3D* sk = pickSketch(x, y);
+                if (sk) {
+                    selectedSketch = sk;
+                    // Also highlight by making it the active sketch (for preview)
+                    scene.setActiveSketchDirect(sk);
+                }
+            }
+            // ── Select body (+ sketch picking as fallback) ─────────────
+            else if (activeTool == Tool3DType::Select ||
+                     activeTool == Tool3DType::Sketch) {
                 Body3D* hit = pickBody(x, y);
                 scene.selectBody(hit);
+                if (hit) {
+                    filletSelectedEdges.clear();
+                    filletHoveredEdge = -1;
+                } else {
+                    // No body hit — try picking a sketch
+                    Sketch3D* sk = pickSketch(x, y);
+                    selectedSketch = sk;
+                }
             }
         }
     }
-    else if (button == 2) { // Right
+    else if (button == 2) { // Right click
         rightMouseDown = pressed;
-        if (pressed && sketchHasFirstPoint) {
-            sketchHasFirstPoint = false;
+        if (pressed) {
+            if (activeTool == Tool3DType::PlacePrimitive) {
+                cancelPlacement();
+            } else if (splineActive) {
+                // RMB finalizes the multi-click spline
+                commitSpline();
+            } else if (scene.isSketchActive()) {
+                // Cancel current in-progress segment without cancelling sketch
+                sketchHasFirstPoint = false;
+                currentSnapType     = SnapType::None;
+            }
         }
     }
 }
@@ -503,21 +579,32 @@ void Viewport3D::handleMouseMove(float x, float y) {
         }
     }
 
-    // Right-drag:
-    //   - While sketching: right-click ONLY cancels the current point (handled in handleMouseButton).
-    //     Do NOT pan/orbit on right-drag during sketching to avoid accidental view changes.
-    //   - Outside sketch: right-drag = orbit (most CAD tools use RMB to orbit).
-    if (rightMouseDown) {
-        if (!scene.isSketchActive()) {
-            // Orbit on right-drag (like CATIA/SpaceClaim)
-            camera->ProcessMouseMovement(dx * 0.7f, -dy * 0.7f);
-        }
-        // Inside sketch: do nothing on drag — RMB is only for click-cancel
+    // Right-drag: orbit outside sketch, no-op inside sketch
+    if (rightMouseDown && !scene.isSketchActive()) {
+        camera->ProcessMouseMovement(dx * 0.7f, -dy * 0.7f);
     }
 
     // Sketch cursor tracking
     if (scene.isSketchActive() && sketchDrawTool != SketchDrawTool::None) {
         handleSketchMove(x, y);
+    }
+
+    // Primitive placement: track world position on XZ-plane (Y=0) under cursor
+    if (activeTool == Tool3DType::PlacePrimitive) {
+        glm::dvec3 rayDir = screenToRay(x, y);
+        glm::dvec3 rayOri(camera->Position);
+        // Intersect with Y=0 plane (XZ ground)
+        double denom = rayDir.y;
+        if (std::abs(denom) > 1e-6) {
+            double t = -rayOri.y / denom;
+            if (t > 0 && t < 5000.0)
+                placementCursorWorld = rayOri + rayDir * t;
+        }
+    }
+
+    // Fillet: update hovered edge
+    if (activeTool == Tool3DType::Fillet && scene.getSelectedBody()) {
+        filletHoveredEdge = pickEdge(x, y);
     }
 
     lastMouseX = x;
@@ -530,8 +617,20 @@ void Viewport3D::handleMouseScroll(float yOffset) {
 }
 
 void Viewport3D::handleKey(int key, bool pressed) {
-    if (key == 340 || key == 344) shiftDown = pressed;   // Shift
-    if (key == 341 || key == 345) ctrlDown = pressed;    // Ctrl
+    if (key == 340 || key == 344) shiftDown = pressed;   // Shift L/R
+    if (key == 341 || key == 345) ctrlDown  = pressed;   // Ctrl L/R
+    if (key == 256 && pressed) {
+        // Escape: cancel placement, finalize spline, or cancel chain
+        if (activeTool == Tool3DType::PlacePrimitive) {
+            cancelPlacement();
+        } else if (splineActive) {
+            // Finalize accumulated spline → commit Catmull-Rom polyline
+            commitSpline();
+        } else if (scene.isSketchActive()) {
+            sketchHasFirstPoint = false;
+            currentSnapType     = SnapType::None;
+        }
+    }
 }
 
 void Viewport3D::resetCamera() {
@@ -548,12 +647,20 @@ void Viewport3D::setWorkPlane(const WorkPlane3D& wp) {
 }
 
 bool Viewport3D::executeExtrude() {
+    // Fall back to selectedSketch if no active sketch (sketch-click workflow)
+    if (!scene.isSketchActive() && selectedSketch)
+        scene.setActiveSketchDirect(selectedSketch);
     if (!scene.isSketchActive()) return false;
     glm::dvec3 dir = scene.getActiveWorkPlane().getNormal();
-    return scene.extrudeActiveSketch(dir, extrudeDistance);
+    bool ok = scene.extrudeActiveSketch(dir, extrudeDistance);
+    if (ok) selectedSketch = nullptr;
+    return ok;
 }
 
 bool Viewport3D::executeRevolve() {
+    // Fall back to selectedSketch if no active sketch
+    if (!scene.isSketchActive() && selectedSketch)
+        scene.setActiveSketchDirect(selectedSketch);
     if (!scene.isSketchActive()) return false;
     const WorkPlane3D& wp = scene.getActiveWorkPlane();
     glm::dvec3 axisOrigin = wp.getOrigin();
@@ -566,7 +673,9 @@ bool Viewport3D::executeRevolve() {
         case RevolveAxis::GlobalZ:  axisDir = {0,0,1}; axisOrigin = {0,0,0}; break;
         default:                    axisDir = wp.getYDirection(); break;
     }
-    return scene.revolveActiveSketch(axisOrigin, axisDir, revolveAngle);
+    bool ok = scene.revolveActiveSketch(axisOrigin, axisDir, revolveAngle);
+    if (ok) selectedSketch = nullptr;
+    return ok;
 }
 
 glm::dvec3 Viewport3D::screenToRay(float screenX, float screenY) const {
@@ -678,6 +787,7 @@ void Viewport3D::setGizmoMatrix(const glm::mat4& m) {
         scene.getSelectedBody()->setTransform(m);
     }
 }
+
 
 // ─────────────────────────────────────────────
 // Screen-to-WorkPlane projection
@@ -816,6 +926,16 @@ void Viewport3D::handleSketchClick(float x, float y) {
     snapPoint2D = pt;
     sketchCursor2D = pt;
 
+    // ── Spline: accumulate control points (finalize with ESC or RMB) ──────────
+    if (sketchDrawTool == SketchDrawTool::Spline) {
+        splineControlPoints.push_back(pt);
+        splineActive = true;
+        // Update preview rubber-band start to last point
+        sketchFirstPoint = pt;
+        sketchHasFirstPoint = (splineControlPoints.size() >= 2);
+        return;
+    }
+
     if (!sketchHasFirstPoint) {
         sketchFirstPoint = pt;
         sketchHasFirstPoint = true;
@@ -888,17 +1008,65 @@ void Viewport3D::commitSketchShape() {
             break;
         }
         case SketchDrawTool::Spline: {
-            // Store as a 2-point spline (user builds up by clicking)
-            if (glm::length(p2 - p1) > 0.001) {
-                auto line = std::make_unique<Drawing::Line>(p1, p2);
-                sketch->addShape(std::move(line));
-            }
+            // Spline points are accumulated; committed in commitSpline()
             break;
         }
         default:
             break;
     }
 
+    sketchDirty = true;
+}
+
+// ─────────────────────────────────────────────
+// Spline finalization — Catmull-Rom polyline
+// ─────────────────────────────────────────────
+
+void Viewport3D::commitSpline() {
+    if (!scene.isSketchActive()) { splineControlPoints.clear(); splineActive = false; return; }
+    auto* sketch = scene.getActiveSketch();
+    if (!sketch || splineControlPoints.size() < 2) {
+        splineControlPoints.clear();
+        splineActive = false;
+        sketchHasFirstPoint = false;
+        return;
+    }
+
+    // Catmull-Rom interpolation: generate dense line segments between control points
+    const int segsPerInterval = 12;  // subdivisions between each pair of control pts
+    auto& pts = splineControlPoints;
+    const int n = (int)pts.size();
+
+    // Catmull-Rom: for each interval i, use pts[i-1..i+2] as control
+    for (int i = 0; i < n - 1; ++i) {
+        glm::dvec2 p0 = pts[std::max(0, i - 1)];
+        glm::dvec2 p1 = pts[i];
+        glm::dvec2 p2 = pts[i + 1];
+        glm::dvec2 p3 = pts[std::min(n - 1, i + 2)];
+
+        glm::dvec2 prev = p1;
+        for (int s = 1; s <= segsPerInterval; ++s) {
+            double t = (double)s / segsPerInterval;
+            double t2 = t * t, t3 = t2 * t;
+            // Catmull-Rom basis
+            glm::dvec2 q = 0.5 * (
+                (2.0 * p1) +
+                (-p0 + p2) * t +
+                (2.0*p0 - 5.0*p1 + 4.0*p2 - p3) * t2 +
+                (-p0 + 3.0*p1 - 3.0*p2 + p3) * t3
+            );
+            if (glm::length(q - prev) > 0.001) {
+                auto line = std::make_unique<Drawing::Line>(prev, q);
+                sketch->addShape(std::move(line));
+            }
+            prev = q;
+        }
+    }
+
+    // Reset spline state
+    splineControlPoints.clear();
+    splineActive = false;
+    sketchHasFirstPoint = false;
     sketchDirty = true;
 }
 
@@ -977,7 +1145,7 @@ void Viewport3D::renderSketchPreview() {
     modelShader->setMat4("projection", proj);
     modelShader->setMat4("view", view);
     modelShader->setMat4("model", glm::mat4(1.0f));
-    modelShader->setVec3("objectColor", glm::vec3(1.0f, 0.6f, 0.1f)); // Orange preview
+    modelShader->setVec3("objectColor", glm::vec3(1.0f, 0.85f, 0.08f)); // Yellow preview (rubber-band)
     modelShader->setInt("renderMode", 1);
     modelShader->setInt("isSelected", 0);
     modelShader->setVec4("clipPlane", glm::vec4(0));
@@ -987,71 +1155,213 @@ void Viewport3D::renderSketchPreview() {
     glBindVertexArray(0);
 }
 
-void Viewport3D::renderExtrudePreview() {
-    // Only show extrude ghost when tool is active and sketch exists
-    if (activeTool != Tool3DType::Extrude) return;
-    if (!scene.isSketchActive() || !modelShader) return;
+void Viewport3D::setActiveTool(Tool3DType tool) { 
+    if (activeTool != tool) { 
+        activeTool = tool; 
+        rebuildToolPreview(); 
+    } 
+}
 
-    Sketch3D* sketch = scene.getActiveSketch();
-    if (!sketch) return;
-    auto profile = sketch->toWireProfile();
-    if (profile.empty()) return;
+void Viewport3D::setSelectedSketch(Sketch3D* sk) { 
+    if (selectedSketch != sk) { 
+        selectedSketch = sk; 
+        rebuildToolPreview(); 
+    } 
+}
 
-    const WorkPlane3D& wp = scene.getActiveWorkPlane();
-    glm::dvec3 dir = wp.getNormal() * (double)extrudeDistance;
+void Viewport3D::setExtrudeDistance(float d) { 
+    if (std::abs(extrudeDistance - d) > 1e-4) { 
+        extrudeDistance = d; 
+        rebuildToolPreview(); 
+    } 
+}
 
-    // Build ghost wireframe: top profile + side edge lines
-    std::vector<glm::vec3> lines;
-    int n = static_cast<int>(profile.size());
+void Viewport3D::setRevolveAngle(float a) { 
+    if (std::abs(revolveAngle - a) > 1e-4) { 
+        revolveAngle = a; 
+        rebuildToolPreview(); 
+    } 
+}
 
-    // Bottom profile edges
-    for (int i = 0; i < n; ++i) {
-        lines.push_back(glm::vec3(profile[i]));
-        lines.push_back(glm::vec3(profile[(i + 1) % n]));
+void Viewport3D::setRevolveAxisMode(RevolveAxis m) { 
+    if (revolveAxisMode != m) { 
+        revolveAxisMode = m; 
+        rebuildToolPreview(); 
+    } 
+}
+
+void Viewport3D::setFilletRadius(float r) { 
+    if (std::abs(filletRadius - r) > 1e-4) { 
+        filletRadius = r; 
+        rebuildToolPreview(); 
+    } 
+}
+
+void Viewport3D::setChamferDistance(float d) { 
+    if (std::abs(chamferDistance - d) > 1e-4) { 
+        chamferDistance = d; 
+        rebuildToolPreview(); 
+    } 
+}
+
+void Viewport3D::rebuildToolPreview() {
+    toolPreviewBody.reset();
+
+    if (activeTool == Tool3DType::Extrude) {
+        Sketch3D* sketch = selectedSketch ? selectedSketch : scene.getActiveSketch();
+        if (!sketch) return;
+        auto profile = sketch->toWireProfile();
+        if (profile.size() < 2) return;
+        const WorkPlane3D& wp = sketch->getWorkPlane();
+        glm::dvec3 dir = wp.getNormal();
+
+        auto ghost = std::make_unique<Body3D>();
+        if (ghost->extrudeProfile(profile, dir, extrudeDistance)) {
+            ghost->setColor(glm::vec3(0.2f, 0.9f, 0.4f)); // green ghost
+            ghost->uploadToGPU();
+            toolPreviewBody = std::move(ghost);
+        }
+    } else if (activeTool == Tool3DType::Revolve) {
+        Sketch3D* sketch = selectedSketch ? selectedSketch : scene.getActiveSketch();
+        if (!sketch) return;
+        auto profile = sketch->toWireProfile();
+        if (profile.size() < 2) return;
+        const WorkPlane3D& wp = sketch->getWorkPlane();
+        glm::dvec3 axisOrigin = wp.getOrigin();
+        glm::dvec3 axisDir;
+        switch(revolveAxisMode) {
+            case RevolveAxis::SketchX: axisDir = wp.getXDirection(); break;
+            case RevolveAxis::SketchY: axisDir = wp.getYDirection(); break;
+            case RevolveAxis::GlobalX: axisDir = glm::dvec3(1,0,0); break;
+            case RevolveAxis::GlobalY: axisDir = glm::dvec3(0,1,0); break;
+            case RevolveAxis::GlobalZ: axisDir = glm::dvec3(0,0,1); break;
+        }
+
+        auto ghost = std::make_unique<Body3D>();
+        if (ghost->revolveProfile(profile, axisOrigin, axisDir, revolveAngle)) {
+            ghost->setColor(glm::vec3(0.4f, 0.7f, 1.0f)); // blue ghost
+            ghost->uploadToGPU();
+            toolPreviewBody = std::move(ghost);
+        }
+    } else if (activeTool == Tool3DType::Fillet) {
+        Body3D* body = scene.getSelectedBody();
+        if (!body || filletRadius <= 0.0) return;
+
+        auto ghost = std::make_unique<Body3D>();
+        #ifdef USE_OCCT
+        ghost->setOCCTShape(body->getOCCTShape());
+        ghost->setTransform(body->getTransform());
+        bool ok = false;
+        if (!filletSelectedEdges.empty()) {
+            ok = ghost->filletEdgesByIndex(filletSelectedEdges, filletRadius);
+        } else {
+            ok = ghost->filletAllEdges(filletRadius);
+        }
+        if (ok) {
+            ghost->setColor(glm::vec3(1.0f, 0.6f, 0.2f)); // orange ghost
+            ghost->uploadToGPU();
+            toolPreviewBody = std::move(ghost);
+        }
+        #endif
+    } else if (activeTool == Tool3DType::PlacePrimitive) {
+        auto ghost = std::make_unique<Body3D>();
+        #ifdef USE_OCCT
+        try {
+            switch (placePrimType) {
+                case PrimType::Box: {
+                    BRepPrimAPI_MakeBox box(placeP1, placeP2, placeP3);
+                    box.Build(); if(box.IsDone()) ghost->setOCCTShape(box.Shape());
+                    // Center box origin
+                    glm::mat4 offset = glm::translate(glm::mat4(1.0f), glm::vec3(-placeP1*0.5, 0, -placeP3*0.5));
+                    ghost->setTransform(offset);
+                    break;
+                }
+                case PrimType::Cylinder: {
+                    BRepPrimAPI_MakeCylinder cyl(placeP1, placeP2);
+                    cyl.Build(); if(cyl.IsDone()) ghost->setOCCTShape(cyl.Shape());
+                    break;
+                }
+                case PrimType::Sphere: {
+                    BRepPrimAPI_MakeSphere sph(placeP1);
+                    sph.Build(); if(sph.IsDone()) ghost->setOCCTShape(sph.Shape());
+                    glm::mat4 offset = glm::translate(glm::mat4(1.0f), glm::vec3(0, placeP1, 0));
+                    ghost->setTransform(offset);
+                    break;
+                }
+                case PrimType::Cone: {
+                    BRepPrimAPI_MakeCone cone(placeP1, placeP2, placeP3);
+                    cone.Build(); if(cone.IsDone()) ghost->setOCCTShape(cone.Shape());
+                    break;
+                }
+                case PrimType::Torus: {
+                    BRepPrimAPI_MakeTorus tor(placeP1, placeP2);
+                    tor.Build(); if(tor.IsDone()) ghost->setOCCTShape(tor.Shape());
+                    break;
+                }
+                default: break;
+            }
+        } catch(...) {}
+        #endif
+        if (!ghost->getVertices().empty() || true) { // Even if empty, we might have uploaded
+            ghost->setColor(glm::vec3(0.8f, 0.8f, 0.2f)); // yellow ghost
+            ghost->uploadToGPU();
+            toolPreviewBody = std::move(ghost);
+        }
     }
-    // Top profile edges (offset by extrude distance)
-    for (int i = 0; i < n; ++i) {
-        lines.push_back(glm::vec3(profile[i] + dir));
-        lines.push_back(glm::vec3(profile[(i + 1) % n] + dir));
-    }
-    // Vertical side edges
-    for (int i = 0; i < n; ++i) {
-        lines.push_back(glm::vec3(profile[i]));
-        lines.push_back(glm::vec3(profile[i] + dir));
-    }
+}
 
-    if (lines.empty()) return;
-
-    if (!previewVAO) {
-        glGenVertexArrays(1, &previewVAO);
-        glGenBuffers(1, &previewVBO);
-    }
-    glBindVertexArray(previewVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, previewVBO);
-    glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(glm::vec3),
-                 lines.data(), GL_STREAM_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
+void Viewport3D::renderToolPreview() {
+    if (!toolPreviewBody || !modelShader) return;
 
     float aspect = (float)fbWidth / (float)fbHeight;
     glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 1000.0f);
     glm::mat4 view = camera->GetViewMatrix();
 
+    // Enable transparency for ghost preview
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE); // don't write to depth buffer so it doesn't occlude things behind it
+
     modelShader->use();
     modelShader->setMat4("projection", proj);
     modelShader->setMat4("view", view);
-    modelShader->setMat4("model", glm::mat4(1.0f));
-    modelShader->setVec3("objectColor", glm::vec3(0.2f, 0.9f, 0.4f)); // Green ghost
-    modelShader->setInt("renderMode", 1);
+
+    glm::mat4 modelMat = toolPreviewBody->getTransform();
+    if (activeTool == Tool3DType::PlacePrimitive) {
+        modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(placementCursorWorld)) * modelMat;
+    }
+    modelShader->setMat4("model", modelMat);
+    modelShader->setInt("renderMode", 0); // shaded mode
     modelShader->setInt("isSelected", 0);
     modelShader->setVec4("clipPlane", glm::vec4(0));
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLineWidth(1.5f);
-    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(lines.size()));
+    // Ghost visual parameters
+    modelShader->setFloat("ambientStrength", 0.4f);
+    modelShader->setFloat("diffuseStrength", 0.5f);
+    modelShader->setFloat("specularStrength", 0.1f);
+    // Overwrite the body's color to be transparent
+    modelShader->setVec3("objectColor", toolPreviewBody->getColor());
+    modelShader->setFloat("alphaMultiplier", 0.6f);
+
+    toolPreviewBody->draw();
+
+    // Also draw its wireframe strongly
+    modelShader->setInt("renderMode", 1); // line mode
+    modelShader->setVec3("objectColor", toolPreviewBody->getColor() * 1.2f);
+    modelShader->setFloat("alphaMultiplier", 1.0f);
+    
+    glLineWidth(2.0f);
+    toolPreviewBody->drawEdges();
+    glLineWidth(1.0f);
+
+    glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
-    glBindVertexArray(0);
+    
+    // Restore shader globals
+    modelShader->setFloat("ambientStrength", 0.35f);
+    modelShader->setFloat("diffuseStrength", 0.65f);
+    modelShader->setFloat("specularStrength", 0.4f);
+    modelShader->setFloat("alphaMultiplier", 1.0f);
 }
 
 // ─────────────────────────────────────────────
@@ -1082,7 +1392,9 @@ Body3D* Viewport3D::createBox(double dx, double dy, double dz) {
 
     body->uploadToGPU();
     Body3D* ptr = body.get();
-    scene.addExistingBody(std::move(body));
+    scene.getCommandManager().execute(
+        std::make_unique<AddBodyCommand>(&scene, std::move(body), ptr->getName()));
+    scene.selectBody(ptr);
     return ptr;
 }
 
@@ -1113,7 +1425,9 @@ Body3D* Viewport3D::createCylinder(double radius, double height) {
 
     body->uploadToGPU();
     Body3D* ptr = body.get();
-    scene.addExistingBody(std::move(body));
+    scene.getCommandManager().execute(
+        std::make_unique<AddBodyCommand>(&scene, std::move(body), ptr->getName()));
+    scene.selectBody(ptr);
     return ptr;
 }
 
@@ -1144,7 +1458,9 @@ Body3D* Viewport3D::createSphere(double radius) {
 
     body->uploadToGPU();
     Body3D* ptr = body.get();
-    scene.addExistingBody(std::move(body));
+    scene.getCommandManager().execute(
+        std::make_unique<AddBodyCommand>(&scene, std::move(body), ptr->getName()));
+    scene.selectBody(ptr);
     return ptr;
 }
 
@@ -1172,7 +1488,9 @@ Body3D* Viewport3D::createCone(double r1, double r2, double height) {
 
     body->uploadToGPU();
     Body3D* ptr = body.get();
-    scene.addExistingBody(std::move(body));
+    scene.getCommandManager().execute(
+        std::make_unique<AddBodyCommand>(&scene, std::move(body), ptr->getName()));
+    scene.selectBody(ptr);
     return ptr;
 }
 
@@ -1203,7 +1521,9 @@ Body3D* Viewport3D::createTorus(double majorR, double minorR) {
 
     body->uploadToGPU();
     Body3D* ptr = body.get();
-    scene.addExistingBody(std::move(body));
+    scene.getCommandManager().execute(
+        std::make_unique<AddBodyCommand>(&scene, std::move(body), ptr->getName()));
+    scene.selectBody(ptr);
     return ptr;
 }
 
@@ -1464,7 +1784,271 @@ void Viewport3D::renderViewCube(float canvasX, float canvasY, float canvasW, flo
         if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             setStandardView(face.view);
         }
+    }  // end for (faces)
+}  // end renderViewCube
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Primitive Placement Mode
+// ─────────────────────────────────────────────────────────────────────────────
+
+void Viewport3D::startPlaceBox(double dx, double dy, double dz) {
+    placeP1 = dx; placeP2 = dy; placeP3 = dz;
+    placePrimType = PrimType::Box;
+    activeTool    = Tool3DType::PlacePrimitive;
+    rebuildToolPreview();
+}
+void Viewport3D::startPlaceCylinder(double r, double h) {
+    placeP1 = r; placeP2 = h;
+    placePrimType = PrimType::Cylinder;
+    activeTool    = Tool3DType::PlacePrimitive;
+    rebuildToolPreview();
+}
+void Viewport3D::startPlaceSphere(double r) {
+    placeP1 = r;
+    placePrimType = PrimType::Sphere;
+    activeTool    = Tool3DType::PlacePrimitive;
+    rebuildToolPreview();
+}
+void Viewport3D::startPlaceCone(double r1, double r2, double h) {
+    placeP1 = r1; placeP2 = r2; placeP3 = h;
+    placePrimType = PrimType::Cone;
+    activeTool    = Tool3DType::PlacePrimitive;
+    rebuildToolPreview();
+}
+void Viewport3D::startPlaceTorus(double maj, double min) {
+    placeP1 = maj; placeP2 = min;
+    placePrimType = PrimType::Torus;
+    activeTool    = Tool3DType::PlacePrimitive;
+    rebuildToolPreview();
+}
+void Viewport3D::cancelPlacement() {
+    placePrimType = PrimType::None;
+    activeTool    = Tool3DType::Select;
+    rebuildToolPreview();
+}
+
+Body3D* Viewport3D::commitPlacement(glm::dvec3 pos) {
+    // Create at origin then translate to pos
+    Body3D* body = nullptr;
+    switch (placePrimType) {
+        case PrimType::Box:      body = createBox(placeP1, placeP2, placeP3); break;
+        case PrimType::Cylinder: body = createCylinder(placeP1, placeP2); break;
+        case PrimType::Sphere:   body = createSphere(placeP1); break;
+        case PrimType::Cone:     body = createCone(placeP1, placeP2, placeP3); break;
+        case PrimType::Torus:    body = createTorus(placeP1, placeP2); break;
+        default: break;
     }
+    if (body) {
+        glm::mat4 t = body->getTransform();
+        t[3] = glm::vec4(glm::vec3(pos), 1.0f);
+        body->setTransform(t);
+        scene.selectBody(body);
+    }
+    placePrimType = PrimType::None;
+    return body;
+}
+
+void Viewport3D::renderPlacementPreview() {
+    // Handled entirely by renderToolPreview which draws the solid ghost at cursor
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fillet Edge Picking + Highlight
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fillet Edge Picking + Highlight  (uses OCCT edge polylines from Body3D)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Each OCCT edge in edgeVertices is discretized into EDGE_SEGS segments,
+// stored as EDGE_SEGS*2 consecutive vertices (line list).
+static constexpr int EDGE_SEGS = 64;
+
+int Viewport3D::pickEdge(float screenX, float screenY) const {
+    Body3D* body = scene.getSelectedBody();
+    if (!body || !camera || fbWidth <= 0) return -1;
+
+    const auto& ev = body->getEdgeVertices();
+    if (ev.empty()) return -1;
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+    glm::mat4 proj    = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 20000.0f);
+    glm::mat4 view    = camera->GetViewMatrix();
+    glm::mat4 modelMat = body->getTransform();
+    glm::mat4 mvp     = proj * view * modelMat;
+
+    auto projectPt = [&](const glm::vec3& p) -> glm::vec2 {
+        glm::vec4 c = mvp * glm::vec4(p, 1.f);
+        if (std::abs(c.w) < 1e-6f) return {-1e6f,-1e6f};
+        glm::vec3 ndc = glm::vec3(c) / c.w;
+        return { (ndc.x*0.5f+0.5f)*fbWidth, (0.5f-ndc.y*0.5f)*fbHeight };
+    };
+
+    // Segment-to-screen distance helper
+    auto segDist = [](glm::vec2 A, glm::vec2 B, glm::vec2 P) -> float {
+        glm::vec2 AB = B - A, AP = P - A;
+        float len2 = glm::dot(AB,AB);
+        if (len2 < 1e-6f) return glm::length(AP);
+        float t = glm::clamp(glm::dot(AP,AB)/len2, 0.f, 1.f);
+        return glm::length(P - (A + t*AB));
+    };
+
+    const float THRESH = 16.f; // px
+    float bestDist = THRESH;
+    int   bestEdge = -1;
+
+    int totalEdges = (int)ev.size() / (EDGE_SEGS * 2);
+    for (int ei = 0; ei < totalEdges; ++ei) {
+        int base = ei * EDGE_SEGS * 2;
+        for (int s = 0; s < EDGE_SEGS; ++s) {
+            glm::vec2 A = projectPt(ev[base + s*2    ]);
+            glm::vec2 B = projectPt(ev[base + s*2 + 1]);
+            float d = segDist(A, B, {screenX, screenY});
+            if (d < bestDist) { bestDist = d; bestEdge = ei; }
+        }
+    }
+    return bestEdge;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fillet Edge GL Highlight — draws full OCCT edge polylines
+// ─────────────────────────────────────────────────────────────────────────────
+
+void Viewport3D::renderFilletEdgeHighlights() {
+    if (activeTool != Tool3DType::Fillet) return;
+    Body3D* body = scene.getSelectedBody();
+    if (!body || !modelShader) return;
+
+    const auto& ev = body->getEdgeVertices();
+    if (ev.empty()) return;
+
+    int totalEdges = (int)ev.size() / (EDGE_SEGS * 2);
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 20000.0f);
+    glm::mat4 view = camera->GetViewMatrix();
+
+    modelShader->use();
+    modelShader->setMat4("projection", proj);
+    modelShader->setMat4("view",       view);
+    modelShader->setMat4("model",      body->getTransform());
+    modelShader->setInt("renderMode",  1);
+    modelShader->setInt("isSelected",  0);
+    modelShader->setVec4("clipPlane",  glm::vec4(0));
+    modelShader->setFloat("ambientStrength",  1.f);
+    modelShader->setFloat("diffuseStrength",  0.f);
+    modelShader->setFloat("specularStrength", 0.f);
+
+    if (!previewVAO) { glGenVertexArrays(1, &previewVAO); glGenBuffers(1, &previewVBO); }
+    glBindVertexArray(previewVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, previewVBO);
+
+    // Helper: draw one OCCT edge's polyline (already in ev as GL_LINES pairs)
+    auto drawOCCTEdge = [&](int edgeIdx) {
+        if (edgeIdx < 0 || edgeIdx >= totalEdges) return;
+        int base = edgeIdx * EDGE_SEGS * 2;
+        int count = EDGE_SEGS * 2;
+        glBufferData(GL_ARRAY_BUFFER, count * sizeof(glm::vec3),
+                     &ev[base], GL_STREAM_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), nullptr);
+        glEnableVertexAttribArray(0);
+        glDrawArrays(GL_LINES, 0, count);
+    };
+
+    glLineWidth(5.0f);
+
+    // Selected edges — vivid green
+    modelShader->setVec3("objectColor", glm::vec3(0.15f, 1.0f, 0.40f));
+    for (int idx : filletSelectedEdges)
+        drawOCCTEdge(idx);
+
+    // Hovered edge — bright orange (skip if already selected)
+    if (filletHoveredEdge >= 0) {
+        bool alreadySel = std::find(filletSelectedEdges.begin(),
+                                    filletSelectedEdges.end(),
+                                    filletHoveredEdge) != filletSelectedEdges.end();
+        if (!alreadySel) {
+            modelShader->setVec3("objectColor", glm::vec3(1.0f, 0.55f, 0.05f));
+            drawOCCTEdge(filletHoveredEdge);
+        }
+    }
+
+    glBindVertexArray(0);
+    glLineWidth(1.0f);
+    modelShader->setFloat("ambientStrength",  0.35f);
+    modelShader->setFloat("diffuseStrength",  0.65f);
+    modelShader->setFloat("specularStrength", 0.4f);
+}
+
+void Viewport3D::renderFilletHighlights() {} // kept for compat (no-op)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sketch Picking (click on sketch lines to select a sketch)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Sketch3D* Viewport3D::pickSketch(float screenX, float screenY) const {
+    if (!camera || fbWidth <= 0) return nullptr;
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 1000.0f);
+    glm::mat4 view = camera->GetViewMatrix();
+
+    float bestScreenDist = 12.0f;  // px threshold for sketch line hit
+    Sketch3D* bestSketch = nullptr;
+
+    auto projectPt = [&](const glm::dvec3& p) -> glm::vec2 {
+        glm::vec4 c = proj * view * glm::vec4(glm::vec3(p), 1.0f);
+        if (std::abs(c.w) < 1e-6f) return {-1e6f, -1e6f};
+        glm::vec3 ndc = glm::vec3(c) / c.w;
+        return { (ndc.x * 0.5f + 0.5f) * fbWidth,
+                 (0.5f  - ndc.y * 0.5f) * fbHeight };
+    };
+
+    // Screen-space distance from point P to segment (A,B)
+    auto ptSegDist = [&](glm::vec2 P, glm::vec2 A, glm::vec2 B) -> float {
+        glm::vec2 AB = B - A;
+        float len2 = glm::dot(AB, AB);
+        if (len2 < 1e-6f) return glm::length(P - A);
+        float t = glm::clamp(glm::dot(P - A, AB) / len2, 0.0f, 1.0f);
+        return glm::length(P - (A + t * AB));
+    };
+
+    glm::vec2 cursor(screenX, screenY);
+
+    for (const auto& sk : scene.getSketches()) {
+        if (!sk) continue;
+        const WorkPlane3D& wp = sk->getWorkPlane();
+        for (const auto& shape : sk->getShapes()) {
+            if (shape->type == Drawing::ShapeType::LINE) {
+                auto* ln = static_cast<Drawing::Line*>(shape.get());
+                glm::vec2 sA = projectPt(wp.to3D(ln->start));
+                glm::vec2 sB = projectPt(wp.to3D(ln->end));
+                float d = ptSegDist(cursor, sA, sB);
+                if (d < bestScreenDist) { bestScreenDist = d; bestSketch = sk.get(); }
+            } else if (shape->type == Drawing::ShapeType::RECTANGLE) {
+                auto* r = static_cast<Drawing::Rectangle*>(shape.get());
+                std::vector<glm::dvec2> pts = {r->topLeft, r->topRight, r->bottomRight, r->bottomLeft};
+                for (int i = 0; i < 4; ++i) {
+                    glm::vec2 sA = projectPt(wp.to3D(pts[i]));
+                    glm::vec2 sB = projectPt(wp.to3D(pts[(i+1)%4]));
+                    float d = ptSegDist(cursor, sA, sB);
+                    if (d < bestScreenDist) { bestScreenDist = d; bestSketch = sk.get(); }
+                }
+            } else if (shape->type == Drawing::ShapeType::CIRCLE) {
+                auto* circ = static_cast<Drawing::Circle*>(shape.get());
+                const int N = 32;
+                for (int i = 0; i < N; ++i) {
+                    double a1 = (2.0*M_PI*i)/N, a2 = (2.0*M_PI*(i+1))/N;
+                    glm::dvec2 p1{circ->center.x + circ->radius*cos(a1), circ->center.y + circ->radius*sin(a1)};
+                    glm::dvec2 p2{circ->center.x + circ->radius*cos(a2), circ->center.y + circ->radius*sin(a2)};
+                    float d = ptSegDist(cursor, projectPt(wp.to3D(p1)), projectPt(wp.to3D(p2)));
+                    if (d < bestScreenDist) { bestScreenDist = d; bestSketch = sk.get(); }
+                }
+            }
+        }
+    }
+    return bestSketch;
 }
 
 } // namespace Modeling3D

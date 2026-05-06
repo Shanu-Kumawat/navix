@@ -25,7 +25,8 @@ enum class Tool3DType {
     Fillet,
     Move,
     Rotate,
-    Scale
+    Scale,
+    PlacePrimitive  // NEW: waiting for user to click canvas placement point
 };
 
 enum class SketchDrawTool {
@@ -88,8 +89,7 @@ public:
     unsigned int getRenderedTexture() const { return colorTexture; }
 
     // Revolve axis
-    RevolveAxis getRevolveAxisMode() const { return revolveAxisMode; }
-    void setRevolveAxisMode(RevolveAxis m) { revolveAxisMode = m; }
+
 
     // Camera
     Camera* getCamera() { return camera.get(); }
@@ -109,7 +109,7 @@ public:
 
     // Tools
     Tool3DType getActiveTool() const { return activeTool; }
-    void setActiveTool(Tool3DType tool) { activeTool = tool; }
+    void setActiveTool(Tool3DType tool);
     SketchDrawTool getSketchDrawTool() const { return sketchDrawTool; }
     void setSketchDrawTool(SketchDrawTool t) { sketchDrawTool = t; }
 
@@ -122,12 +122,20 @@ public:
 
     // Extrude/Revolve
     float getExtrudeDistance() const { return extrudeDistance; }
-    void setExtrudeDistance(float d) { extrudeDistance = d; }
+    void setExtrudeDistance(float d);
     float getRevolveAngle() const { return revolveAngle; }
-    void setRevolveAngle(float a) { revolveAngle = a; }
+    void setRevolveAngle(float a);
+    RevolveAxis getRevolveAxisMode() const { return revolveAxisMode; }
+    void setRevolveAxisMode(RevolveAxis m);
 
     bool executeExtrude();
     bool executeRevolve();
+
+    // Fillet / Chamfer
+    float getFilletRadius() const { return filletRadius; }
+    void setFilletRadius(float r);
+    float getChamferDistance() const { return chamferDistance; }
+    void setChamferDistance(float d);
 
     // Sketch chain mode
     bool isSketchChainMode() const { return sketchChainMode; }
@@ -142,6 +150,22 @@ public:
     Body3D* createSphere(double radius);
     Body3D* createCone(double r1, double r2, double height);
     Body3D* createTorus(double majorR, double minorR);
+
+    // Primitive placement preview mode
+    // Call these instead of createXxx directly: they enter PlacePrimitive mode.
+    // On canvas click, the body is placed at the clicked world position.
+    void startPlaceBox(double dx, double dy, double dz);
+    void startPlaceCylinder(double radius, double height);
+    void startPlaceSphere(double radius);
+    void startPlaceCone(double r1, double r2, double height);
+    void startPlaceTorus(double majorR, double minorR);
+    void cancelPlacement();
+    bool isInPlacementMode() const { return activeTool == Tool3DType::PlacePrimitive; }
+    glm::dvec3 getPlacementCursorWorld() const { return placementCursorWorld; }
+
+    // Fillet edge selection (public so PropertyPanel3D can display/clear)
+    std::vector<int>  filletSelectedEdges;
+    int               filletHoveredEdge{-1};
 
     void markSketchDirty() { sketchDirty = true; }
 
@@ -158,6 +182,19 @@ public:
     glm::mat4 getGizmoMatrix() const;
     void setGizmoMatrix(const glm::mat4& m);
 
+    // Sketch selection (for sketch-based extrude/revolve without needing active sketch)
+    Sketch3D* getSelectedSketch() const { return selectedSketch; }
+    void setSelectedSketch(Sketch3D* sk);
+    Sketch3D* pickSketch(float screenX, float screenY) const; // returns closest sketch or nullptr
+
+    // Preview generation (public so PropertyPanel3D can trigger it if needed)
+    void rebuildToolPreview();
+    std::unique_ptr<Body3D> toolPreviewBody;
+
+
+    // Spline: finalize accumulated control points → Catmull-Rom line segments
+    void commitSpline();
+
     // Interactive sketch state
     bool isSketchDrawing() const { return sketchHasFirstPoint; }
     glm::dvec2 getSketchCursor() const { return sketchCursor2D; }
@@ -172,7 +209,9 @@ private:
     void renderBodies();
     void renderSketch();
     void renderSketchPreview();
-    void renderExtrudePreview();
+    void renderToolPreview();
+    void renderPlacementPreview();
+    void renderFilletEdgeHighlights();  // GL overlay for hover/selected edges
     void renderWorkPlaneHighlight();
     void renderOriginAxes();
 
@@ -219,9 +258,12 @@ private:
     bool sketchDirty{true};
 
     // Tools
-    Tool3DType activeTool{Tool3DType::Select};
+    Tool3DType    activeTool{Tool3DType::Select};
     SketchDrawTool sketchDrawTool{SketchDrawTool::None};
-    RenderMode3D renderMode{RenderMode3D::SolidWithEdges};
+    RenderMode3D  renderMode{RenderMode3D::SolidWithEdges};
+
+    // Selected sketch (for sketch-based ops independent of active sketch)
+    Sketch3D* selectedSketch{nullptr};
 
     // Mouse state
     bool middleMouseDown{false};
@@ -235,6 +277,10 @@ private:
     bool sketchHasFirstPoint{false};
     glm::dvec2 sketchFirstPoint{0.0};
     glm::dvec2 sketchCursor2D{0.0};
+
+    // Spline accumulation (Catmull-Rom multi-click)
+    std::vector<glm::dvec2> splineControlPoints;  // accumulated clicks
+    bool splineActive{false};                      // in multi-click spline mode
 
     // Operation params
     float extrudeDistance{10.0f};
@@ -256,6 +302,21 @@ private:
     // Lighting
     glm::vec3 lightPos{20.0f, 40.0f, 30.0f};
     glm::vec3 lightColor{1.0f, 0.98f, 0.95f};
+
+    // ── Primitive placement state ────────────────────────────────────────────
+    enum class PrimType { None, Box, Cylinder, Sphere, Cone, Torus };
+    PrimType  placePrimType{PrimType::None};
+    double    placeP1{10}, placeP2{10}, placeP3{10};  // W/H/D or R/H etc.
+    glm::dvec3 placementCursorWorld{0.0};  // world pos under mouse
+    Body3D* commitPlacement(glm::dvec3 position); // create + place
+
+    // ── Fillet edge selection (private helper methods) ────────────────────────
+    void renderFilletHighlights();         // compat no-op
+    int  pickEdge(float screenX, float screenY) const; // returns edge index or -1
+    
+    // Dynamic Tool Previews
+    float filletRadius{1.0f};
+    float chamferDistance{1.0f};
 };
 
 } // namespace Modeling3D

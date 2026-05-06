@@ -438,62 +438,63 @@ int main(int argc, char* argv[]) {
                 appContext.viewport3D.renderViewCube(canvasX, ribbonHeight, canvasWidth, canvasHeight);
                 appContext.viewport3D.renderSnapOverlay(canvasX, ribbonHeight);
 
+                // === ImGuizmo overlay (INSIDE canvas window) ===
+                {
+                    auto tool3d   = appContext.viewport3D.getActiveTool();
+                    auto* selBody = appContext.viewport3D.getScene()->getSelectedBody();
+                    if (selBody &&
+                        (tool3d == Modeling3D::Tool3DType::Move   ||
+                         tool3d == Modeling3D::Tool3DType::Rotate ||
+                         tool3d == Modeling3D::Tool3DType::Scale))
+                    {
+                        ImGuizmo::BeginFrame();
+                        ImGuizmo::SetOrthographic(false);
+                        ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
+                        // Gizmo rect: the canvas area
+                        ImGuizmo::SetRect(canvasX, ribbonHeight, canvasWidth, canvasHeight);
+
+                        float aspect = canvasWidth / canvasHeight;
+                        glm::mat4 proj = glm::perspective(
+                            glm::radians(appContext.viewport3D.getCamera()->Zoom),
+                            aspect, 0.1f, 1000.0f);
+                        glm::mat4 view    = appContext.viewport3D.getCamera()->GetViewMatrix();
+                        glm::mat4 modelMat = selBody->getTransform();
+                        glm::mat4 prevMat  = modelMat;
+
+                        ImGuizmo::OPERATION op = ImGuizmo::TRANSLATE;
+                        if (tool3d == Modeling3D::Tool3DType::Rotate)
+                            op = ImGuizmo::ROTATE;
+                        else if (tool3d == Modeling3D::Tool3DType::Scale)
+                            op = ImGuizmo::SCALE;
+
+                        ImGuizmo::Manipulate(
+                            glm::value_ptr(view),
+                            glm::value_ptr(proj),
+                            op, ImGuizmo::WORLD,
+                            glm::value_ptr(modelMat));
+
+                        if (ImGuizmo::IsUsing()) {
+                            selBody->setTransform(modelMat);
+                        }
+
+                        // Undo command when gizmo interaction finishes
+                        static bool wasUsingGizmo = false;
+                        static glm::mat4 gizmoStartMatrix = glm::mat4(1.0f);
+                        if (ImGuizmo::IsUsing() && !wasUsingGizmo)
+                            gizmoStartMatrix = prevMat;
+                        if (!ImGuizmo::IsUsing() && wasUsingGizmo) {
+                            auto cmd = std::make_unique<Modeling3D::TransformBodyCommand>(
+                                selBody, gizmoStartMatrix, modelMat);
+                            appContext.viewport3D.getScene()->getCommandManager().execute(std::move(cmd));
+                        }
+                        wasUsingGizmo = ImGuizmo::IsUsing();
+                    }
+                }
+
+
                 ImGui::End();
                 ImGui::PopStyleColor();
                 ImGui::PopStyleVar();
-
-                // === ImGuizmo overlay ===
-                auto tool3d = appContext.viewport3D.getActiveTool();
-                auto* selectedBody = appContext.viewport3D.getScene()->getSelectedBody();
-                if (selectedBody &&
-                    (tool3d == Modeling3D::Tool3DType::Move ||
-                     tool3d == Modeling3D::Tool3DType::Rotate ||
-                     tool3d == Modeling3D::Tool3DType::Scale))
-                {
-                    ImGuizmo::BeginFrame();
-                    ImGuizmo::SetOrthographic(false);
-                    ImGuizmo::SetRect(canvasX, ribbonHeight, canvasWidth, canvasHeight);
-
-                    float aspect = canvasWidth / canvasHeight;
-                    glm::mat4 proj = glm::perspective(
-                        glm::radians(appContext.viewport3D.getCamera()->Zoom),
-                        aspect, 0.1f, 1000.0f);
-                    glm::mat4 view = appContext.viewport3D.getCamera()->GetViewMatrix();
-                    glm::mat4 modelMat = selectedBody->getTransform();
-                    glm::mat4 prevMat = modelMat;
-
-                    ImGuizmo::OPERATION op = ImGuizmo::TRANSLATE;
-                    if (tool3d == Modeling3D::Tool3DType::Rotate)
-                        op = ImGuizmo::ROTATE;
-                    else if (tool3d == Modeling3D::Tool3DType::Scale)
-                        op = ImGuizmo::SCALE;
-
-                    ImGuizmo::Manipulate(
-                        glm::value_ptr(view),
-                        glm::value_ptr(proj),
-                        op,
-                        ImGuizmo::WORLD,
-                        glm::value_ptr(modelMat),
-                        nullptr,
-                        nullptr);
-
-                    if (ImGuizmo::IsUsing()) {
-                        selectedBody->setTransform(modelMat);
-                    }
-
-                    // Create undo command when gizmo interaction finishes
-                    static bool wasUsingGizmo = false;
-                    static glm::mat4 gizmoStartMatrix = glm::mat4(1.0f);
-                    if (ImGuizmo::IsUsing() && !wasUsingGizmo) {
-                        gizmoStartMatrix = prevMat;
-                    }
-                    if (!ImGuizmo::IsUsing() && wasUsingGizmo) {
-                        auto cmd = std::make_unique<Modeling3D::TransformBodyCommand>(
-                            selectedBody, gizmoStartMatrix, modelMat);
-                        appContext.viewport3D.getScene()->getCommandManager().execute(std::move(cmd));
-                    }
-                    wasUsingGizmo = ImGuizmo::IsUsing();
-                }
             }
 
             // Keyboard shortcuts for 3D mode

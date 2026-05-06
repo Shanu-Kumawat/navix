@@ -96,6 +96,7 @@ public:
 
     // Edge operations (OCCT-only — no-op on mesh fallback)
     bool filletAllEdges(double radius);
+    bool filletEdgesByIndex(const std::vector<int>& edgeIndices, double radius);
     bool chamferAllEdges(double distance);
 
     // Boolean operations (OCCT-only)
