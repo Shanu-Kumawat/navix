@@ -329,8 +329,8 @@ if(OpenCASCADE_FOUND)
         TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep
         TKGeomAlgo TKTopAlgo TKPrim TKShHealing TKBO
         TKBool TKFillet TKMesh TKOffset
-        # Data Exchange (OCCT 7.9+ naming)
-        TKDE TKXSBase TKDESTEP TKDEIGES TKDESTL
+        # Data Exchange (OCCT 7.6 naming)
+        TKSTEP TKIGES TKSTL TKXSBase
     )
     message(STATUS "OCCT libraries linked to drawing target (including data exchange)")
 endif()
