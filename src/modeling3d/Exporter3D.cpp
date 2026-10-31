@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstring>
+#include <functional>
 #include <glm/gtc/type_ptr.hpp>
 
 #ifdef USE_OCCT
@@ -177,6 +178,126 @@ void Exporter3D::writeSTLBinary(const Body3D& body, std::ostream& out,
 // OBJ Export
 // ─────────────────────────────────────────────
 
+// Raw indexed-mesh export (Base3DModel display meshes)
+bool Exporter3D::exportSTL(const std::vector<float>& vertexData,
+                           const std::vector<unsigned int>& indices,
+                           const std::string& filepath,
+                           const std::string& name,
+                           bool binary) {
+    if (vertexData.size() < 6 || indices.size() < 3) {
+        std::cerr << "Exporter3D: empty mesh, nothing to export" << std::endl;
+        return false;
+    }
+    auto vertexCount = vertexData.size() / 6;
+
+    std::ofstream file;
+    file.open(filepath, binary ? std::ios::binary : std::ios::out);
+    if (!file.is_open()) {
+        std::cerr << "Exporter3D: Cannot open file: " << filepath << std::endl;
+        return false;
+    }
+
+    auto emitTriangle = [&](unsigned int a, unsigned int b, unsigned int c,
+                            const std::function<void(const glm::vec3&, const glm::vec3&,
+                                                     const glm::vec3&, const glm::vec3&)>& emit) {
+        auto P = [&](unsigned int i) -> glm::vec3 {
+            return glm::vec3(vertexData[i * 6 + 0], vertexData[i * 6 + 1], vertexData[i * 6 + 2]);
+        };
+        glm::vec3 p0 = P(a), p1 = P(b), p2 = P(c);
+        glm::vec3 n = glm::normalize(glm::cross(p1 - p0, p2 - p0));
+        if (std::isnan(n.x)) n = glm::vec3(0, 0, 1);
+        emit(n, p0, p1, p2);
+    };
+
+    if (binary) {
+        char header[80] = {};
+        std::strncpy(header, ("NAVIX STL Export - " + name).c_str(), 79);
+        file.write(header, 80);
+        uint32_t triCount = 0;
+        auto countPos = file.tellp();
+        file.write(reinterpret_cast<const char*>(&triCount), 4);
+
+        for (size_t t = 0; t + 2 < indices.size(); t += 3) {
+            if (indices[t] >= vertexCount || indices[t+1] >= vertexCount || indices[t+2] >= vertexCount)
+                continue;
+            emitTriangle(indices[t], indices[t+1], indices[t+2],
+                [&](const glm::vec3& n, const glm::vec3& p0, const glm::vec3& p1, const glm::vec3& p2) {
+                    file.write(reinterpret_cast<const char*>(&n.x), 4);
+                    file.write(reinterpret_cast<const char*>(&n.y), 4);
+                    file.write(reinterpret_cast<const char*>(&n.z), 4);
+                    file.write(reinterpret_cast<const char*>(&p0.x), 4);
+                    file.write(reinterpret_cast<const char*>(&p0.y), 4);
+                    file.write(reinterpret_cast<const char*>(&p0.z), 4);
+                    file.write(reinterpret_cast<const char*>(&p1.x), 4);
+                    file.write(reinterpret_cast<const char*>(&p1.y), 4);
+                    file.write(reinterpret_cast<const char*>(&p1.z), 4);
+                    file.write(reinterpret_cast<const char*>(&p2.x), 4);
+                    file.write(reinterpret_cast<const char*>(&p2.y), 4);
+                    file.write(reinterpret_cast<const char*>(&p2.z), 4);
+                    uint16_t attr = 0;
+                    file.write(reinterpret_cast<const char*>(&attr), 2);
+                    ++triCount;
+                });
+        }
+        file.seekp(countPos);
+        file.write(reinterpret_cast<const char*>(&triCount), 4);
+    } else {
+        file << "solid " << name << "\n";
+        for (size_t t = 0; t + 2 < indices.size(); t += 3) {
+            if (indices[t] >= vertexCount || indices[t+1] >= vertexCount || indices[t+2] >= vertexCount)
+                continue;
+            emitTriangle(indices[t], indices[t+1], indices[t+2],
+                [&](const glm::vec3& n, const glm::vec3& p0, const glm::vec3& p1, const glm::vec3& p2) {
+                    file << "  facet normal " << n.x << " " << n.y << " " << n.z << "\n";
+                    file << "    outer loop\n";
+                    file << "      vertex " << p0.x << " " << p0.y << " " << p0.z << "\n";
+                    file << "      vertex " << p1.x << " " << p1.y << " " << p1.z << "\n";
+                    file << "      vertex " << p2.x << " " << p2.y << " " << p2.z << "\n";
+                    file << "    endloop\n";
+                    file << "  endfacet\n";
+                });
+        }
+        file << "endsolid " << name << "\n";
+    }
+    file.close();
+    std::cout << "Exported STL: " << filepath << std::endl;
+    return true;
+}
+
+bool Exporter3D::exportOBJ(const std::vector<float>& vertexData,
+                           const std::vector<unsigned int>& indices,
+                           const std::string& filepath,
+                           const std::string& name) {
+    if (vertexData.size() < 6 || indices.size() < 3) {
+        std::cerr << "Exporter3D: empty mesh, nothing to export" << std::endl;
+        return false;
+    }
+    std::ofstream out(filepath);
+    if (!out.is_open()) {
+        std::cerr << "Exporter3D: Cannot open file: " << filepath << std::endl;
+        return false;
+    }
+    out << "o " << name << "\n";
+    for (size_t i = 0; i + 5 < vertexData.size(); i += 6) {
+        out << "v " << vertexData[i] << " " << vertexData[i+1] << " " << vertexData[i+2] << "\n";
+    }
+    for (size_t i = 0; i + 5 < vertexData.size(); i += 6) {
+        out << "vn " << vertexData[i+3] << " " << vertexData[i+4] << " " << vertexData[i+5] << "\n";
+    }
+    size_t vertexCount = vertexData.size() / 6;
+    for (size_t t = 0; t + 2 < indices.size(); t += 3) {
+        if (indices[t] >= vertexCount || indices[t+1] >= vertexCount || indices[t+2] >= vertexCount)
+            continue;
+        // OBJ is 1-based
+        out << "f " << (indices[t] + 1) << "//" << (indices[t] + 1) << " "
+                   << (indices[t+1] + 1) << "//" << (indices[t+1] + 1) << " "
+                   << (indices[t+2] + 1) << "//" << (indices[t+2] + 1) << "\n";
+    }
+    out.close();
+    std::cout << "Exported OBJ: " << filepath << std::endl;
+    return true;
+}
+
 bool Exporter3D::exportOBJ(const std::vector<Body3D*>& bodies,
                             const std::string& filepath) {
     if (bodies.empty()) return false;
@@ -245,8 +366,9 @@ bool Exporter3D::exportSTEP(const std::vector<Body3D*>& bodies,
     bool hasShapes = false;
     for (const auto* body : bodies) {
         if (body && body->hasOCCTShape()) {
+            // Export in world space so placement (move/rotate/scale) is kept
             IFSelect_ReturnStatus status = writer.Transfer(
-                body->getOCCTShape(), STEPControl_AsIs);
+                body->getWorldShape(), STEPControl_AsIs);
             if (status == IFSelect_RetDone) hasShapes = true;
         }
     }
@@ -273,7 +395,8 @@ bool Exporter3D::exportIGES(const std::vector<Body3D*>& bodies,
     bool hasShapes = false;
     for (const auto* body : bodies) {
         if (body && body->hasOCCTShape()) {
-            if (writer.AddShape(body->getOCCTShape())) {
+            // Export in world space so placement is kept
+            if (writer.AddShape(body->getWorldShape())) {
                 hasShapes = true;
             }
         }
@@ -290,6 +413,45 @@ bool Exporter3D::exportIGES(const std::vector<Body3D*>& bodies,
         return false;
     }
 
+    std::cout << "Exported IGES: " << filepath << std::endl;
+    return true;
+}
+
+bool Exporter3D::exportSTEPShape(const TopoDS_Shape& shape, const std::string& filepath) {
+    if (shape.IsNull()) {
+        std::cerr << "Exporter3D: null shape for STEP export" << std::endl;
+        return false;
+    }
+    STEPControl_Writer writer;
+    Interface_Static::SetCVal("xstep.cascade.unit", "MM");
+    Interface_Static::SetCVal("write.step.schema", "AP214");
+    if (writer.Transfer(shape, STEPControl_AsIs) != IFSelect_RetDone) {
+        std::cerr << "Exporter3D: STEP transfer failed" << std::endl;
+        return false;
+    }
+    if (writer.Write(filepath.c_str()) != IFSelect_RetDone) {
+        std::cerr << "Exporter3D: STEP write failed" << std::endl;
+        return false;
+    }
+    std::cout << "Exported STEP: " << filepath << std::endl;
+    return true;
+}
+
+bool Exporter3D::exportIGESShape(const TopoDS_Shape& shape, const std::string& filepath) {
+    if (shape.IsNull()) {
+        std::cerr << "Exporter3D: null shape for IGES export" << std::endl;
+        return false;
+    }
+    IGESControl_Writer writer("MM", 0);
+    if (!writer.AddShape(shape)) {
+        std::cerr << "Exporter3D: IGES AddShape failed" << std::endl;
+        return false;
+    }
+    writer.ComputeModel();
+    if (!writer.Write(filepath.c_str())) {
+        std::cerr << "Exporter3D: IGES write failed" << std::endl;
+        return false;
+    }
     std::cout << "Exported IGES: " << filepath << std::endl;
     return true;
 }
@@ -312,6 +474,7 @@ std::vector<std::unique_ptr<Body3D>> Exporter3D::importSTEP(const std::string& f
 
         auto body = std::make_unique<Body3D>();
         body->setName("Imported_" + std::to_string(i));
+        body->setKind("Import");
         body->setOCCTShape(shape);
 
         // Tessellate for display

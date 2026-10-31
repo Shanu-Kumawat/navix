@@ -61,6 +61,9 @@ public:
     // Status queries
     bool isMouseDragging() const { return mouseDragging; }
     bool hasMesh() const { return !indices.empty(); }
+    // Display mesh access (for geometry export)
+    const std::vector<float>& getDisplayVertices() const { return vertices; }
+    const std::vector<unsigned int>& getDisplayIndices() const { return indices; }
     
 protected:
     // OpenGL buffer management

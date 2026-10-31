@@ -123,6 +123,11 @@ GLuint LoadIconTexture(const std::string& iconPath, ImVec2& outSize) {
 #endif
 }
 
+unsigned int GetIconTexture(const std::string& iconName) {
+  auto it = iconTextures.find(iconName);
+  return (it != iconTextures.end()) ? it->second : 0;
+}
+
 void LoadIconTextures() {
 #ifdef HAVE_SDL2_IMAGE
   // Initialize SDL_image if not already done
@@ -163,6 +168,11 @@ void LoadIconTextures() {
     {"extrude",    "icons/png/extrude.png"},
     {"revolve",    "icons/png/revolve.png"},
     {"fillet3d",   "icons/png/fillet.png"},
+    {"boolean3d",  "icons/png/boolean3d.png"},
+    {"cutextrude3d", "icons/png/cutextrude3d.png"},
+    {"hole3d",      "icons/png/hole3d.png"},
+    {"pattern3d",   "icons/png/pattern3d.png"},
+    {"mirror3d",    "icons/png/mirror3d.png"},
     {"move3d",     "icons/png/move3d.png"},
     {"rotate3d",   "icons/png/rotate3d.png"},
     {"scale3d",    "icons/png/scale3d.png"},

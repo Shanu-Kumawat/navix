@@ -211,6 +211,9 @@ add_library(drawing STATIC
     src/ShockAbsorberViewer3D.cpp
     src/ComplexShape3DManager.cpp
     src/export/BellowsExporter.cpp
+    src/export/FEMExporter.cpp
+    src/export/ModelGeometryBuilder.cpp
+    src/ui/GtkFileDialogs.cpp
     # 3D Modeling system
     src/modeling3d/WorkPlane3D.cpp
     src/modeling3d/Sketch3D.cpp

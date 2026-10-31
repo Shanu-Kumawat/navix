@@ -23,11 +23,18 @@ enum class Tool3DType {
     Extrude,
     Revolve,
     Fillet,
+    Boolean,        // Boolean operations on solid bodies
+    CutExtrude,     // Cut-Extrude / Pocket (sketch profile cut into a body)
+    Hole,           // Hole wizard lite (click a face, parametric hole)
+    Pattern,        // Linear / circular pattern of the selected body
+    Mirror,         // Mirror the selected body about a plane
     Move,
     Rotate,
     Scale,
     PlacePrimitive  // NEW: waiting for user to click canvas placement point
 };
+// CutDirMode / HoleType / PatternKind enums live in Body3D.hpp (shared with
+// Modeling3DScene, which cannot include Viewport3D.hpp)
 
 enum class SketchDrawTool {
     None,
@@ -137,6 +144,81 @@ public:
     float getChamferDistance() const { return chamferDistance; }
     void setChamferDistance(float d);
 
+    // Boolean operations (base body is modified, tool body is consumed)
+    BoolOp getBoolOpMode() const { return boolOpMode; }
+    void setBoolOpMode(BoolOp op);
+    void beginBoolean(BoolOp op);        // activate tool; adopts selected body as base
+    Body3D* getBoolBaseBody() const { return boolBaseBody; }
+    Body3D* getBoolToolBody() const { return boolToolBody; }
+    void clearBooleanSelection();
+    bool executeBoolean();
+
+    // Cut-Extrude / Pocket (pick body → pick its face → draw on the face grid)
+    int getCutStep() const { return cutStep; }
+    Body3D* getCutTarget() const { return cutTarget; }
+    CutDirMode getCutDirMode() const { return cutDirMode; }
+    void setCutDirMode(CutDirMode m) { if (cutDirMode != m) { cutDirMode = m; rebuildToolPreview(); } }
+    float getCutDepth() const { return cutDepth; }
+    void setCutDepth(float d) { if (std::abs(cutDepth - d) > 1e-4) { cutDepth = d; rebuildToolPreview(); } }
+    bool executeCutExtrude();
+
+    // Hole wizard lite (target body must be selected, then click its face)
+    void beginHole();
+    bool isHolePicked() const { return holePicked; }
+    glm::dvec3 getHoleCenter() const { return holeCenter; }
+    HoleType getHoleType() const { return holeType; }
+    void setHoleType(HoleType t) { if (holeType != t) { holeType = t; rebuildToolPreview(); } }
+    float getHoleDiameter() const { return holeDia; }
+    void setHoleDiameter(float d) { if (std::abs(holeDia - d) > 1e-4) { holeDia = d; rebuildToolPreview(); } }
+    float getHoleDepth() const { return holeDepth; }
+    void setHoleDepth(float d) { if (std::abs(holeDepth - d) > 1e-4) { holeDepth = d; rebuildToolPreview(); } }
+    float getCBoreDiameter() const { return cboreDia; }
+    void setCBoreDiameter(float d) { if (std::abs(cboreDia - d) > 1e-4) { cboreDia = d; rebuildToolPreview(); } }
+    float getCBoreDepthValue() const { return cboreDepth; }
+    void setCBoreDepth(float d) { if (std::abs(cboreDepth - d) > 1e-4) { cboreDepth = d; rebuildToolPreview(); } }
+    void clearHolePick() { holePicked = false; rebuildToolPreview(); }
+    bool executeHole();
+
+    // Pattern (linear / circular copies of the selected body)
+    PatternKind getPatternKind() const { return patternKind; }
+    void setPatternKind(PatternKind k) { if (patternKind != k) { patternKind = k; rebuildToolPreview(); } }
+    int getLinearAxis() const { return linAxis; }
+    void setLinearAxis(int a) { if (linAxis != a) { linAxis = a; rebuildToolPreview(); } }
+    int getLinearCount() const { return linCount; }
+    void setLinearCount(int n) { if (linCount != n && n >= 2) { linCount = n; rebuildToolPreview(); } }
+    float getLinearSpacing() const { return linSpacing; }
+    void setLinearSpacing(float s) { if (std::abs(linSpacing - s) > 1e-4) { linSpacing = s; rebuildToolPreview(); } }
+    int getCircAxis() const { return circAxis; }
+    void setCircAxis(int a) { if (circAxis != a) { circAxis = a; rebuildToolPreview(); } }
+    int getCircCenter() const { return circCenter; }   // 0=world origin, 1=source center, 2=picked body center
+    void setCircCenter(int c) { if (circCenter != c) { circCenter = c; rebuildToolPreview(); } }
+    Body3D* getCircCenterBody() const { return circCenterBody; }
+    void clearCircCenterBody() { circCenterBody = nullptr; rebuildToolPreview(); }
+    int getCircCount() const { return circCount; }
+    void setCircCount(int n) { if (circCount != n && n >= 2) { circCount = n; circCount = std::min(circCount, 64); rebuildToolPreview(); } }
+    bool executePattern();
+
+    // Mirror (selected body about a global plane)
+    int getMirrorPlane() const { return mirrorPlane; }
+    void setMirrorPlane(int p) { if (mirrorPlane != p) { mirrorPlane = p; rebuildToolPreview(); } }
+    float getMirrorOffset() const { return mirrorOffset; }
+    void setMirrorOffset(float o) { if (std::abs(mirrorOffset - o) > 1e-4) { mirrorOffset = o; rebuildToolPreview(); } }
+    bool getMirrorFuse() const { return mirrorFuse; }
+    void setMirrorFuse(bool f) { if (mirrorFuse != f) { mirrorFuse = f; rebuildToolPreview(); } }
+    bool executeMirror();
+
+    // Section view (clip bodies along an axis-aligned world plane)
+    bool isSectionEnabled() const { return sectionEnabled; }
+    void setSectionEnabled(bool v) { sectionEnabled = v; }
+    int getSectionAxis() const { return sectionAxis; }   // 0=X 1=Y 2=Z
+    void setSectionAxis(int a) { sectionAxis = a; }
+    float getSectionPos() const { return sectionPos; }
+    void setSectionPos(float p) { sectionPos = p; }
+    bool isSectionFlipped() const { return sectionFlip; }
+    void setSectionFlipped(bool f) { sectionFlip = f; }
+    bool isCapDebugNoStencil() const { return capDebugNoStencil; }
+    void setCapDebugNoStencil(bool v) { capDebugNoStencil = v; }
+
     // Sketch chain mode
     bool isSketchChainMode() const { return sketchChainMode; }
     void setSketchChainMode(bool v) { sketchChainMode = v; }
@@ -156,6 +238,8 @@ public:
     // On canvas click, the body is placed at the clicked world position.
     void startPlaceBox(double dx, double dy, double dz);
     void startPlaceCylinder(double radius, double height);
+    int getCylinderAxis() const { return cylAxis; }   // 0=X 1=Y 2=Z
+    void setCylinderAxis(int a) { cylAxis = a; if (isInPlacementMode()) rebuildToolPreview(); }
     void startPlaceSphere(double radius);
     void startPlaceCone(double r1, double r2, double height);
     void startPlaceTorus(double majorR, double minorR);
@@ -190,6 +274,11 @@ public:
     // Preview generation (public so PropertyPanel3D can trigger it if needed)
     void rebuildToolPreview();
     std::unique_ptr<Body3D> toolPreviewBody;
+    std::vector<std::unique_ptr<Body3D>> toolPreviewBodies;  // multi-ghost (pattern/hole)
+
+    // State integrity (call sites: render loop, undo/redo, history changes)
+    void validateToolReferences();   // drop dangling body/sketch pointers
+    void onHistoryChanged();         // call after undo/redo: validate + rebuild previews
 
 
     // Spline: finalize accumulated control points → Catmull-Rom line segments
@@ -213,6 +302,10 @@ private:
     void renderPlacementPreview();
     void renderFilletEdgeHighlights();  // GL overlay for hover/selected edges
     void renderWorkPlaneHighlight();
+    void renderCutPlaneGrid();          // face-plane grid during Cut-Extrude drawing
+    void rebuildCutGrid();
+    void renderSectionPlane();          // translucent indicator for Section View
+    glm::vec4 computeSectionPlane() const;  // camera-facing clip plane
     void renderOriginAxes();
 
     // Ray casting + projection
@@ -220,6 +313,10 @@ private:
     Body3D* pickBody(float screenX, float screenY) const;
     glm::dvec2 screenToWorkPlane(float screenX, float screenY) const;
     glm::dvec2 worldToScreen(const glm::dvec3& worldPt) const; // 3D world -> canvas px
+
+    // Per-tool cleanup when leaving a tool (single source of truth for
+    // tool-switch state resets; called from setActiveTool)
+    void deactivateToolState(Tool3DType previousTool);
 
     // Geometric snap
     glm::dvec2 findGeometricSnap(float mouseX, float mouseY,
@@ -307,6 +404,7 @@ private:
     enum class PrimType { None, Box, Cylinder, Sphere, Cone, Torus };
     PrimType  placePrimType{PrimType::None};
     double    placeP1{10}, placeP2{10}, placeP3{10};  // W/H/D or R/H etc.
+    int       cylAxis{1};   // cylinder axis: 0=X 1=Y (up) 2=Z
     glm::dvec3 placementCursorWorld{0.0};  // world pos under mouse
     Body3D* commitPlacement(glm::dvec3 position); // create + place
 
@@ -317,6 +415,57 @@ private:
     // Dynamic Tool Previews
     float filletRadius{1.0f};
     float chamferDistance{1.0f};
+
+    // ── Boolean operation state ──────────────────────────────────────────────
+    BoolOp  boolOpMode{BoolOp::Union};
+    Body3D* boolBaseBody{nullptr};  // first picked — receives the result
+    Body3D* boolToolBody{nullptr};  // second picked — consumed by the op
+
+    // ── Cut-Extrude / Hole / Pattern / Mirror state ──────────────────────────
+    // Cut-Extrude flow: step 0 = pick target body, 1 = pick its face,
+    // 2 = drawing the profile on the face plane grid
+    int cutStep{0};
+    Body3D* cutTarget{nullptr};
+    WorkPlane3D cutPlane;              // plane of the picked face
+    unsigned int cutGridVAO{0}, cutGridVBO{0};
+    int cutGridLineCount{0};
+    bool cutOwnsSketch{false};         // we began the face sketch ourselves
+
+    CutDirMode cutDirMode{CutDirMode::Blind};
+    float cutDepth{5.0f};
+
+    bool holePicked{false};
+    glm::dvec3 holeCenter{0.0};
+    glm::dvec3 holeNormal{0.0, 1.0, 0.0};
+    HoleType holeType{HoleType::Through};
+    float holeDia{5.0f};
+    float holeDepth{10.0f};
+    float cboreDia{9.0f};
+    float cboreDepth{3.0f};
+
+    PatternKind patternKind{PatternKind::Linear};
+    int linAxis{2};       // 0=X 1=Y 2=Z
+    int linCount{3};
+    float linSpacing{15.0f};
+    int circAxis{2};      // 0=X 1=Y 2=Z
+    int circCenter{0};    // 0=world origin, 1=source body center, 2=picked body center
+    Body3D* circCenterBody{nullptr};  // used when circCenter == 2
+    int circCount{6};
+
+    int mirrorPlane{1};   // 0=YZ(x=0) 1=XZ(y=0) 2=XY(z=0)
+    float mirrorOffset{0.0f};
+    bool mirrorFuse{false};
+
+    // Section view (axis-aligned world clip plane)
+    bool sectionEnabled{false};
+    int sectionAxis{1};   // 0=X 1=Y 2=Z
+    float sectionPos{0.0f};
+    bool sectionFlip{false};
+    bool capDebugNoStencil{false};  // diagnostic: draw cap ignoring stencil
+
+    // Ray-cast pick returning the hit point + face normal (Hole tool)
+    Body3D* pickFace(float screenX, float screenY, glm::dvec3& outPoint,
+                     glm::dvec3& outNormal) const;
 };
 
 } // namespace Modeling3D

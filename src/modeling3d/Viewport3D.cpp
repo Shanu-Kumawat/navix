@@ -12,6 +12,9 @@
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepPrimAPI_MakeCone.hxx>
 #include <BRepPrimAPI_MakeTorus.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Pnt.hxx>
+#include <gp_Dir.hxx>
 #endif
 
 namespace Modeling3D {
@@ -170,6 +173,9 @@ void Viewport3D::render(int width, int height) {
     if (!initialized) return;
     if (width <= 0 || height <= 0) return;
 
+    // Keep viewport tool state consistent with scene ownership every frame
+    validateToolReferences();
+
     // Ensure FBO is correct size
     if (!framebuffer || width != fbWidth || height != fbHeight) {
         resizeFramebuffer(width, height);
@@ -179,7 +185,7 @@ void Viewport3D::render(int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glViewport(0, 0, width, height);
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // === Gradient Background ===
     renderBackground();
@@ -210,12 +216,24 @@ void Viewport3D::render(int width, int height) {
         modelShader->setVec4("clipPlane", glm::vec4(0));
         modelShader->setInt("renderMode", 0);
 
+        // Section view: clip bodies along an axis-aligned world plane.
+        // Shader keeps fragments where dot(P, plane.xyz) + plane.w >= 0.
+        if (sectionEnabled) {
+            modelShader->setVec4("clipPlane", computeSectionPlane());
+        }
+
         for (const auto& body : scene.getBodies()) {
             if (!body->isVisible()) continue;
             glm::mat4 model = body->getTransform();
             modelShader->setMat4("model", model);
-            modelShader->setVec3("objectColor", body->getColor());
-            modelShader->setInt("isSelected", body->isSelected() ? 1 : 0);
+
+            // Boolean mode: tint the tool body and highlight the base body
+            bool isBase = (activeTool == Tool3DType::Boolean && body.get() == boolBaseBody);
+            bool isTool = (activeTool == Tool3DType::Boolean && body.get() == boolToolBody);
+            glm::vec3 col = body->getColor();
+            if (isTool) col = glm::vec3(1.0f, 0.55f, 0.15f);  // orange tool
+            modelShader->setVec3("objectColor", col);
+            modelShader->setInt("isSelected", (body->isSelected() || isBase) ? 1 : 0);
 
             if (renderMode != RenderMode3D::Wireframe) {
                 modelShader->setInt("renderMode", 0);
@@ -226,12 +244,117 @@ void Viewport3D::render(int width, int height) {
                 glLineWidth(1.5f);
                 body->drawEdges();
             }
+
+            // === Section capping (stencil technique) ============================
+        // For each body: count visible back/front faces into the stencil,
+        // then draw a cap quad at the section plane where the count != 0 —
+        // i.e. exactly where solid material exists at the plane. Openings
+        // (holes) have no material at the plane, so no cap there.
+        if (sectionEnabled && renderMode != RenderMode3D::Wireframe) {
+            glm::vec4 capPlane = computeSectionPlane();
+            // Counting draws use the FULL unclipped geometry — the depth
+            // buffer of the clipped scene (main pass) decides which fragments
+            // count. Clipping here would erase the surfaces that produce the
+            // cap count.
+            modelShader->setVec4("clipPlane", glm::vec4(0.0f));
+
+            glm::vec3 bmn = body->getBoundsMin(), bmx = body->getBoundsMax();
+            glm::mat4 M = body->getTransform();
+            glm::vec3 wmin(1e9f), wmax(-1e9f);
+            for (int ci = 0; ci < 8; ++ci) {
+                glm::vec3 corner((ci & 1) ? bmx.x : bmn.x,
+                                 (ci & 2) ? bmx.y : bmn.y,
+                                 (ci & 4) ? bmx.z : bmn.z);
+                glm::vec3 wp = M * glm::vec4(corner, 1.0f);
+                wmin = glm::min(wmin, wp);
+                wmax = glm::max(wmax, wp);
+            }
+            float pad = 0.02f * glm::length(wmax - wmin);
+            wmin -= pad; wmax += pad;
+            int a1 = (sectionAxis + 1) % 3, a2 = (sectionAxis + 2) % 3;
+            glm::vec3 corners[4];
+            for (int i = 0; i < 4; ++i) {
+                glm::vec3 p;
+                p[sectionAxis] = sectionPos;
+                p[a1] = ((i == 0 || i == 3) ? wmin[a1] : wmax[a1]);
+                p[a2] = ((i < 2)            ? wmin[a2] : wmax[a2]);
+                corners[i] = p;
+            }
+
+            glDepthMask(GL_FALSE);              // counting must not write depth
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+            glEnable(GL_STENCIL_TEST);
+            glDisable(GL_CULL_FACE);
+
+            // Ray-parity counting: every surface crossing along the ray from
+            // the camera to the plane flips inside/outside. A cap pixel is
+            // inside material iff the crossing count is ODD. Unclipped
+            // geometry + depth test against the clipped scene limits the
+            // count to crossings between the camera and the plane.
+            glClear(GL_STENCIL_BUFFER_BIT);
+            glStencilFunc(GL_ALWAYS, 1, 0xFF);
+            glStencilOp(GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+            modelShader->setMat4("model", M);
+            modelShader->setInt("renderMode", 0);
+            body->draw();
+
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glDepthMask(GL_TRUE);
+
+            // DIAGNOSTIC: stencil value at viewport center
+            GLint stencilCenter = -1;
+            glReadPixels(fbWidth / 2, fbHeight / 2, 1, 1, GL_STENCIL_INDEX, GL_UNSIGNED_INT, &stencilCenter);
+            static int frame = 0;
+            if ((frame++ % 60) == 0)
+                std::cerr << "[Section] center stencil=" << stencilCenter << std::endl;
+
+            // Cap quad where material exists (stencil count ODD -> bit 0 set).
+            // Also drawn unclipped: fragments exactly ON the plane would be
+            // borderline-clipped otherwise.
+            if (capDebugNoStencil) glStencilFunc(GL_ALWAYS, 1, 0xFF);
+            else                   glStencilFunc(GL_NOTEQUAL, 0, 0x01);
+            glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+            modelShader->setVec4("clipPlane", glm::vec4(0.0f));
+            modelShader->setMat4("model", glm::mat4(1.0f));
+            modelShader->setInt("renderMode", 0);
+            modelShader->setVec3("objectColor", glm::vec3(1.00f, 0.45f, 0.10f)); // cut material color
+            modelShader->setFloat("ambientStrength", 1.0f);
+            modelShader->setFloat("diffuseStrength", 0.0f);
+            modelShader->setFloat("specularStrength", 0.0f);
+            modelShader->setFloat("alphaMultiplier", 1.0f);
+            unsigned int cvao = 0, cvbo = 0;
+            glGenVertexArrays(1, &cvao);
+            glGenBuffers(1, &cvbo);
+            glBindVertexArray(cvao);
+            glBindBuffer(GL_ARRAY_BUFFER, cvbo);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(corners), corners, GL_STREAM_DRAW);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+            glEnableVertexAttribArray(0);
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+            glBindVertexArray(0);
+            glDeleteVertexArrays(1, &cvao);
+            glDeleteBuffers(1, &cvbo);
+
+            glDisable(GL_STENCIL_TEST);
+            modelShader->setVec4("clipPlane", capPlane);  // restore for next body main pass
+
+            // Restore body-pass shader state
+            modelShader->setFloat("ambientStrength", 0.35f);
+            modelShader->setFloat("diffuseStrength", 0.65f);
+            modelShader->setFloat("specularStrength", 0.4f);
+            modelShader->setVec3("objectColor", body->getColor());
+            modelShader->setInt("isSelected", 0);
         }
+        }  // end per-body loop
     }
+
+    // === Section plane indicator (on top of clipped bodies) ===
+    renderSectionPlane();
 
     // === All Sketches (active + finished) ===
     renderSketch();
     renderSketchPreview();
+    renderCutPlaneGrid();
     renderToolPreview();
     renderPlacementPreview();       // Ghost primitive following cursor
     renderFilletEdgeHighlights();   // Hover/selected edge feedback in Fillet mode
@@ -351,7 +474,7 @@ void Viewport3D::renderSketch() {
 
     // Render ALL stored sketches (finished and active) so geometry persists
     for (const auto& sk : scene.getSketches()) {
-        if (!sk) continue;
+        if (!sk || !sk->isVisible()) continue;
         bool isActive   = (sk.get() == scene.getActiveSketch());
         bool isSelected = (sk.get() == selectedSketch && !isActive);
         // Three visual tiers:
@@ -395,6 +518,13 @@ void Viewport3D::renderSketch() {
             }
         }
         if (lines.empty()) continue;
+
+        // Lift lines slightly along the plane normal so sketches drawn ON a
+        // body face stay visible (avoid depth-fighting with the surface)
+        {
+            glm::vec3 lift = glm::vec3(sk->getWorkPlane().getNormal()) * 0.05f;
+            for (auto& p : lines) p += lift;
+        }
 
         // Upload and draw
         if (!sketchVAO) {
@@ -515,6 +645,82 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
                 }
                 return;
             }
+            // ── Boolean body picking ──────────────────────────────────────
+            if (activeTool == Tool3DType::Boolean) {
+                Body3D* hit = pickBody(x, y);
+                if (!hit) {
+                    clearBooleanSelection();
+                } else if (hit == boolBaseBody) {
+                    if (boolToolBody) { boolToolBody = nullptr; rebuildToolPreview(); }
+                    else { boolBaseBody = nullptr; scene.clearSelection(); }
+                } else if (hit == boolToolBody) {
+                    boolToolBody = nullptr;
+                    rebuildToolPreview();
+                } else if (!boolBaseBody) {
+                    boolBaseBody = hit;
+                    scene.selectBody(hit);
+                    rebuildToolPreview();
+                } else {
+                    boolToolBody = hit;  // (re)assign tool body
+                    rebuildToolPreview();
+                }
+                return;
+            }
+            // ── Cut-Extrude: step 0 pick body → step 1 pick face → step 2 draw ──
+            if (activeTool == Tool3DType::CutExtrude && cutStep < 2) {
+                if (cutStep == 0) {
+                    Body3D* hit = pickBody(x, y);
+                    if (hit && hit->hasOCCTShape()) {
+                        cutTarget = hit;
+                        scene.selectBody(hit);
+                        cutStep = 1;
+                    }
+                } else if (cutStep == 1) {
+                    glm::dvec3 pt, nrm;
+                    Body3D* hit = pickFace(x, y, pt, nrm);
+                    if (hit == cutTarget) {
+                        // Sketch plane on the picked face, oriented to the face normal
+                        glm::dvec3 n = glm::normalize(nrm);
+                        glm::dvec3 helper = (std::abs(n.x) < 0.9) ? glm::dvec3(1, 0, 0) : glm::dvec3(0, 1, 0);
+                        glm::dvec3 xDir = glm::normalize(glm::cross(helper, n));
+                        cutPlane = WorkPlane3D(pt, n, xDir);
+                        cutPlane.setName("Face plane");
+                        scene.beginSketch(cutPlane);
+                        cutOwnsSketch = true;
+                        cutStep = 2;
+                        // Start drawing immediately (user can switch tool)
+                        sketchDrawTool = SketchDrawTool::Line;
+                        rebuildCutGrid();
+                    }
+                }
+                return;  // step 2 falls through to sketch drawing below
+            }
+            // ── Pattern: pick the rotation-center body when requested ───────
+            if (activeTool == Tool3DType::Pattern && circCenter == 2) {
+                Body3D* hit = pickBody(x, y);
+                if (hit) {
+                    circCenterBody = hit;
+                    rebuildToolPreview();
+                }
+                return;
+            }
+            // ── Hole: click the selected body's face to place the hole ──────
+            if (activeTool == Tool3DType::Hole) {
+                if (scene.getSelectedBody()) {
+                    glm::dvec3 pt, nrm;
+                    Body3D* hit = pickFace(x, y, pt, nrm);
+                    if (hit == scene.getSelectedBody()) {
+                        // Orient the hole axis toward the viewer
+                        glm::dvec3 rayDir = screenToRay(x, y);
+                        if (glm::dot(nrm, rayDir) > 0) nrm = -nrm;
+                        holeCenter = pt;
+                        holeNormal = nrm;
+                        holePicked = true;
+                        rebuildToolPreview();
+                    }
+                }
+                return;
+            }
             // ── Sketch drawing ────────────────────────────────────────────
             if (scene.isSketchActive() && sketchDrawTool != SketchDrawTool::None) {
                 handleSketchClick(x, y);
@@ -539,9 +745,13 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
                     filletSelectedEdges.clear();
                     filletHoveredEdge = -1;
                 } else {
-                    // No body hit — try picking a sketch
+                    // No body hit — try picking a sketch.
+                    // Clicking the already-selected sketch toggles it off.
                     Sketch3D* sk = pickSketch(x, y);
-                    selectedSketch = sk;
+                    if (sk && sk == selectedSketch)
+                        setSelectedSketch(nullptr);
+                    else
+                        setSelectedSketch(sk);
                 }
             }
         }
@@ -620,16 +830,28 @@ void Viewport3D::handleKey(int key, bool pressed) {
     if (key == 340 || key == 344) shiftDown = pressed;   // Shift L/R
     if (key == 341 || key == 345) ctrlDown  = pressed;   // Ctrl L/R
     if (key == 256 && pressed) {
-        // Escape: cancel placement, finalize spline, or cancel chain
+        // Escape: cancel the most immediate in-progress operation, else exit
+        // the active tool back to Select (consistent for every tool)
         if (activeTool == Tool3DType::PlacePrimitive) {
             cancelPlacement();
         } else if (splineActive) {
             // Finalize accumulated spline → commit Catmull-Rom polyline
             commitSpline();
-        } else if (scene.isSketchActive()) {
+        } else if (scene.isSketchActive() && sketchDrawTool != SketchDrawTool::None) {
+            // Cancel current in-progress sketch segment; the sketch itself is
+            // closed via the Done / Cancel toolbar buttons
             sketchHasFirstPoint = false;
             currentSnapType     = SnapType::None;
+        } else if (activeTool != Tool3DType::Select) {
+            setActiveTool(Tool3DType::Select);
         }
+    }
+    // Gizmo shortcuts (advertised in toolbar tooltips): W/E/R
+    else if (pressed && !scene.isSketchActive() &&
+             activeTool != Tool3DType::PlacePrimitive) {
+        if (key == 119) setActiveTool(Tool3DType::Move);    // W
+        else if (key == 101) setActiveTool(Tool3DType::Rotate); // E
+        else if (key == 114) setActiveTool(Tool3DType::Scale);  // R
     }
 }
 
@@ -760,9 +982,37 @@ std::string Viewport3D::getStatusText() const {
         case Tool3DType::Extrude: text = "Extrude"; break;
         case Tool3DType::Revolve: text = "Revolve"; break;
         case Tool3DType::Fillet:  text = "Fillet"; break;
+        case Tool3DType::Boolean:
+            text = "Boolean";
+            if (boolBaseBody) text += " | Base: " + boolBaseBody->getName();
+            else              text += " | Click the BASE body";
+            if (boolToolBody) text += " | Tool: " + boolToolBody->getName();
+            else if (boolBaseBody) text += " | Click the TOOL body";
+            break;
         case Tool3DType::Move:    text = "Move"; break;
+        case Tool3DType::CutExtrude:
+            text = "Cut-Extrude";
+            if (cutStep == 0)      text += " | Click the target body";
+            else if (cutStep == 1) text += " | Click a face";
+            else                   text += " | Draw profile, then Apply";
+            break;
+        case Tool3DType::Hole:
+            text = "Hole";
+            if (!scene.getSelectedBody()) text += " | Select a body first";
+            else if (!holePicked)         text += " | Click a face of the selected body";
+            else                          text += " | Hole placed";
+            break;
+        case Tool3DType::Pattern:
+            text = (patternKind == PatternKind::Linear) ? "Pattern: Linear" : "Pattern: Circular";
+            if (!scene.getSelectedBody()) text += " | Select a body first";
+            break;
+        case Tool3DType::Mirror:
+            text = "Mirror";
+            if (!scene.getSelectedBody()) text += " | Select a body first";
+            break;
         case Tool3DType::Rotate:  text = "Rotate"; break;
         case Tool3DType::Scale:   text = "Scale"; break;
+        case Tool3DType::PlacePrimitive: text = "Place Primitive"; break;
     }
 
     if (scene.isSketchActive()) {
@@ -1125,6 +1375,12 @@ void Viewport3D::renderSketchPreview() {
 
     if (lines.empty()) return;
 
+    // Lift the rubber-band preview off the plane (matches renderSketch lift)
+    {
+        glm::vec3 lift = glm::vec3(wp.getNormal()) * 0.05f;
+        for (auto& p : lines) p += lift;
+    }
+
     // Upload preview lines to a temp VAO
     if (!previewVAO) {
         glGenVertexArrays(1, &previewVAO);
@@ -1155,11 +1411,151 @@ void Viewport3D::renderSketchPreview() {
     glBindVertexArray(0);
 }
 
-void Viewport3D::setActiveTool(Tool3DType tool) { 
-    if (activeTool != tool) { 
-        activeTool = tool; 
-        rebuildToolPreview(); 
-    } 
+void Viewport3D::validateToolReferences() {
+    // Drop viewport raw pointers that no longer refer to scene-owned objects
+    // (deletion, Clear All, undo of Add/Boolean, ...). Prevents use-after-free.
+    bool baseOk = false, toolOk = false;
+    for (const auto& b : scene.getBodies()) {
+        if (b.get() == boolBaseBody) baseOk = true;
+        if (b.get() == boolToolBody) toolOk = true;
+    }
+    if (!baseOk) boolBaseBody = nullptr;
+    if (!toolOk) boolToolBody = nullptr;
+    if (boolBaseBody && boolBaseBody == boolToolBody) boolToolBody = nullptr;
+
+    bool sketchOk = false;
+    for (const auto& sk : scene.getSketches()) {
+        if (sk.get() == selectedSketch) { sketchOk = true; break; }
+    }
+    if (!sketchOk) selectedSketch = nullptr;
+
+    bool centerOk = false;
+    for (const auto& b : scene.getBodies())
+        if (b.get() == circCenterBody) { centerOk = true; break; }
+    if (!centerOk) circCenterBody = nullptr;
+}
+
+// World-space center of a body (bbox center transformed to world)
+static glm::dvec3 worldCenterOf(const Body3D* b) {
+    return b ? glm::dvec3(b->getTransform() * glm::vec4(b->getCenter(), 1.0f))
+             : glm::dvec3(0.0);
+}
+
+void Viewport3D::onHistoryChanged() {
+    validateToolReferences();
+    // Fillet edge indices refer to the OLD shape's edge list — stale after
+    // any history change that restores/replaces geometry
+    filletSelectedEdges.clear();
+    filletHoveredEdge = -1;
+    rebuildToolPreview();
+}
+
+void Viewport3D::deactivateToolState(Tool3DType previousTool) {
+    // Central per-tool cleanup when switching away from a tool
+    switch (previousTool) {
+        case Tool3DType::Fillet:
+            filletSelectedEdges.clear();
+            filletHoveredEdge = -1;
+            break;
+        case Tool3DType::Boolean:
+            boolBaseBody = nullptr;
+            boolToolBody = nullptr;
+            break;
+        case Tool3DType::Hole:
+            holePicked = false;
+            break;
+        case Tool3DType::Pattern:
+            circCenterBody = nullptr;
+            break;
+        case Tool3DType::CutExtrude:
+            // Discard the in-progress face sketch (we created it) and reset flow
+            if (cutOwnsSketch) {
+                scene.cancelSketch();
+                cutOwnsSketch = false;
+            }
+            if (sketchDrawTool != SketchDrawTool::None && cutStep == 2)
+                sketchDrawTool = SketchDrawTool::None;
+            cutStep = 0;
+            cutTarget = nullptr;
+            cutGridLineCount = 0;
+            break;
+        case Tool3DType::PlacePrimitive:
+            placePrimType = PrimType::None;
+            break;
+        case Tool3DType::Extrude:
+        case Tool3DType::Revolve:
+            // Keep selectedSketch: user may switch back to continue the op
+            break;
+        default:
+            break;
+    }
+}
+
+void Viewport3D::setActiveTool(Tool3DType tool) {
+    if (activeTool != tool) {
+        deactivateToolState(activeTool);
+        activeTool = tool;
+        if (tool == Tool3DType::CutExtrude) {
+            cutStep = 0;          // fresh flow: pick body first
+            cutTarget = nullptr;
+            cutOwnsSketch = false;
+            cutGridLineCount = 0;
+        }
+        // Convenience: when starting Extrude/Revolve with no profile chosen,
+        // adopt the most recent visible sketch so the user sees the ghost
+        // preview immediately (matching "draw → extrude" mental model)
+        if ((tool == Tool3DType::Extrude || tool == Tool3DType::Revolve ||
+             tool == Tool3DType::CutExtrude) &&
+            !selectedSketch && !scene.isSketchActive()) {
+            const auto& sketches = scene.getSketches();
+            for (auto it = sketches.rbegin(); it != sketches.rend(); ++it) {
+                if (*it && (*it)->isVisible() && !(*it)->getShapes().empty()) {
+                    selectedSketch = it->get();
+                    break;
+                }
+            }
+        }
+        rebuildToolPreview();
+    }
+}
+
+// ── Boolean operations ───────────────────────────────────────────────────────
+
+void Viewport3D::beginBoolean(BoolOp op) {
+    boolOpMode = op;
+    boolBaseBody = nullptr;
+    boolToolBody = nullptr;
+    if (activeTool != Tool3DType::Boolean) activeTool = Tool3DType::Boolean;
+    // Convenience: adopt the currently selected body as the base
+    if (scene.getSelectedBody()) {
+        boolBaseBody = scene.getSelectedBody();
+    }
+    rebuildToolPreview();
+}
+
+void Viewport3D::setBoolOpMode(BoolOp op) {
+    if (boolOpMode != op) {
+        boolOpMode = op;
+        rebuildToolPreview();
+    }
+}
+
+void Viewport3D::clearBooleanSelection() {
+    boolBaseBody = nullptr;
+    boolToolBody = nullptr;
+    if (activeTool == Tool3DType::Boolean) rebuildToolPreview();
+}
+
+bool Viewport3D::executeBoolean() {
+    if (!boolBaseBody || !boolToolBody || boolBaseBody == boolToolBody) return false;
+    bool ok = scene.applyBoolean(boolBaseBody, boolToolBody, boolOpMode);
+    if (ok) {
+        boolBaseBody = nullptr;
+        boolToolBody = nullptr;
+        activeTool = Tool3DType::Select;
+        rebuildToolPreview();
+    }
+    return ok;
 }
 
 void Viewport3D::setSelectedSketch(Sketch3D* sk) { 
@@ -1205,7 +1601,9 @@ void Viewport3D::setChamferDistance(float d) {
 }
 
 void Viewport3D::rebuildToolPreview() {
+    validateToolReferences();
     toolPreviewBody.reset();
+    toolPreviewBodies.clear();
 
     if (activeTool == Tool3DType::Extrude) {
         Sketch3D* sketch = selectedSketch ? selectedSketch : scene.getActiveSketch();
@@ -1263,6 +1661,123 @@ void Viewport3D::rebuildToolPreview() {
             toolPreviewBody = std::move(ghost);
         }
         #endif
+    } else if (activeTool == Tool3DType::Boolean) {
+#ifdef USE_OCCT
+        if (boolBaseBody && boolToolBody && boolBaseBody != boolToolBody &&
+            boolBaseBody->hasOCCTShape() && boolToolBody->hasOCCTShape()) {
+            auto ghost = std::make_unique<Body3D>();
+            // Start from the base body's world-space shape
+            ghost->setOCCTShape(boolBaseBody->getWorldShape());
+            if (ghost->applyBooleanFromWorldShapes(boolToolBody->getWorldShape(), boolOpMode)) {
+                ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f)); // purple ghost
+                ghost->uploadToGPU();
+                toolPreviewBody = std::move(ghost);
+            }
+        }
+#endif
+    } else if (activeTool == Tool3DType::CutExtrude) {
+        // Red ghost prism: the material that will be cut away (into the face)
+        Sketch3D* sketch = scene.getActiveSketch();
+        if (cutStep == 2 && sketch && cutTarget) {
+            auto profile = sketch->toWireProfile();
+            if (profile.size() >= 3) {
+                glm::dvec3 dir = -cutPlane.getNormal();  // into the body
+                glm::vec3 sz = cutTarget->getBoundsMax() - cutTarget->getBoundsMin();
+                double diag = glm::length(sz);
+                double margin = diag * 0.01 + 0.05;
+                double dist = cutDepth;
+                double preShift = 0.0;
+                if (cutDirMode == CutDirMode::ThroughAll) {
+                    preShift = margin;
+                    dist = diag + margin + 1.0;
+                }
+                for (auto& p : profile) p -= dir * preShift;
+
+                auto ghost = std::make_unique<Body3D>();
+                if (ghost->extrudeProfile(profile, dir, dist)) {
+                    ghost->setColor(glm::vec3(0.95f, 0.25f, 0.25f)); // red = remove
+                    ghost->uploadToGPU();
+                    toolPreviewBody = std::move(ghost);
+                }
+            }
+        }
+    } else if (activeTool == Tool3DType::Hole) {
+        // Red ghost cylinder(s) along the picked face normal
+        if (holePicked) {
+            glm::dvec3 inDir = -holeNormal;   // into the body
+            double diag = 0.0;
+            for (const auto& b : scene.getBodies()) {
+                glm::vec3 sz = b->getBoundsMax() - b->getBoundsMin();
+                diag = std::max<double>(diag, glm::length(sz));
+            }
+            auto addCutGhost = [&](const glm::dvec3& startCenter, double dia, double depth) {
+                auto ghost = std::make_unique<Body3D>();
+                auto profile = Body3D::circleProfileWorld(startCenter, inDir, dia * 0.5);
+                if (ghost->extrudeProfile(profile, inDir, depth)) {
+                    ghost->setColor(glm::vec3(0.95f, 0.25f, 0.25f));
+                    ghost->uploadToGPU();
+                    toolPreviewBodies.push_back(std::move(ghost));
+                }
+            };
+            if (holeType == HoleType::Through) {
+                addCutGhost(holeCenter, holeDia, 2.0 * diag + 10.0);
+            } else if (holeType == HoleType::Blind) {
+                addCutGhost(holeCenter, holeDia, holeDepth);
+            } else {  // Counterbore: main hole + wide shallow recess
+                addCutGhost(holeCenter, holeDia, 2.0 * diag + 10.0);
+                addCutGhost(holeCenter, cboreDia, cboreDepth);
+            }
+        }
+    } else if (activeTool == Tool3DType::Pattern) {
+        // Translucent ghost copies
+        Body3D* base = scene.getSelectedBody();
+        if (base && base->hasOCCTShape()) {
+            int count = (patternKind == PatternKind::Linear) ? linCount : circCount;
+            for (int i = 1; i < count; ++i) {
+                glm::mat4 off(1.0f);
+                if (patternKind == PatternKind::Linear) {
+                    glm::vec3 axes[3] = {{1,0,0},{0,1,0},{0,0,1}};
+                    off = glm::translate(glm::mat4(1.0f),
+                                         axes[linAxis] * (linSpacing * (float)i));
+                } else {
+                    glm::vec3 axes[3] = {{1,0,0},{0,1,0},{0,0,1}};
+                    glm::dvec3 c = (circCenter == 1) ? worldCenterOf(base)
+                                 : (circCenter == 2) ? worldCenterOf(circCenterBody)
+                                 : glm::dvec3(0.0);
+                    glm::mat4 toC = glm::translate(glm::mat4(1.0f), glm::vec3(c));
+                    glm::mat4 rot = glm::rotate(glm::mat4(1.0f),
+                                                (2.0f * glm::pi<float>() * i) / count,
+                                                axes[circAxis]);
+                    off = toC * rot * glm::inverse(toC);
+                }
+                auto ghost = std::make_unique<Body3D>();
+                ghost->setOCCTShape(base->getOCCTShape());
+                ghost->setTransform(base->getTransform() * off);
+                ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f));
+                ghost->uploadToGPU();
+                toolPreviewBodies.push_back(std::move(ghost));
+            }
+        }
+    } else if (activeTool == Tool3DType::Mirror) {
+        // Ghost mirrored copy (display transform — reflection is fine for preview)
+        Body3D* base = scene.getSelectedBody();
+        if (base && base->hasOCCTShape()) {
+            glm::mat4 m(1.0f);
+            if (mirrorPlane == 0)      m = glm::scale(glm::mat4(1.0f), glm::vec3(-1, 1, 1));
+            else if (mirrorPlane == 1) m = glm::scale(glm::mat4(1.0f), glm::vec3(1, -1, 1));
+            else                       m = glm::scale(glm::mat4(1.0f), glm::vec3(1, 1, -1));
+            // Offset the mirror plane along its normal
+            if (mirrorPlane == 0)      m[3].x = 2.0f * mirrorOffset;
+            else if (mirrorPlane == 1) m[3].y = 2.0f * mirrorOffset;
+            else                       m[3].z = 2.0f * mirrorOffset;
+
+            auto ghost = std::make_unique<Body3D>();
+            ghost->setOCCTShape(base->getOCCTShape());
+            ghost->setTransform(m * base->getTransform());
+            ghost->setColor(glm::vec3(0.4f, 0.7f, 1.0f));
+            ghost->uploadToGPU();
+            toolPreviewBody = std::move(ghost);
+        }
     } else if (activeTool == Tool3DType::PlacePrimitive) {
         auto ghost = std::make_unique<Body3D>();
         #ifdef USE_OCCT
@@ -1271,30 +1786,35 @@ void Viewport3D::rebuildToolPreview() {
                 case PrimType::Box: {
                     BRepPrimAPI_MakeBox box(placeP1, placeP2, placeP3);
                     box.Build(); if(box.IsDone()) ghost->setOCCTShape(box.Shape());
-                    // Center box origin
-                    glm::mat4 offset = glm::translate(glm::mat4(1.0f), glm::vec3(-placeP1*0.5, 0, -placeP3*0.5));
+                    // Click point = box CENTER (all three axes)
+                    glm::mat4 offset = glm::translate(glm::mat4(1.0f), glm::vec3(-placeP1*0.5, -placeP2*0.5, -placeP3*0.5));
                     ghost->setTransform(offset);
                     break;
                 }
                 case PrimType::Cylinder: {
-                    BRepPrimAPI_MakeCylinder cyl(placeP1, placeP2);
+                    glm::vec3 axes[3] = {{1,0,0},{0,1,0},{0,0,1}};
+                    glm::vec3 ax = axes[cylAxis];
+                    BRepPrimAPI_MakeCylinder cyl(gp_Ax2(gp_Pnt(0,0,0), gp_Dir(ax.x, ax.y, ax.z)), placeP1, placeP2);
                     cyl.Build(); if(cyl.IsDone()) ghost->setOCCTShape(cyl.Shape());
+                    // Click point = axis midpoint of the height
+                    ghost->setTransform(glm::translate(glm::mat4(1.0f), -ax * (float)(placeP2 * 0.5)));
                     break;
                 }
                 case PrimType::Sphere: {
                     BRepPrimAPI_MakeSphere sph(placeP1);
                     sph.Build(); if(sph.IsDone()) ghost->setOCCTShape(sph.Shape());
-                    glm::mat4 offset = glm::translate(glm::mat4(1.0f), glm::vec3(0, placeP1, 0));
-                    ghost->setTransform(offset);
+                    // Click point = sphere center (local origin — no offset)
                     break;
                 }
                 case PrimType::Cone: {
-                    BRepPrimAPI_MakeCone cone(placeP1, placeP2, placeP3);
+                    BRepPrimAPI_MakeCone cone(gp_Ax2(gp_Pnt(0,0,0), gp_Dir(0,1,0)), placeP1, placeP2, placeP3);
                     cone.Build(); if(cone.IsDone()) ghost->setOCCTShape(cone.Shape());
+                    // Click point = height midpoint (consistent with cylinder)
+                    ghost->setTransform(glm::translate(glm::mat4(1.0f), glm::vec3(0, -placeP3*0.5, 0)));
                     break;
                 }
                 case PrimType::Torus: {
-                    BRepPrimAPI_MakeTorus tor(placeP1, placeP2);
+                    BRepPrimAPI_MakeTorus tor(gp_Ax2(gp_Pnt(0,0,0), gp_Dir(0,1,0)), placeP1, placeP2);
                     tor.Build(); if(tor.IsDone()) ghost->setOCCTShape(tor.Shape());
                     break;
                 }
@@ -1311,7 +1831,8 @@ void Viewport3D::rebuildToolPreview() {
 }
 
 void Viewport3D::renderToolPreview() {
-    if (!toolPreviewBody || !modelShader) return;
+    if (!modelShader) return;
+    if (!toolPreviewBody && toolPreviewBodies.empty()) return;
 
     float aspect = (float)fbWidth / (float)fbHeight;
     glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 1000.0f);
@@ -1326,37 +1847,42 @@ void Viewport3D::renderToolPreview() {
     modelShader->setMat4("projection", proj);
     modelShader->setMat4("view", view);
 
-    glm::mat4 modelMat = toolPreviewBody->getTransform();
-    if (activeTool == Tool3DType::PlacePrimitive) {
-        modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(placementCursorWorld)) * modelMat;
-    }
-    modelShader->setMat4("model", modelMat);
-    modelShader->setInt("renderMode", 0); // shaded mode
-    modelShader->setInt("isSelected", 0);
-    modelShader->setVec4("clipPlane", glm::vec4(0));
+    auto drawGhost = [&](Body3D* ghost) {
+        glm::mat4 modelMat = ghost->getTransform();
+        if (activeTool == Tool3DType::PlacePrimitive) {
+            modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(placementCursorWorld)) * modelMat;
+        }
+        modelShader->setMat4("model", modelMat);
+        modelShader->setInt("renderMode", 0); // shaded mode
+        modelShader->setInt("isSelected", 0);
+        modelShader->setVec4("clipPlane", glm::vec4(0));
 
-    // Ghost visual parameters
-    modelShader->setFloat("ambientStrength", 0.4f);
-    modelShader->setFloat("diffuseStrength", 0.5f);
-    modelShader->setFloat("specularStrength", 0.1f);
-    // Overwrite the body's color to be transparent
-    modelShader->setVec3("objectColor", toolPreviewBody->getColor());
-    modelShader->setFloat("alphaMultiplier", 0.6f);
+        // Ghost visual parameters
+        modelShader->setFloat("ambientStrength", 0.4f);
+        modelShader->setFloat("diffuseStrength", 0.5f);
+        modelShader->setFloat("specularStrength", 0.1f);
+        // Overwrite the body's color to be transparent
+        modelShader->setVec3("objectColor", ghost->getColor());
+        modelShader->setFloat("alphaMultiplier", 0.6f);
 
-    toolPreviewBody->draw();
+        ghost->draw();
 
-    // Also draw its wireframe strongly
-    modelShader->setInt("renderMode", 1); // line mode
-    modelShader->setVec3("objectColor", toolPreviewBody->getColor() * 1.2f);
-    modelShader->setFloat("alphaMultiplier", 1.0f);
-    
-    glLineWidth(2.0f);
-    toolPreviewBody->drawEdges();
-    glLineWidth(1.0f);
+        // Also draw its wireframe strongly
+        modelShader->setInt("renderMode", 1); // line mode
+        modelShader->setVec3("objectColor", ghost->getColor() * 1.2f);
+        modelShader->setFloat("alphaMultiplier", 1.0f);
+
+        glLineWidth(2.0f);
+        ghost->drawEdges();
+        glLineWidth(1.0f);
+    };
+
+    if (toolPreviewBody) drawGhost(toolPreviewBody.get());
+    for (auto& ghost : toolPreviewBodies) drawGhost(ghost.get());
 
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
-    
+
     // Restore shader globals
     modelShader->setFloat("ambientStrength", 0.35f);
     modelShader->setFloat("diffuseStrength", 0.65f);
@@ -1370,7 +1896,7 @@ void Viewport3D::renderToolPreview() {
 
 Body3D* Viewport3D::createBox(double dx, double dy, double dz) {
     auto body = std::make_unique<Body3D>();
-    body->setName("Box");
+    body->setName("Box"); body->setKind("Box");
 
 #ifdef USE_OCCT
     try {
@@ -1382,7 +1908,11 @@ Body3D* Viewport3D::createBox(double dx, double dy, double dz) {
     } catch (...) {}
 #endif
 
-    // Fallback: build a simple box mesh if no OCCT
+#ifdef USE_OCCT
+    if (body->hasOCCTShape())
+        body->tessellateFromOCCT();   // build display mesh from the real B-Rep
+#endif
+    // Fallback only when there is genuinely no OCCT shape
     if (body->getVertices().empty()) {
         std::vector<glm::dvec3> profile = {
             {0, 0, 0}, {dx, 0, 0}, {dx, dy, 0}, {0, dy, 0}
@@ -1400,11 +1930,13 @@ Body3D* Viewport3D::createBox(double dx, double dy, double dz) {
 
 Body3D* Viewport3D::createCylinder(double radius, double height) {
     auto body = std::make_unique<Body3D>();
-    body->setName("Cylinder");
+    body->setName("Cylinder"); body->setKind("Cylinder");
 
 #ifdef USE_OCCT
     try {
-        BRepPrimAPI_MakeCylinder cyl(radius, height);
+        glm::vec3 cylAx[3] = {{1,0,0},{0,1,0},{0,0,1}};
+        glm::vec3 ca = cylAx[cylAxis];
+        BRepPrimAPI_MakeCylinder cyl(gp_Ax2(gp_Pnt(0,0,0), gp_Dir(ca.x, ca.y, ca.z)), radius, height);
         cyl.Build();
         if (cyl.IsDone()) {
             body->setOCCTShape(cyl.Shape());
@@ -1412,6 +1944,10 @@ Body3D* Viewport3D::createCylinder(double radius, double height) {
     } catch (...) {}
 #endif
 
+#ifdef USE_OCCT
+    if (body->hasOCCTShape())
+        body->tessellateFromOCCT();   // build display mesh from the real B-Rep
+#endif
     if (body->getVertices().empty()) {
         // Fallback: circular profile extruded
         const int segs = 64;
@@ -1433,7 +1969,7 @@ Body3D* Viewport3D::createCylinder(double radius, double height) {
 
 Body3D* Viewport3D::createSphere(double radius) {
     auto body = std::make_unique<Body3D>();
-    body->setName("Sphere");
+    body->setName("Sphere"); body->setKind("Sphere");
 
 #ifdef USE_OCCT
     try {
@@ -1445,6 +1981,10 @@ Body3D* Viewport3D::createSphere(double radius) {
     } catch (...) {}
 #endif
 
+#ifdef USE_OCCT
+    if (body->hasOCCTShape())
+        body->tessellateFromOCCT();   // build display mesh from the real B-Rep
+#endif
     if (body->getVertices().empty()) {
         // Fallback: revolve a half-circle
         const int segs = 32;
@@ -1466,11 +2006,11 @@ Body3D* Viewport3D::createSphere(double radius) {
 
 Body3D* Viewport3D::createCone(double r1, double r2, double height) {
     auto body = std::make_unique<Body3D>();
-    body->setName("Cone");
+    body->setName("Cone"); body->setKind("Cone");
 
 #ifdef USE_OCCT
     try {
-        BRepPrimAPI_MakeCone cone(r1, r2, height);
+        BRepPrimAPI_MakeCone cone(gp_Ax2(gp_Pnt(0,0,0), gp_Dir(0,1,0)), r1, r2, height);
         cone.Build();
         if (cone.IsDone()) {
             body->setOCCTShape(cone.Shape());
@@ -1478,6 +2018,10 @@ Body3D* Viewport3D::createCone(double r1, double r2, double height) {
     } catch (...) {}
 #endif
 
+#ifdef USE_OCCT
+    if (body->hasOCCTShape())
+        body->tessellateFromOCCT();   // build display mesh from the real B-Rep
+#endif
     if (body->getVertices().empty()) {
         // Fallback: revolve a trapezoid profile
         std::vector<glm::dvec3> profile = {
@@ -1496,11 +2040,11 @@ Body3D* Viewport3D::createCone(double r1, double r2, double height) {
 
 Body3D* Viewport3D::createTorus(double majorR, double minorR) {
     auto body = std::make_unique<Body3D>();
-    body->setName("Torus");
+    body->setName("Torus"); body->setKind("Torus");
 
 #ifdef USE_OCCT
     try {
-        BRepPrimAPI_MakeTorus torus(majorR, minorR);
+        BRepPrimAPI_MakeTorus torus(gp_Ax2(gp_Pnt(0,0,0), gp_Dir(0,1,0)), majorR, minorR);
         torus.Build();
         if (torus.IsDone()) {
             body->setOCCTShape(torus.Shape());
@@ -1508,6 +2052,10 @@ Body3D* Viewport3D::createTorus(double majorR, double minorR) {
     } catch (...) {}
 #endif
 
+#ifdef USE_OCCT
+    if (body->hasOCCTShape())
+        body->tessellateFromOCCT();   // build display mesh from the real B-Rep
+#endif
     if (body->getVertices().empty()) {
         // Fallback: revolve a circle around an offset axis
         const int segs = 32;
@@ -1828,9 +2376,16 @@ void Viewport3D::cancelPlacement() {
 }
 
 Body3D* Viewport3D::commitPlacement(glm::dvec3 pos) {
-    // Create at origin then translate to pos
+    // Create at origin then translate to pos — applying the SAME offsets the
+    // placement ghost preview uses (rebuildToolPreview), so the body lands
+    // exactly where the preview showed it:
+    //   Box    → centered on the cursor, resting on the ground
+    //   Sphere → resting on the ground (center lifted by radius)
+    //   Cylinder/Cone/Torus → base/center at the cursor (no preview offset)
+    PrimType type = placePrimType;
+    std::cerr << "[Placement] type=" << (int)type << " pos=(" << pos.x << "," << pos.y << "," << pos.z << ")" << std::endl;
     Body3D* body = nullptr;
-    switch (placePrimType) {
+    switch (type) {
         case PrimType::Box:      body = createBox(placeP1, placeP2, placeP3); break;
         case PrimType::Cylinder: body = createCylinder(placeP1, placeP2); break;
         case PrimType::Sphere:   body = createSphere(placeP1); break;
@@ -1839,9 +2394,39 @@ Body3D* Viewport3D::commitPlacement(glm::dvec3 pos) {
         default: break;
     }
     if (body) {
-        glm::mat4 t = body->getTransform();
-        t[3] = glm::vec4(glm::vec3(pos), 1.0f);
+        // Click-point semantics (must match the ghost previews above):
+        //   Box      -> centered on the click in ALL three axes
+        //   Cylinder -> click is the axis midpoint of the height
+        //   Sphere   -> click is the sphere center
+        //   Cone     -> click is the height midpoint (consistent with cylinder)
+        glm::mat4 offset(1.0f);
+        if (type == PrimType::Box)
+            offset = glm::translate(glm::mat4(1.0f),
+                                    glm::vec3(-placeP1 * 0.5, -placeP2 * 0.5, -placeP3 * 0.5));
+        else if (type == PrimType::Cylinder) {
+            glm::vec3 axes[3] = {{1,0,0},{0,1,0},{0,0,1}};
+            offset = glm::translate(glm::mat4(1.0f),
+                                    -axes[cylAxis] * (float)(placeP2 * 0.5));
+        }
+        else if (type == PrimType::Cone)
+            offset = glm::translate(glm::mat4(1.0f), glm::vec3(0.0, -placeP3 * 0.5, 0.0));
+        // Sphere/Torus: local center already at the click — no offset
+
+        glm::mat4 t = glm::translate(glm::mat4(1.0f), glm::vec3(pos)) * offset;
         body->setTransform(t);
+        // Diagnostic: committed world AABB (axis-aligned extremes)
+        glm::vec3 bmn = body->getBoundsMin(), bmx = body->getBoundsMax();
+        glm::vec3 wmin(1e9f), wmax(-1e9f);
+        for (int ci = 0; ci < 8; ++ci) {
+            glm::vec3 corner((ci & 1) ? bmx.x : bmn.x,
+                             (ci & 2) ? bmx.y : bmn.y,
+                             (ci & 4) ? bmx.z : bmn.z);
+            glm::vec3 w = t * glm::vec4(corner, 1.0f);
+            wmin = glm::min(wmin, w);
+            wmax = glm::max(wmax, w);
+        }
+        std::cerr << "[Placement] committed bbox min=(" << wmin.x << "," << wmin.y << "," << wmin.z
+                  << ") max=(" << wmax.x << "," << wmax.y << "," << wmax.z << ")" << std::endl;
         scene.selectBody(body);
     }
     placePrimType = PrimType::None;
@@ -1911,8 +2496,350 @@ int Viewport3D::pickEdge(float screenX, float screenY) const {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Fillet Edge GL Highlight — draws full OCCT edge polylines
+// Face picking (ray-triangle over display meshes) — Hole tool
 // ─────────────────────────────────────────────────────────────────────────────
+
+Body3D* Viewport3D::pickFace(float screenX, float screenY, glm::dvec3& outPoint,
+                             glm::dvec3& outNormal) const {
+    if (!camera || fbWidth <= 0) return nullptr;
+    glm::dvec3 rayDir = screenToRay(screenX, screenY);
+    glm::dvec3 rayOri(camera->Position);
+
+    Body3D* best = nullptr;
+    double bestT = std::numeric_limits<double>::max();
+
+    for (const auto& body : scene.getBodies()) {
+        if (!body->isVisible()) continue;
+        const auto& verts = body->getVertices();
+        const auto& tris = body->getTriangles();
+        if (tris.empty()) continue;
+
+        glm::mat4 M = body->getTransform();
+        for (const auto& tri : tris) {
+            if (tri.v0 >= verts.size() || tri.v1 >= verts.size() || tri.v2 >= verts.size())
+                continue;
+            glm::dvec3 a = M * glm::vec4(verts[tri.v0].position, 1.0f);
+            glm::dvec3 b = M * glm::vec4(verts[tri.v1].position, 1.0f);
+            glm::dvec3 c = M * glm::vec4(verts[tri.v2].position, 1.0f);
+
+            // Möller–Trumbore
+            glm::dvec3 e1 = b - a, e2 = c - a;
+            glm::dvec3 p = glm::cross(rayDir, e2);
+            double det = glm::dot(e1, p);
+            if (std::abs(det) < 1e-12) continue;
+            double invDet = 1.0 / det;
+            glm::dvec3 s = rayOri - a;
+            double u = glm::dot(s, p) * invDet;
+            if (u < 0.0 || u > 1.0) continue;
+            glm::dvec3 q = glm::cross(s, e1);
+            double v = glm::dot(rayDir, q) * invDet;
+            if (v < 0.0 || u + v > 1.0) continue;
+            double t = glm::dot(e2, q) * invDet;
+            if (t > 1e-9 && t < bestT) {
+                bestT = t;
+                best = body.get();
+                outPoint = rayOri + rayDir * t;
+                outNormal = glm::normalize(glm::cross(e1, e2));
+            }
+        }
+    }
+    return best;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Face-plane grid (Cut-Extrude): visual surface grid to draw the profile on
+// ─────────────────────────────────────────────────────────────────────────────
+
+void Viewport3D::rebuildCutGrid() {
+    if (cutGridVAO) {
+        glDeleteVertexArrays(1, &cutGridVAO);
+        glDeleteBuffers(1, &cutGridVBO);
+        cutGridVAO = cutGridVBO = 0;
+    }
+    cutGridLineCount = 0;
+
+    glm::dvec3 n = cutPlane.getNormal();
+    glm::dvec3 u = cutPlane.getXDirection();
+    glm::dvec3 v = cutPlane.getYDirection();
+    glm::dvec3 origin = cutPlane.getOrigin();
+
+    // Grid extent scales with the target body
+    double extent = 10.0;
+    if (cutTarget) {
+        glm::vec3 sz = cutTarget->getBoundsMax() - cutTarget->getBoundsMin();
+        extent = std::max<double>(glm::length(sz) * 0.75, 5.0);
+    }
+    const int half = 6;                    // lines each direction
+    double spacing = extent / half;
+    // Lift along the normal so the grid doesn't z-fight with the face
+    // (must match the sketch-line lift of 0.05 in renderSketch)
+    glm::dvec3 lift = n * 0.05;
+    glm::dvec3 base = origin - u * extent - v * extent + lift;
+
+    std::vector<float> lines;
+    lines.reserve((half * 2 + 1) * 2 * 2 * 6);
+    for (int i = -half; i <= half; ++i) {
+        double d = i * spacing;
+        // line along u, offset along v
+        glm::dvec3 a = base + v * double(i + half) * spacing;
+        glm::dvec3 b = a + u * (2.0 * extent);
+        lines.insert(lines.end(), { (float)a.x, (float)a.y, (float)a.z,
+                                    (float)b.x, (float)b.y, (float)b.z });
+        // line along v, offset along u
+        glm::dvec3 c = base + u * double(i + half) * spacing;
+        glm::dvec3 d2 = c + v * (2.0 * extent);
+        lines.insert(lines.end(), { (float)c.x, (float)c.y, (float)c.z,
+                                    (float)d2.x, (float)d2.y, (float)d2.z });
+    }
+    cutGridLineCount = (int)lines.size() / 3;
+
+    glGenVertexArrays(1, &cutGridVAO);
+    glGenBuffers(1, &cutGridVBO);
+    glBindVertexArray(cutGridVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, cutGridVBO);
+    glBufferData(GL_ARRAY_BUFFER, lines.size() * sizeof(float), lines.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+}
+
+void Viewport3D::renderCutPlaneGrid() {
+    if (activeTool != Tool3DType::CutExtrude || cutStep != 2) return;
+    if (!cutGridVAO || cutGridLineCount == 0 || !modelShader) return;
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 20000.0f);
+    glm::mat4 view = camera->GetViewMatrix();
+
+    modelShader->use();
+    modelShader->setMat4("projection", proj);
+    modelShader->setMat4("view", view);
+    modelShader->setMat4("model", glm::mat4(1.0f));
+    modelShader->setInt("renderMode", 1);
+    modelShader->setInt("isSelected", 0);
+    modelShader->setVec4("clipPlane", glm::vec4(0));
+    modelShader->setFloat("ambientStrength", 1.0f);
+    modelShader->setFloat("diffuseStrength", 0.0f);
+    modelShader->setFloat("specularStrength", 0.0f);
+
+    // Slight transparency so the face is still visible through the grid
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    modelShader->setFloat("alphaMultiplier", 0.55f);
+    modelShader->setVec3("objectColor", glm::vec3(0.30f, 0.75f, 1.00f)); // cyan grid
+
+    glLineWidth(1.5f);
+    glBindVertexArray(cutGridVAO);
+    glDrawArrays(GL_LINES, 0, cutGridLineCount);
+    glBindVertexArray(0);
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    modelShader->setFloat("alphaMultiplier", 1.0f);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section View: camera-facing clip plane (cuts away the half facing the
+// camera so the cut opening is always visible) + translucent indicator
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Plane keeps the half AWAY from the camera (or toward it when flipped).
+// Shader keeps fragments where dot(P, plane.xyz) + plane.w >= 0.
+glm::vec4 Viewport3D::computeSectionPlane() const {
+    glm::vec3 n(0.0f);
+    n[sectionAxis] = 1.0f;
+    glm::vec3 pt(0.0f);
+    pt[sectionAxis] = sectionPos;
+    float side = (glm::dot(glm::vec3(camera->Position) - pt, n) >= 0.0f) ? 1.0f : -1.0f;
+    if (sectionFlip) side = -side;
+    n *= side;
+    return glm::vec4(-n, glm::dot(n, pt));
+}
+
+void Viewport3D::renderSectionPlane() {
+    if (!sectionEnabled || !modelShader || scene.getBodyCount() == 0) return;
+
+    // World AABB across all bodies (transform each local bbox corner)
+    glm::vec3 wmin(1e9f), wmax(-1e9f);
+    for (const auto& b : scene.getBodies()) {
+        if (!b->isVisible()) continue;
+        glm::mat4 M = b->getTransform();
+        glm::vec3 bmn = b->getBoundsMin(), bmx = b->getBoundsMax();
+        for (int ci = 0; ci < 8; ++ci) {
+            glm::vec3 corner((ci & 1) ? bmx.x : bmn.x,
+                             (ci & 2) ? bmx.y : bmn.y,
+                             (ci & 4) ? bmx.z : bmn.z);
+            glm::vec3 w = M * glm::vec4(corner, 1.0f);
+            wmin = glm::min(wmin, w);
+            wmax = glm::max(wmax, w);
+        }
+    }
+    if (wmin.x > wmax.x) return;
+
+    // Nothing to clip when the plane is outside the scene bounds
+    float axisMin = (sectionAxis == 0) ? wmin.x : (sectionAxis == 1) ? wmin.y : wmin.z;
+    float axisMax = (sectionAxis == 0) ? wmax.x : (sectionAxis == 1) ? wmax.y : wmax.z;
+    if (sectionPos < axisMin || sectionPos > axisMax) return;
+
+    // Plane indicator is a GRID (lines only) so the section view underneath
+    // stays fully visible — a filled quad would cover the cut face.
+    glm::vec3 corners[4];
+    float pad = 0.08f * glm::length(wmax - wmin);
+    int a1 = (sectionAxis + 1) % 3, a2 = (sectionAxis + 2) % 3;
+    for (int i = 0; i < 4; ++i) {
+        glm::vec3 p;
+        p[sectionAxis] = sectionPos;
+        p[a1] = ((i == 0 || i == 3) ? wmin[a1] - pad : wmax[a1] + pad);
+        p[a2] = ((i < 2)          ? wmin[a2] - pad : wmax[a2] + pad);
+        corners[i] = p;
+    }
+    const int gridN = 10;   // cells per side
+    std::vector<glm::vec3> gridLines;
+    gridLines.reserve((gridN + 1) * 2 * 2);
+    for (int i = 0; i <= gridN; ++i) {
+        float t = (float)i / gridN;
+        // lines parallel to a2 edge (vary a1)
+        glm::vec3 p1 = corners[0] + (corners[1] - corners[0]) * t;
+        glm::vec3 p2 = corners[3] + (corners[2] - corners[3]) * t;
+        gridLines.push_back(p1); gridLines.push_back(p2);
+        // lines parallel to a1 edge (vary a2)
+        glm::vec3 p3 = corners[0] + (corners[3] - corners[0]) * t;
+        glm::vec3 p4 = corners[1] + (corners[2] - corners[1]) * t;
+        gridLines.push_back(p3); gridLines.push_back(p4);
+    }
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 20000.0f);
+    glm::mat4 view = camera->GetViewMatrix();
+
+    modelShader->use();
+    modelShader->setMat4("projection", proj);
+    modelShader->setMat4("view", view);
+    modelShader->setMat4("model", glm::mat4(1.0f));
+    modelShader->setInt("renderMode", 0);
+    modelShader->setInt("isSelected", 0);
+    modelShader->setVec4("clipPlane", glm::vec4(0));
+    modelShader->setFloat("ambientStrength", 1.0f);
+    modelShader->setFloat("diffuseStrength", 0.0f);
+    modelShader->setFloat("specularStrength", 0.0f);
+
+    // Upload grid lines (streaming)
+    unsigned int vao = 0, vbo = 0;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, gridLines.size() * sizeof(glm::vec3),
+                 gridLines.data(), GL_STREAM_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+
+    modelShader->setInt("renderMode", 1);
+    modelShader->setVec3("objectColor", glm::vec3(0.35f, 0.80f, 1.00f));
+    modelShader->setFloat("alphaMultiplier", 0.45f);
+    glLineWidth(1.5f);
+    glDrawArrays(GL_LINES, 0, (GLsizei)gridLines.size());
+    glLineWidth(1.0f);
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    modelShader->setFloat("alphaMultiplier", 1.0f);
+    glBindVertexArray(0);
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tool execution: Cut-Extrude / Hole / Pattern / Mirror
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool Viewport3D::executeCutExtrude() {
+    Sketch3D* sketch = scene.getActiveSketch();
+    if (!cutTarget || !sketch || !cutTarget->hasOCCTShape()) return false;
+
+    // Cut INTO the body: from the picked face along -faceNormal
+    glm::dvec3 dir = -cutPlane.getNormal();
+    glm::vec3 sz = cutTarget->getBoundsMax() - cutTarget->getBoundsMin();
+    double diag = glm::length(sz);
+    double margin = diag * 0.01 + 0.05;   // start just outside the face to
+                                          // avoid coplanar-face cut artifacts
+    double dist = cutDepth;
+    double preShift = 0.0;
+    if (cutDirMode == CutDirMode::ThroughAll) {
+        // Through this body only: exactly one body-length past the face
+        preShift = margin;
+        dist = diag + margin + 1.0;
+    }
+
+    bool ok = scene.applyCutExtrude(cutTarget, sketch, dir, dist, preShift);
+    if (ok) {
+        sketchDrawTool = SketchDrawTool::None;
+        cutOwnsSketch = false;
+        activeTool = Tool3DType::Select;
+        cutStep = 0;
+        cutTarget = nullptr;
+        cutGridLineCount = 0;
+        rebuildToolPreview();
+    }
+    return ok;
+}
+
+void Viewport3D::beginHole() {
+    if (activeTool == Tool3DType::Hole) {
+        activeTool = Tool3DType::Select;   // icon clicked again → toggle off
+        rebuildToolPreview();
+        return;
+    }
+    holePicked = false;
+    activeTool = Tool3DType::Hole;
+    rebuildToolPreview();
+}
+
+bool Viewport3D::executeHole() {
+    Body3D* target = scene.getSelectedBody();
+    if (!target || !holePicked) return false;
+    bool ok = scene.applyHole(target, holeCenter, holeNormal, holeType,
+                              holeDia, holeDepth, cboreDia, cboreDepth);
+    if (ok) {
+        holePicked = false;
+        activeTool = Tool3DType::Select;
+        rebuildToolPreview();
+    }
+    return ok;
+}
+
+bool Viewport3D::executePattern() {
+    Body3D* target = scene.getSelectedBody();
+    if (!target) return false;
+    glm::dvec3 centerPt = (circCenter == 1) ? worldCenterOf(target)
+                        : (circCenter == 2) ? worldCenterOf(circCenterBody)
+                        : glm::dvec3(0.0);
+    bool ok = scene.applyPattern(target, patternKind, linAxis, linCount, linSpacing,
+                                 circAxis, circCount, centerPt);
+    if (ok) {
+        activeTool = Tool3DType::Select;
+        rebuildToolPreview();
+    }
+    return ok;
+}
+
+bool Viewport3D::executeMirror() {
+    Body3D* target = scene.getSelectedBody();
+    if (!target) return false;
+    bool ok = scene.applyMirror(target, mirrorPlane, mirrorOffset, mirrorFuse);
+    if (ok) {
+        activeTool = Tool3DType::Select;
+        rebuildToolPreview();
+    }
+    return ok;
+}
+
+
 
 void Viewport3D::renderFilletEdgeHighlights() {
     if (activeTool != Tool3DType::Fillet) return;
@@ -2017,7 +2944,7 @@ Sketch3D* Viewport3D::pickSketch(float screenX, float screenY) const {
     glm::vec2 cursor(screenX, screenY);
 
     for (const auto& sk : scene.getSketches()) {
-        if (!sk) continue;
+        if (!sk || !sk->isVisible()) continue;  // hidden = consumed by an op
         const WorkPlane3D& wp = sk->getWorkPlane();
         for (const auto& shape : sk->getShapes()) {
             if (shape->type == Drawing::ShapeType::LINE) {

@@ -25,6 +25,13 @@ static bool TIconBtn(const char* iconName, const char* fallback, const char* tip
     return IconButton(iconName, fallback, tip, sz, active);
 }
 
+// Toggle helper: clicking an ACTIVE tool icon returns to Select
+static void activateTool(Modeling3D::Viewport3D& vp, Modeling3D::Tool3DType t) {
+    vp.setActiveTool(vp.getActiveTool() == t
+        ? Modeling3D::Tool3DType::Select
+        : t);
+}
+
 // ── Small view button ─────────────────────────────────────────────────────────
 static bool ViewBtn(const char* label, const char* tip) {
     ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.40f, 0.41f, 0.48f, 1.0f));
@@ -86,6 +93,13 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
     //   No mandatory plane-selection dialog — just start drawing immediately.
     {
         auto startSketch = [&](Modeling3D::SketchDrawTool newTool) {
+            // Clicking the ACTIVE draw tool again stops drawing (sketch stays
+            // open with Done/Cancel buttons)
+            if (sketching && dt == newTool) {
+                viewport.setSketchDrawTool(Modeling3D::SketchDrawTool::None);
+                appContext.consoleMessage = "Drawing stopped";
+                return;
+            }
             if (!sketching) {
                 viewport.getScene()->beginSketch(Modeling3D::WorkPlane3D::XY());
                 viewport.setActiveTool(Modeling3D::Tool3DType::Sketch);
@@ -183,13 +197,62 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
 
     // ── Sketch Operations ─────────────────────────────────────────────────────
     if (TIconBtn("extrude", "↑", "Extrude sketch", tool == Modeling3D::Tool3DType::Extrude, btnSz))
-        viewport.setActiveTool(Modeling3D::Tool3DType::Extrude);
+        activateTool(viewport, Modeling3D::Tool3DType::Extrude);
     ImGui::SameLine(0, 3);
     if (TIconBtn("revolve", "↻", "Revolve sketch", tool == Modeling3D::Tool3DType::Revolve, btnSz))
-        viewport.setActiveTool(Modeling3D::Tool3DType::Revolve);
+        activateTool(viewport, Modeling3D::Tool3DType::Revolve);
     ImGui::SameLine(0, 3);
     if (TIconBtn("fillet3d", "⌒", "Fillet / Chamfer edges", tool == Modeling3D::Tool3DType::Fillet, btnSz))
-        viewport.setActiveTool(Modeling3D::Tool3DType::Fillet);
+        activateTool(viewport, Modeling3D::Tool3DType::Fillet);
+    ImGui::SameLine(0, 3);
+
+    // ── Boolean ops flyout ────────────────────────────────────────────────────
+    if (TIconBtn("boolean3d", "∪∩", "Boolean — Union / Subtract / Intersect",
+                 tool == Modeling3D::Tool3DType::Boolean, btnSz))
+        ImGui::OpenPopup("##BoolPopup3D");
+    if (ImGui::BeginPopup("##BoolPopup3D")) {
+        ImGui::PushStyleColor(ImGuiCol_Text, UIColors::ACCENT);
+        ImGui::TextUnformatted("Boolean Operation:");
+        ImGui::PopStyleColor();
+        ImGui::Separator();
+        ImGui::TextDisabled("Base body is modified, tool body is removed");
+        ImGui::Spacing();
+        struct BoolOpItem { const char* label; Modeling3D::BoolOp op; const char* hint; };
+        const BoolOpItem ops[] = {
+            { "Union (A + B)",       Modeling3D::BoolOp::Union,     "Merge two bodies into one" },
+            { "Subtract (A - B)",    Modeling3D::BoolOp::Subtract,  "Cut the tool body out of the base body" },
+            { "Intersect (A & B)",   Modeling3D::BoolOp::Intersect, "Keep only the overlapping volume" },
+        };
+        for (const auto& o : ops) {
+            bool cur = (tool == Modeling3D::Tool3DType::Boolean &&
+                        viewport.getBoolOpMode() == o.op);
+            if (ImGui::MenuItem(o.label, nullptr, cur)) {
+                viewport.beginBoolean(o.op);
+                ImGui::CloseCurrentPopup();  // don't swallow the next viewport click
+                appContext.consoleMessage = "Boolean: click the tool body in the viewport (base is pre-selected)";
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", o.hint);
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::SameLine(0, 3);
+
+    // ── Cut-Extrude / Hole / Pattern / Mirror ─────────────────────────────────
+    if (TIconBtn("cutextrude3d", "⊘", "Cut-Extrude — cut a sketch profile into a body",
+                 tool == Modeling3D::Tool3DType::CutExtrude, btnSz))
+        activateTool(viewport, Modeling3D::Tool3DType::CutExtrude);
+    ImGui::SameLine(0, 3);
+    if (TIconBtn("hole3d", "⊙", "Hole — click a face, parametric hole",
+                 tool == Modeling3D::Tool3DType::Hole, btnSz))
+        viewport.beginHole();
+    ImGui::SameLine(0, 3);
+    if (TIconBtn("pattern3d", "⁘", "Pattern — linear / circular copies",
+                 tool == Modeling3D::Tool3DType::Pattern, btnSz))
+        activateTool(viewport, Modeling3D::Tool3DType::Pattern);
+    ImGui::SameLine(0, 3);
+    if (TIconBtn("mirror3d", "⋙", "Mirror — copy about a plane",
+                 tool == Modeling3D::Tool3DType::Mirror, btnSz))
+        activateTool(viewport, Modeling3D::Tool3DType::Mirror);
     ImGui::SameLine(0, 3);
     TSep();
 
@@ -198,7 +261,8 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
         static float boxW=10,boxH=10,boxD=10, cylR=5,cylH=15, sphR=8;
         static float coneR1=6,coneR2=2,coneH=12, torMaj=10,torMin=3;
 
-        if (TIconBtn("primitives", "□", "Insert primitive solid", false, btnSz))
+        if (TIconBtn("primitives", "□", "Insert primitive solid",
+                     viewport.isInPlacementMode(), btnSz))
             ImGui::OpenPopup("##PrimPopup3D");
 
         if (ImGui::BeginPopup("##PrimPopup3D")) {
@@ -220,6 +284,11 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
                 ImGui::CloseCurrentPopup();
             }
             // Cylinder
+            static const char* cylAxNames[] = { "X axis", "Y axis (up)", "Z axis" };
+            int cylAx = viewport.getCylinderAxis();
+            ImGui::SetNextItemWidth(120);
+            if (ImGui::Combo("Cyl axis##ca", &cylAx, cylAxNames, 3))
+                viewport.setCylinderAxis(cylAx);
             ImGui::SetNextItemWidth(80);
             ImGui::DragFloat("Cyl R##pcr", &cylR, 0.5f, 0.5f, 200.f, "R:%.1f");
             ImGui::SameLine();
@@ -271,26 +340,37 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
 
     // ── Transform ─────────────────────────────────────────────────────────────
     if (TIconBtn("move3d",   "✦", "Move gizmo (W)",   tool == Modeling3D::Tool3DType::Move,   btnSz))
-        viewport.setActiveTool(Modeling3D::Tool3DType::Move);
+        activateTool(viewport, Modeling3D::Tool3DType::Move);
     ImGui::SameLine(0, 3);
     if (TIconBtn("rotate3d", "↻", "Rotate gizmo (E)", tool == Modeling3D::Tool3DType::Rotate, btnSz))
-        viewport.setActiveTool(Modeling3D::Tool3DType::Rotate);
+        activateTool(viewport, Modeling3D::Tool3DType::Rotate);
     ImGui::SameLine(0, 3);
     if (TIconBtn("scale3d",  "⤢", "Scale gizmo (R)",  tool == Modeling3D::Tool3DType::Scale,  btnSz))
-        viewport.setActiveTool(Modeling3D::Tool3DType::Scale);
+        activateTool(viewport, Modeling3D::Tool3DType::Scale);
     ImGui::SameLine(0, 3);
     TSep();
 
     // ── Undo / Redo ───────────────────────────────────────────────────────────
     {
         auto& cmd = viewport.getScene()->getCommandManager();
-        if (!cmd.canUndo()) ImGui::BeginDisabled();
-        if (TIconBtn("undo", "↶", "Undo (Ctrl+Z)", false, btnSz)) viewport.getScene()->undo();
-        if (!cmd.canUndo()) ImGui::EndDisabled();
+        // Evaluate availability ONCE: undoing the last command empties the
+        // history mid-button, and a re-evaluated canUndo() would run an
+        // unpaired EndDisabled → ImGui assertion crash
+        bool canU = cmd.canUndo();
+        if (!canU) ImGui::BeginDisabled();
+        if (TIconBtn("undo", "↶", "Undo (Ctrl+Z)", false, btnSz)) {
+            viewport.getScene()->undo();
+            viewport.onHistoryChanged();  // drop stale refs/previews
+        }
+        if (!canU) ImGui::EndDisabled();
         ImGui::SameLine(0, 3);
-        if (!cmd.canRedo()) ImGui::BeginDisabled();
-        if (TIconBtn("redo", "↷", "Redo (Ctrl+Y)", false, btnSz)) viewport.getScene()->redo();
-        if (!cmd.canRedo()) ImGui::EndDisabled();
+        bool canR = cmd.canRedo();
+        if (!canR) ImGui::BeginDisabled();
+        if (TIconBtn("redo", "↷", "Redo (Ctrl+Y)", false, btnSz)) {
+            viewport.getScene()->redo();
+            viewport.onHistoryChanged();
+        }
+        if (!canR) ImGui::EndDisabled();
     }
     ImGui::SameLine(0, 3);
     TSep();

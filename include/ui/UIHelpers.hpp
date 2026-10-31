@@ -24,6 +24,9 @@ inline const char* FALLBACK_BEARING = "⚙";
 inline const char* FALLBACK_SUSPENSION = "S";
 
 bool IconButton(const std::string& iconName, const char* fallbackText, const char* tooltip, const ImVec2& size, bool isActive = false);
+// Raw icon texture access (for custom rows, e.g. the feature tree).
+// Returns 0 when the icon is not loaded.
+unsigned int GetIconTexture(const std::string& iconName);
 void SelectTool(Drawing::DrawingMode mode, Drawing::Canvas& canvas, Core::ApplicationContext& appContext, const std::string& message);
 
 void LoadIconTextures();

@@ -431,6 +431,18 @@ int main(int argc, char* argv[]) {
 
                     appContext.viewport3D.handleKey(340, io.KeyShift);
                     appContext.viewport3D.handleKey(341, io.KeyCtrl);
+                    // Forward tool shortcuts (Escape / W / E / R) — but never
+                    // while the user is typing in a text field (e.g. rename)
+                    if (!io.WantTextInput) {
+                        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+                            appContext.viewport3D.handleKey(256, true);
+                        if (ImGui::IsKeyPressed(ImGuiKey_W, false))
+                            appContext.viewport3D.handleKey(119, true);
+                        if (ImGui::IsKeyPressed(ImGuiKey_E, false))
+                            appContext.viewport3D.handleKey(101, true);
+                        if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+                            appContext.viewport3D.handleKey(114, true);
+                    }
                 }
 
                 // ImGui Overlays: View Triad + ViewCube + Snap
@@ -483,9 +495,12 @@ int main(int argc, char* argv[]) {
                         if (ImGuizmo::IsUsing() && !wasUsingGizmo)
                             gizmoStartMatrix = prevMat;
                         if (!ImGuizmo::IsUsing() && wasUsingGizmo) {
-                            auto cmd = std::make_unique<Modeling3D::TransformBodyCommand>(
-                                selBody, gizmoStartMatrix, modelMat);
-                            appContext.viewport3D.getScene()->getCommandManager().execute(std::move(cmd));
+                            // Don't record no-op interactions (click without drag)
+                            if (memcmp(&gizmoStartMatrix, &modelMat, sizeof(glm::mat4)) != 0) {
+                                auto cmd = std::make_unique<Modeling3D::TransformBodyCommand>(
+                                    selBody, gizmoStartMatrix, modelMat);
+                                appContext.viewport3D.getScene()->getCommandManager().execute(std::move(cmd));
+                            }
                         }
                         wasUsingGizmo = ImGuizmo::IsUsing();
                     }
@@ -499,12 +514,20 @@ int main(int argc, char* argv[]) {
 
             // Keyboard shortcuts for 3D mode
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
-                if (appContext.viewport3D.getScene()->undo())
-                    appContext.consoleMessage = "Undo: " + appContext.viewport3D.getScene()->getCommandManager().getUndoDescription();
+                auto& cmdMgr = appContext.viewport3D.getScene()->getCommandManager();
+                std::string desc = cmdMgr.getUndoDescription();  // read BEFORE undo moves the cursor
+                if (appContext.viewport3D.getScene()->undo()) {
+                    appContext.viewport3D.onHistoryChanged();    // drop stale refs/previews
+                    appContext.consoleMessage = "Undo: " + desc;
+                }
             }
             if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
-                if (appContext.viewport3D.getScene()->redo())
-                    appContext.consoleMessage = "Redo: " + appContext.viewport3D.getScene()->getCommandManager().getRedoDescription();
+                auto& cmdMgr = appContext.viewport3D.getScene()->getCommandManager();
+                std::string desc = cmdMgr.getRedoDescription();  // read BEFORE redo moves the cursor
+                if (appContext.viewport3D.getScene()->redo()) {
+                    appContext.viewport3D.onHistoryChanged();
+                    appContext.consoleMessage = "Redo: " + desc;
+                }
             }
 
             // 3D Property Panel

@@ -4,6 +4,10 @@
 #include <memory>
 #include <string>
 #include <glm/glm.hpp>
+#include "modeling3d/Body3D.hpp"  // BoolOp
+#ifdef USE_OCCT
+#include <TopoDS_Shape.hxx>
+#endif
 
 namespace Modeling3D {
 
@@ -133,6 +137,97 @@ private:
     Body3D* body;
     glm::vec3 oldColor;
     glm::vec3 newColor;
+};
+
+/**
+ * @brief Command: Boolean operation (union/subtract/intersect).
+ *
+ * The base body is modified in place and the tool body is removed from the
+ * scene. Undo restores the base body's original B-Rep shape and re-adds the
+ * tool body; redo re-applies the operation.
+ */
+class BooleanCommand : public Command3D {
+public:
+    BooleanCommand(Modeling3DScene* scene, Body3D* base, Body3D* tool,
+                   BoolOp op, const std::string& desc);
+    ~BooleanCommand() override;
+
+    // Work is done by Modeling3DScene before pushing; execute() handles redo.
+    void execute() override;
+    void undo() override;
+    std::string getDescription() const override { return description; }
+
+    // Hand over ownership of the already-detached tool body
+    void setDetachedTool(std::unique_ptr<Body3D> tool) { detachedTool = std::move(tool); }
+#ifdef USE_OCCT
+    // Snapshot for restoring the base body on undo
+    void saveOldState(const TopoDS_Shape& shape, const glm::mat4& transform) {
+        oldShape = shape; oldTransform = transform;
+    }
+#endif
+
+private:
+    Modeling3DScene* scene;
+    Body3D* basePtr{nullptr};
+    Body3D* toolPtr{nullptr};
+    std::unique_ptr<Body3D> detachedTool;  // Owned when the op is applied
+    BoolOp op;
+    std::string description;
+    bool applied{true};
+    glm::mat4 oldTransform{1.0f};
+#ifdef USE_OCCT
+    TopoDS_Shape oldShape;
+#endif
+};
+
+/**
+ * @brief Command: add several bodies at once (linear/circular pattern).
+ * Undo removes all copies; redo re-adds them in order.
+ */
+class PatternCommand : public Command3D {
+public:
+    PatternCommand(Modeling3DScene* scene,
+                   std::vector<std::unique_ptr<Body3D>> bodies,
+                   const std::string& desc);
+    void execute() override;
+    void undo() override;
+    std::string getDescription() const override { return description; }
+
+private:
+    Modeling3DScene* scene;
+    std::vector<Body3D*> bodyPtrs;
+    std::vector<std::unique_ptr<Body3D>> ownedBodies;  // held when undone
+    std::string description;
+    bool inScene{false};
+};
+
+/**
+ * @brief Command: in-place shape modification (fillet, chamfer, ...).
+ *
+ * The operation is applied directly by the caller; this command stores the
+ * old and new B-Rep shapes so undo/redo swaps them and re-tessellates.
+ */
+class ModifyShapeCommand : public Command3D {
+public:
+#ifdef USE_OCCT
+    ModifyShapeCommand(Body3D* body, const TopoDS_Shape& oldShape,
+                       const glm::mat4& oldTransform,
+                       const TopoDS_Shape& newShape,
+                       const glm::mat4& newTransform,
+                       const std::string& desc);
+#endif
+    void execute() override;
+    void undo() override;
+    std::string getDescription() const override { return description; }
+
+private:
+    Body3D* body{nullptr};
+    std::string description;
+    glm::mat4 oldTransform{1.0f}, newTransform{1.0f};
+#ifdef USE_OCCT
+    TopoDS_Shape oldShape, newShape;
+    void apply(const TopoDS_Shape& shape, const glm::mat4& transform);
+#endif
 };
 
 } // namespace Modeling3D

@@ -7,6 +7,7 @@
 
 #ifdef USE_OCCT
 #include <TopoDS_Shape.hxx>
+#include <Message_Report.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Edge.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
@@ -26,6 +27,9 @@
 #include <Poly_Triangulation.hxx>
 #include <Poly_Triangle.hxx>
 #include <TopLoc_Location.hxx>
+#include <BRepBuilderAPI_GTransform.hxx>
+#include <gp_GTrsf.hxx>
+#include <gp_Mat.hxx>
 #include <Geom_Curve.hxx>
 #include <Standard_Failure.hxx>
 #include <gp_Pnt.hxx>
@@ -288,10 +292,14 @@ void Body3D::tessellateFromOCCT() {
             vertices.push_back(v);
         }
 
-        // Add triangles
+        // Add triangles (flip winding for REVERSED faces — boolean/fillet
+        // results contain faces whose orientation is reversed; without the
+        // flip those triangles face inward and render as holes)
+        const bool faceReversed = (face.Orientation() == TopAbs_REVERSED);
         for (int i = 1; i <= tri->NbTriangles(); ++i) {
             int n1, n2, n3;
             tri->Triangle(i).Get(n1, n2, n3);
+            if (faceReversed) std::swap(n2, n3);
             TriangleIndex ti;
             ti.v0 = baseIdx + n1 - 1;
             ti.v1 = baseIdx + n2 - 1;
@@ -530,6 +538,142 @@ bool Body3D::booleanIntersect(Body3D& other) {
     }
 #else
     (void)other;
+    return false;
+#endif
+}
+
+std::vector<glm::dvec3> Body3D::circleProfileWorld(const glm::dvec3& center,
+                                                   const glm::dvec3& normal,
+                                                   double radius,
+                                                   int segments) {
+    std::vector<glm::dvec3> pts;
+    glm::dvec3 n = glm::normalize(normal);
+    // Build an orthonormal basis (u, v) perpendicular to n
+    glm::dvec3 helper = (std::abs(n.x) < 0.9) ? glm::dvec3(1, 0, 0) : glm::dvec3(0, 1, 0);
+    glm::dvec3 u = glm::normalize(glm::cross(n, helper));
+    glm::dvec3 v = glm::cross(n, u);
+    for (int i = 0; i <= segments; ++i) {
+        double a = (2.0 * M_PI * i) / segments;
+        pts.push_back(center + u * (radius * std::cos(a)) + v * (radius * std::sin(a)));
+    }
+    return pts;
+}
+
+TopoDS_Shape Body3D::getWorldShape() const {
+    if (!occtData || !occtData->hasShape) return TopoDS_Shape();
+    const glm::mat4& m = transform;
+    if (m == glm::mat4(1.0f)) return occtData->shape;
+
+    // Preferred: rigid (or uniformly-scaled) transform via gp_Trsf — this
+    // KEEPS the original surface types (planes stay planes), which matters
+    // for boolean quality. GTransform (below) re-creates geometry as
+    // B-splines and degrades fuse/common results.
+    gp_Trsf trsf;
+    bool rigid = true;
+    try {
+        trsf.SetValues(m[0][0], m[1][0], m[2][0], m[3][0],
+                       m[0][1], m[1][1], m[2][1], m[3][1],
+                       m[0][2], m[1][2], m[2][2], m[3][2]);
+    } catch (...) {
+        rigid = false;  // non-uniform scale etc.
+    }
+    if (rigid) return occtData->shape.Moved(TopLoc_Location(trsf));
+
+    // Fallback: full affine transform (gizmo-scaled bodies). Geometry is
+    // re-created (planes become B-splines) — unavoidable for scaled shapes.
+    gp_GTrsf gtrsf;
+    gtrsf.SetVectorialPart(gp_Mat(m[0][0], m[1][0], m[2][0],
+                                  m[0][1], m[1][1], m[2][1],
+                                  m[0][2], m[1][2], m[2][2]));
+    gtrsf.SetTranslationPart(gp_XYZ(m[3][0], m[3][1], m[3][2]));
+    BRepBuilderAPI_GTransform xform(occtData->shape, gtrsf, true /*copy*/);
+    return xform.Shape();
+}
+
+bool Body3D::applyBooleanFromWorldShapes(const TopoDS_Shape& toolWorldShape, BoolOp op) {
+#ifdef USE_OCCT
+    static const char* opNames[] = { "Union", "Subtract", "Intersect" };
+    if (!occtData || !occtData->hasShape) {
+        std::cerr << "[Boolean] base body has no B-Rep shape" << std::endl;
+        return false;
+    }
+    if (toolWorldShape.IsNull()) {
+        std::cerr << "[Boolean] tool world shape is null" << std::endl;
+        return false;
+    }
+
+    try {
+        TopoDS_Shape a = getWorldShape();
+        if (a.IsNull()) {
+            std::cerr << "[Boolean] base world shape is null (transform baking failed)" << std::endl;
+            return false;
+        }
+
+        // Input diagnostics: count solids/faces of both operands
+        auto countType = [](const TopoDS_Shape& s, TopAbs_ShapeEnum t) {
+            int n = 0; if (!s.IsNull()) for (TopExp_Explorer e(s, t); e.More(); e.Next()) n++; return n; };
+        std::cerr << "[Boolean] " << opNames[static_cast<int>(op)]
+                  << " inputs: base(solids=" << countType(a, TopAbs_SOLID)
+                  << " faces=" << countType(a, TopAbs_FACE)
+                  << ") tool(solids=" << countType(toolWorldShape, TopAbs_SOLID)
+                  << " faces=" << countType(toolWorldShape, TopAbs_FACE) << ")" << std::endl;
+
+        std::unique_ptr<BRepAlgoAPI_BooleanOperation> alg;
+        switch (op) {
+            case BoolOp::Union:     alg = std::make_unique<BRepAlgoAPI_Fuse>(a, toolWorldShape);   break;
+            case BoolOp::Subtract:  alg = std::make_unique<BRepAlgoAPI_Cut>(a, toolWorldShape);    break;
+            case BoolOp::Intersect: alg = std::make_unique<BRepAlgoAPI_Common>(a, toolWorldShape); break;
+        }
+        if (!alg) return false;
+        // Slightly raised fuzzy value (default is 1e-7 mm): makes fuse/common
+        // robust against tangent contact and coplanar-face seams between
+        // placed primitives, while being geometrically negligible (10 nm)
+        alg->SetFuzzyValue(1e-5);
+        alg->Build();
+        if (!alg->IsDone()) {
+            std::cerr << "[Boolean] " << opNames[static_cast<int>(op)]
+                      << " reported IsDone=false";
+            if (alg->HasErrors()) {
+                const Handle(Message_Report)& rep = alg->GetReport();
+                if (!rep.IsNull()) rep->Dump(std::cerr);
+            }
+            std::cerr << std::endl;
+            return false;
+        }
+
+        TopoDS_Shape result = alg->Shape();
+        if (result.IsNull()) {
+            std::cerr << "[Boolean] " << opNames[static_cast<int>(op)]
+                      << " produced a null result" << std::endl;
+            return false;
+        }
+
+        // Reject empty results (e.g. intersecting disjoint solids)
+        bool hasFaces = false;
+        for (TopExp_Explorer exp(result, TopAbs_FACE); exp.More(); exp.Next()) { hasFaces = true; break; }
+        if (!hasFaces) {
+            std::cerr << "[Boolean] " << opNames[static_cast<int>(op)]
+                      << " result is empty (no faces) — bodies do not overlap for this op" << std::endl;
+            return false;
+        }
+
+        occtData->shape = result;
+        occtData->hasShape = true;
+        transform = glm::mat4(1.0f); // result is baked in world space
+        tessellateFromOCCT();
+        gpuUploaded = false;
+        return true;
+    } catch (const Standard_Failure& e) {
+        std::cerr << "[Boolean] " << opNames[static_cast<int>(op)] << " threw: "
+                  << e.GetMessageString() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "[Boolean] " << opNames[static_cast<int>(op)]
+                  << " threw unknown error" << std::endl;
+        return false;
+    }
+#else
+    (void)toolWorldShape; (void)op;
     return false;
 #endif
 }

@@ -20,8 +20,13 @@ public:
     bool generateFEMMesh(float elementSize) override;
     
     // Shock absorber-specific mesh generation (takes multiple components)
-    void generateMesh(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end, 
+    void generateMesh(const Drawing::Spring2D* spring, const Drawing::ShockAbsorberEnd2D* end,
                       const Drawing::ShockAbsorberBottomEnd* bottomEnd);
+
+    // Current component access (for geometry export)
+    const Drawing::Spring2D* getCurrentSpring() const { return currentSpring; }
+    const Drawing::ShockAbsorberEnd2D* getCurrentEnd() const { return currentEnd; }
+    const Drawing::ShockAbsorberBottomEnd* getCurrentBottomEnd() const { return currentBottomEnd; }
 
 private:
     // Current shock absorber components (for regeneration)

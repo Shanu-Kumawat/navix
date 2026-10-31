@@ -16,6 +16,35 @@ namespace Modeling3D {
 class Sketch3D;
 
 /**
+ * @brief Boolean operation type applied between two solid bodies.
+ */
+enum class BoolOp {
+    Union,      // A + B
+    Subtract,   // A - B
+    Intersect   // A ∩ B
+};
+
+// Cut-Extrude direction modes
+enum class CutDirMode {
+    Blind,       // along sketch normal, given depth
+    Reversed,    // opposite to sketch normal
+    ThroughAll   // both directions, all the way through the target
+};
+
+// Hole types (lite wizard)
+enum class HoleType {
+    Through,
+    Blind,
+    Counterbore
+};
+
+// Pattern kinds
+enum class PatternKind {
+    Linear,
+    Circular
+};
+
+/**
  * @brief Vertex with position and normal for OpenGL rendering.
  */
 struct Vertex3D {
@@ -46,6 +75,10 @@ public:
     uint64_t getId() const { return id; }
     const std::string& getName() const { return name; }
     void setName(const std::string& n) { name = n; }
+    // Kind drives the feature-tree icon: Box/Cylinder/Sphere/Cone/Torus/
+    // Extrude/Revolve/Mirror/Pattern/Boolean/Import
+    const std::string& getKind() const { return kind; }
+    void setKind(const std::string& k) { kind = k; }
 
     // Display mesh (tessellated for OpenGL rendering)
     const std::vector<Vertex3D>& getVertices() const { return vertices; }
@@ -104,17 +137,39 @@ public:
     bool booleanSubtract(Body3D& other);
     bool booleanIntersect(Body3D& other);
 
+    // World-space circle profile helper (used by hole/pocket cuts and their
+    // ghost previews). Returns `segments` points on the circle centered at
+    // `center` with axis `normal`, plus the start point to close the wire.
+    static std::vector<glm::dvec3> circleProfileWorld(const glm::dvec3& center,
+                                                      const glm::dvec3& normal,
+                                                      double radius,
+                                                      int segments = 48);
+
 #ifdef USE_OCCT
     // Access underlying OCCT shape
     void setOCCTShape(const TopoDS_Shape& shape);
     const TopoDS_Shape& getOCCTShape() const;
     bool hasOCCTShape() const;
+
+    // Shape with the body's display transform applied (world space).
+    // Returns a null shape if no B-Rep shape is present.
+    TopoDS_Shape getWorldShape() const;
+
+    // Boolean between this body's world-space shape and a world-space tool
+    // shape. The result (in world space) becomes this body's shape and the
+    // display transform is reset to identity. Fails if the result is empty
+    // (e.g. intersecting disjoint solids).
+    bool applyBooleanFromWorldShapes(const TopoDS_Shape& toolWorldShape, BoolOp op);
+
+    // Rebuild the display mesh from the current B-Rep shape
+    void tessellateFromOCCT();
 #endif
 
 private:
     static uint64_t nextId;
     uint64_t id;
     std::string name{"Body"};
+    std::string kind{"Body"};
 
     // Display mesh
     std::vector<Vertex3D> vertices;
@@ -146,8 +201,6 @@ private:
     std::unique_ptr<OCCTData> occtData;
 #endif
 
-    // Helper: tessellate OCCT shape into display mesh
-    void tessellateFromOCCT();
     // Helper: build mesh from profile extrusion (non-OCCT fallback)
     void buildExtrudeMesh(const std::vector<glm::dvec3>& profile,
                           const glm::dvec3& direction, double distance);

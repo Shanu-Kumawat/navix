@@ -67,6 +67,33 @@ public:
                              const glm::dvec3& axisDir,
                              double angleDegrees);
 
+    // Boolean operation: base is modified in place, tool body is consumed.
+    // Returns false if the op fails or the result would be empty.
+    bool applyBoolean(Body3D* base, Body3D* tool, BoolOp op);
+
+    // ── Tier-1 modeling features ─────────────────────────────────────────────
+    // Cut a sketch profile into the target body (pocket / through-hole).
+    // Cuts along `dir` for `dist`; `preShift` moves the profile start back
+    // along -dir (used by Through-All to start just outside the face).
+    // Returns false if nothing was removed.
+    bool applyCutExtrude(Body3D* target, Sketch3D* sketch,
+                         const glm::dvec3& dir, double dist, double preShift = 0.0);
+
+    // Parametric hole at a picked face point; axis = -normal (into the body)
+    bool applyHole(Body3D* target, const glm::dvec3& center, const glm::dvec3& normal,
+                   HoleType type, double dia, double depth,
+                   double cbDia, double cbDepth);
+
+    // Linear / circular copies of the target (new bodies, undoable as one step)
+    bool applyPattern(Body3D* target, PatternKind kind,
+                      int linAxis, int linCount, double linSpacing,
+                      int circAxis, int circCount,
+                      const glm::dvec3& circCenterWorld = glm::dvec3(0));
+
+    // Mirror the target about a global plane (0=YZ@x, 1=XZ@y, 2=XY@z);
+    // optionally fuse the mirrored copy into the target
+    bool applyMirror(Body3D* target, int plane, double offset, bool fuse);
+
     // Upload all bodies to GPU
     void uploadAllToGPU();
 

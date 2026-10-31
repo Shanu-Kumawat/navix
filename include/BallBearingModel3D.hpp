@@ -21,6 +21,9 @@ public:
     // Ball bearing-specific mesh generation
     void generateMesh(const Drawing::BallBearing* ballBearing);
 
+    // Current bearing access (for geometry export)
+    const Drawing::BallBearing* getCurrentBallBearing() const { return currentBallBearing; }
+
 private:
     // Current ball bearing being rendered (for regeneration)
     const Drawing::BallBearing* currentBallBearing;
