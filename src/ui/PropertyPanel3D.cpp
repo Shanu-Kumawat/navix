@@ -378,6 +378,171 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
         }  // end: selected body required
     }
 
+    // ── Move Body (position a body) ──
+    if (tool == Modeling3D::Tool3DType::MoveBody) {
+        if (ImGui::CollapsingHeader("Move Body", ImGuiTreeNodeFlags_DefaultOpen)) {
+            Body3D* mb = viewport.getMoveBody();
+            if (mb) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
+                ImGui::Text("Body: %s", mb->getName().c_str());
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::TextWrapped("Click the body you want to move");
+                ImGui::PopStyleColor();
+            }
+            ImGui::Spacing();
+
+            static const char* modeNames[] = { "Translate (XYZ)", "Mate to face (coincident)", "Rotate (axis + angle)" };
+            int m = (int)viewport.getMoveMode();
+            ImGui::PushItemWidth(-1);
+            if (ImGui::Combo("##MoveMode", &m, modeNames, 3))
+                viewport.setMoveMode((Modeling3D::Viewport3D::MoveMode)m);
+            ImGui::PopItemWidth();
+
+            bool ready = false;
+            if (viewport.getMoveMode() == Modeling3D::Viewport3D::MoveMode::Translate) {
+                glm::dvec3 d = viewport.getMoveDelta();
+                float df[3] = { (float)d.x, (float)d.y, (float)d.z };
+                ImGui::PushItemWidth(-1);
+                if (ImGui::DragFloat3("##MoveDelta", df, 0.25f, -500.0f, 500.0f, "%.1f"))
+                    viewport.setMoveDelta(glm::dvec3(df[0], df[1], df[2]));
+                ImGui::PopItemWidth();
+                ready = mb && (std::abs(df[0]) + std::abs(df[1]) + std::abs(df[2]) > 1e-4);
+            } else if (viewport.getMoveMode() == Modeling3D::Viewport3D::MoveMode::CoincidentFace) {
+                if (!mb) { ImGui::TextDisabled("Select a body first"); }
+                else if (!viewport.isMoveFacePicked()) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+                    ImGui::TextWrapped("Click the face ON the moving body that will mate");
+                    ImGui::PopStyleColor();
+                } else if (!viewport.isMoveTargetPicked()) {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+                    ImGui::TextWrapped("Click the target face on the other body");
+                    ImGui::PopStyleColor();
+                } else {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
+                    ImGui::Text("Mate with: %s", viewport.getMoveTargetBody()->getName().c_str());
+                    ImGui::PopStyleColor();
+                    ready = true;
+                }
+                if (viewport.isMoveFacePicked() || viewport.isMoveTargetPicked()) {
+                    if (ImGui::SmallButton("Re-pick faces##mv"))
+                        viewport.clearMoveFaces();
+                }
+            } else {  // Rotate
+                static const char* axNames[] = { "X axis", "Y axis", "Z axis" };
+                int ax = viewport.getRotateAxis();
+                ImGui::PushItemWidth(-1);
+                if (ImGui::Combo("##RotAxis", &ax, axNames, 3))
+                    viewport.setRotateAxis(ax);
+                float ang = viewport.getRotateAngle();
+                if (ImGui::DragFloat("##RotAng", &ang, 1.0f, -360.0f, 360.0f, "Angle: %.1f deg"))
+                    viewport.setRotateAngle(ang);
+                ImGui::PopItemWidth();
+                ready = mb && std::abs(ang) > 1e-4;
+            }
+
+            ImGui::Spacing();
+            if (!ready) ImGui::BeginDisabled();
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.30f, 0.50f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.38f, 0.60f, 1.0f));
+            if (ImGui::Button("Apply Move", ImVec2(-1, 30))) {
+                if (viewport.executeMoveBody())
+                    appContext.consoleMessage = "Body moved (Ctrl+Z to undo)";
+                else
+                    appContext.consoleMessage = "Nothing to move";
+            }
+            ImGui::PopStyleColor(2);
+            if (!ready) ImGui::EndDisabled();
+            ImGui::Separator();
+        }
+    }
+
+    // ── Combine (SolidWorks-style N-body operation) ──
+    if (tool == Modeling3D::Tool3DType::Combine) {
+        if (ImGui::CollapsingHeader("Combine", ImGuiTreeNodeFlags_DefaultOpen)) {
+            static int combineOp = 0;  // 0=Add 1=Subtract 2=Common
+            static const char* opNames[] = { "Add (fuse)", "Subtract (cut all)", "Common (intersect all)" };
+            ImGui::PushItemWidth(-1);
+            ImGui::Combo("##CombOp", &combineOp, opNames, 3);
+            ImGui::PopItemWidth();
+            Body3D* base = viewport.getMergeBase();
+            const auto& tools = viewport.getMergeTools();
+
+            if (base) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
+                ImGui::Text("Base: %s", base->getName().c_str());
+                ImGui::PopStyleColor();
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                ImGui::TextWrapped("Click the BASE body in the viewport");
+                ImGui::PopStyleColor();
+            }
+            if (viewport.isMergeFacePicked()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
+                ImGui::TextUnformatted("Face picked");
+                ImGui::PopStyleColor();
+                static const char* alignNames[] = { "Flat on face", "Centered on point" };
+                int al = viewport.getMergeAlign();
+                ImGui::PushItemWidth(-1);
+                if (ImGui::Combo("##MergeAlign", &al, alignNames, 2))
+                    viewport.setMergeAlign(al);
+                float off = viewport.getMergeOffset();
+                if (ImGui::DragFloat("##MergeOff", &off, 0.25f, -200.0f, 200.0f, "Offset: %.1f"))
+                    viewport.setMergeOffset(off);
+                ImGui::PopItemWidth();
+                if (ImGui::SmallButton("Re-pick face##merge"))
+                    viewport.clearMergeFace();
+            } else if (base) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+                ImGui::TextWrapped("Click a face of the base to set where tools merge onto");
+                ImGui::PopStyleColor();
+            }
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  tools.empty() ? ImVec4(1.0f, 0.75f, 0.2f, 1.0f)
+                                                : ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
+            ImGui::Text("Tools: %d", (int)tools.size());
+            ImGui::PopStyleColor();
+            if (!tools.empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.50f, 0.58f, 1.0f));
+                for (auto* t : tools)
+                    ImGui::BulletText("%s", t->getName().c_str());
+                ImGui::PopStyleColor();
+            }
+            ImGui::Spacing();
+
+            if (ImGui::SmallButton("Select all visible##merge")) {
+                viewport.mergeSelectAll();
+                appContext.consoleMessage = "Merge: all visible bodies selected";
+            }
+            if (base || !tools.empty()) {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Clear##merge"))
+                    viewport.clearMergeSelection();
+            }
+            ImGui::Spacing();
+
+            bool ready = base && !tools.empty();
+            if (!ready) ImGui::BeginDisabled();
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.45f, 0.22f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.55f, 0.28f, 1.0f));
+            if (ImGui::Button(viewport.isMergeFacePicked() && combineOp == 0
+                                  ? "Move onto Face + Combine" : "Apply Combine",
+                              ImVec2(-1, 30))) {
+                Modeling3D::BoolOp op = (combineOp == 0) ? Modeling3D::BoolOp::Union
+                                      : (combineOp == 1) ? Modeling3D::BoolOp::Subtract
+                                                         : Modeling3D::BoolOp::Intersect;
+                if (viewport.executeCombine(op))
+                    appContext.consoleMessage = "Combine applied (Ctrl+Z to undo)";
+                else
+                    appContext.consoleMessage = "Combine failed — bodies must have B-Rep data";
+            }
+            ImGui::PopStyleColor(2);
+            if (!ready) ImGui::EndDisabled();
+            ImGui::Separator();
+        }
+    }
+
     // ── Boolean (context-sensitive — base/tool body picking) ──
     if (tool == Modeling3D::Tool3DType::Boolean) {
         if (ImGui::CollapsingHeader("Boolean", ImGuiTreeNodeFlags_DefaultOpen)) {

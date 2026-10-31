@@ -209,6 +209,60 @@ void PatternCommand::undo() {
 }
 
 // ─────────────────────────────────────────────
+// MergeCommand
+// ─────────────────────────────────────────────
+
+MergeCommand::MergeCommand(Modeling3DScene* scene, Body3D* base,
+                           const std::string& desc)
+    : scene(scene), basePtr(base), description(desc)
+{
+}
+
+MergeCommand::~MergeCommand() = default;
+
+#ifdef USE_OCCT
+void MergeCommand::setTools(std::vector<Body3D*> toolPtrs,
+                            std::vector<std::unique_ptr<Body3D>> detached) {
+    toolPtrs = std::move(toolPtrs);
+    ownedTools = std::move(detached);
+}
+#endif
+
+void MergeCommand::execute() {
+    if (applied) return;  // first run — work already performed by the scene
+
+#ifdef USE_OCCT
+    // Redo: detach the tools again and re-apply the combine operation
+    for (size_t i = 0; i < toolPtrs.size(); ++i) {
+        ownedTools[i] = scene->detachBody(toolPtrs[i]);
+        if (ownedTools[i] && basePtr) {
+            basePtr->applyBooleanFromWorldShapes(ownedTools[i]->getWorldShape(), op);
+        }
+    }
+    if (basePtr) basePtr->uploadToGPU();
+    applied = true;
+#endif
+}
+
+void MergeCommand::undo() {
+#ifdef USE_OCCT
+    if (!applied || !basePtr) return;
+
+    // Restore the base body's original shape and transform
+    basePtr->setOCCTShape(oldShape);
+    basePtr->setTransform(oldTransform);
+    basePtr->tessellateFromOCCT();
+    basePtr->uploadToGPU();
+
+    // Put every tool body back into the scene
+    for (size_t i = 0; i < toolPtrs.size(); ++i) {
+        if (ownedTools[i]) scene->addExistingBody(std::move(ownedTools[i]));
+    }
+    applied = false;
+#endif
+}
+
+// ─────────────────────────────────────────────
 // ModifyShapeCommand
 // ─────────────────────────────────────────────
 

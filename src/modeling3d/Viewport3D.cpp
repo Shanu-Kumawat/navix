@@ -228,8 +228,11 @@ void Viewport3D::render(int width, int height) {
             modelShader->setMat4("model", model);
 
             // Boolean mode: tint the tool body and highlight the base body
-            bool isBase = (activeTool == Tool3DType::Boolean && body.get() == boolBaseBody);
-            bool isTool = (activeTool == Tool3DType::Boolean && body.get() == boolToolBody);
+            bool isBase = ((activeTool == Tool3DType::Boolean && body.get() == boolBaseBody) ||
+                           (activeTool == Tool3DType::Combine && body.get() == mergeBase));
+            bool isTool = ((activeTool == Tool3DType::Boolean && body.get() == boolToolBody) ||
+                           (activeTool == Tool3DType::Combine &&
+                            std::find(mergeTools.begin(), mergeTools.end(), body.get()) != mergeTools.end()));
             glm::vec3 col = body->getColor();
             if (isTool) col = glm::vec3(1.0f, 0.55f, 0.15f);  // orange tool
             modelShader->setVec3("objectColor", col);
@@ -695,6 +698,57 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
                 }
                 return;  // step 2 falls through to sketch drawing below
             }
+            // ── Move Body: pick body, then faces per mode ───────────────────
+            if (activeTool == Tool3DType::MoveBody) {
+                if (!moveBody) {
+                    Body3D* hit = pickBody(x, y);
+                    if (hit) { moveBody = hit; scene.selectBody(hit); }
+                    return;
+                }
+                if (moveMode == MoveMode::CoincidentFace) {
+                    glm::dvec3 pt, nrm;
+                    Body3D* hit = pickFace(x, y, pt, nrm);
+                    if (!hit) return;
+                    if (hit == moveBody && !moveFacePicked) {
+                        moveFacePoint = pt;
+                        moveFaceNormal = glm::normalize(nrm);
+                        moveFacePicked = true;
+                    } else if (hit != moveBody) {
+                        moveTargetBody = hit;
+                        moveTgtFacePoint = pt;
+                        moveTgtFaceNormal = glm::normalize(nrm);
+                        moveTargetPicked = true;
+                    }
+                    rebuildToolPreview();
+                }
+                return;
+            }
+            // ── Merge: pick base, then any number of tools ──────────────────
+            if (activeTool == Tool3DType::Combine) {
+                Body3D* hit = pickBody(x, y);
+                if (!hit) {
+                    clearMergeSelection();
+                } else if (hit == mergeBase) {
+                    // Clicking the base picks its FACE (target plane + spot)
+                    glm::dvec3 pt, nrm;
+                    Body3D* fhit = pickFace(x, y, pt, nrm);
+                    if (fhit == mergeBase) {
+                        mergeFacePoint = pt;
+                        mergeFaceNormal = glm::normalize(nrm);
+                        mergeHasFace = true;
+                        rebuildToolPreview();
+                    }
+                } else if (std::find(mergeTools.begin(), mergeTools.end(), hit) != mergeTools.end()) {
+                    mergeTools.erase(std::remove(mergeTools.begin(), mergeTools.end(), hit),
+                                     mergeTools.end());
+                } else if (!mergeBase) {
+                    mergeBase = hit;
+                    scene.selectBody(hit);
+                } else {
+                    mergeTools.push_back(hit);
+                }
+                return;
+            }
             // ── Pattern: pick the rotation-center body when requested ───────
             if (activeTool == Tool3DType::Pattern && circCenter == 2) {
                 Body3D* hit = pickBody(x, y);
@@ -855,6 +909,32 @@ void Viewport3D::handleKey(int key, bool pressed) {
     }
 }
 
+WorkPlane3D Viewport3D::sketchPlaneForIndex(int idx) {
+    // World is Y-up: XZ is the ground plane (normal +Y), XY/XZ/YZ factory
+    // names follow their spanned axes.
+    switch (idx) {
+        case 1:  return WorkPlane3D::XY();
+        case 2:  return WorkPlane3D::YZ();
+        default: return WorkPlane3D::XZ();
+    }
+}
+
+void Viewport3D::setSketchPlaneIndex(int idx) {
+    if (sketchPlaneIndex == idx) return;
+    sketchPlaneIndex = idx;
+    if (scene.isSketchActive()) {
+        // Switching mid-sketch: restart on the new plane (existing behavior)
+        scene.finishSketch();
+        scene.beginSketch(sketchPlaneForIndex(idx));
+    }
+}
+
+void Viewport3D::beginSketchOnPendingPlane() {
+    if (!scene.isSketchActive()) {
+        scene.beginSketch(sketchPlaneForIndex(sketchPlaneIndex));
+    }
+}
+
 void Viewport3D::resetCamera() {
     if (camera) {
         camera->Position = glm::vec3(25.0f, 20.0f, 25.0f);
@@ -989,7 +1069,29 @@ std::string Viewport3D::getStatusText() const {
             if (boolToolBody) text += " | Tool: " + boolToolBody->getName();
             else if (boolBaseBody) text += " | Click the TOOL body";
             break;
+        case Tool3DType::Combine:
+            text = "Merge";
+            if (mergeBase) {
+                text += " | Base: " + mergeBase->getName();
+                text += mergeHasFace ? " | Face picked" : " | Click a face of the base";
+                if (mergeHasFace)
+                    text += " | Tools: " + std::to_string(mergeTools.size()) +
+                            " (click bodies to add)";
+            } else {
+                text += " | Click the BASE body";
+            }
+            break;
         case Tool3DType::Move:    text = "Move"; break;
+        case Tool3DType::MoveBody: {
+            text = "Move Body";
+            if (!moveBody) text += " | Click the body to move";
+            else if (moveMode == MoveMode::CoincidentFace) {
+                if (!moveFacePicked)       text += " | Pick a face ON the moving body";
+                else if (!moveTargetPicked) text += " | Pick the target face (other body)";
+                else                       text += " | Ready - Apply";
+            }
+            break;
+        }
         case Tool3DType::CutExtrude:
             text = "Cut-Extrude";
             if (cutStep == 0)      text += " | Click the target body";
@@ -1429,6 +1531,18 @@ void Viewport3D::validateToolReferences() {
     }
     if (!sketchOk) selectedSketch = nullptr;
 
+    // Merge refs
+    bool mergeBaseOk = false;
+    for (const auto& b : scene.getBodies())
+        if (b.get() == mergeBase) { mergeBaseOk = true; break; }
+    if (!mergeBaseOk) mergeBase = nullptr;
+    mergeTools.erase(std::remove_if(mergeTools.begin(), mergeTools.end(),
+        [&](Body3D* t) {
+            for (const auto& b : scene.getBodies())
+                if (b.get() == t) return false;
+            return true;
+        }), mergeTools.end());
+
     bool centerOk = false;
     for (const auto& b : scene.getBodies())
         if (b.get() == circCenterBody) { centerOk = true; break; }
@@ -1466,6 +1580,15 @@ void Viewport3D::deactivateToolState(Tool3DType previousTool) {
             break;
         case Tool3DType::Pattern:
             circCenterBody = nullptr;
+            break;
+        case Tool3DType::Combine:
+            mergeBase = nullptr;
+            mergeTools.clear();
+            mergeHasFace = false;
+            break;
+        case Tool3DType::MoveBody:
+            moveBody = nullptr;
+            clearMoveFaces();
             break;
         case Tool3DType::CutExtrude:
             // Discard the in-progress face sketch (we created it) and reset flow
@@ -1726,6 +1849,34 @@ void Viewport3D::rebuildToolPreview() {
             } else {  // Counterbore: main hole + wide shallow recess
                 addCutGhost(holeCenter, holeDia, 2.0 * diag + 10.0);
                 addCutGhost(holeCenter, cboreDia, cboreDepth);
+            }
+        }
+    } else if (activeTool == Tool3DType::MoveBody) {
+        // Ghost of the body at its destination
+        if (moveBody && moveBody->hasOCCTShape()) {
+            bool ready = (moveMode == MoveMode::Translate) ||
+                         (moveMode == MoveMode::Rotate && std::abs(rotateAngle) > 1e-4) ||
+                         (moveMode == MoveMode::CoincidentFace && moveFacePicked && moveTargetPicked);
+            if (ready) {
+                auto ghost = std::make_unique<Body3D>();
+                ghost->setOCCTShape(moveBody->getOCCTShape());
+                ghost->setTransform(moveDestinationTransform());
+                ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f));
+                ghost->uploadToGPU();
+                toolPreviewBodies.push_back(std::move(ghost));
+            }
+        }
+    } else if (activeTool == Tool3DType::Combine) {
+        // Ghost of each tool at its face destination (needs base + face + tools)
+        if (mergeHasFace && mergeBase) {
+            for (auto* tool : mergeTools) {
+                if (!tool || !tool->hasOCCTShape()) continue;
+                auto ghost = std::make_unique<Body3D>();
+                ghost->setOCCTShape(tool->getOCCTShape());
+                ghost->setTransform(mergeToolPlacement(tool));
+                ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f));
+                ghost->uploadToGPU();
+                toolPreviewBodies.push_back(std::move(ghost));
             }
         }
     } else if (activeTool == Tool3DType::Pattern) {
@@ -2784,6 +2935,183 @@ bool Viewport3D::executeCutExtrude() {
         cutStep = 0;
         cutTarget = nullptr;
         cutGridLineCount = 0;
+        rebuildToolPreview();
+    }
+    return ok;
+}
+
+void Viewport3D::beginCombine() {
+    if (activeTool == Tool3DType::Combine) {
+        activeTool = Tool3DType::Select;   // toggle off
+        rebuildToolPreview();
+        return;
+    }
+    mergeBase = nullptr;
+    mergeTools.clear();
+    activeTool = Tool3DType::Combine;
+    if (scene.getSelectedBody()) mergeBase = scene.getSelectedBody();
+    rebuildToolPreview();
+}
+
+void Viewport3D::clearMergeSelection() {
+    mergeBase = nullptr;
+    mergeTools.clear();
+    if (activeTool == Tool3DType::Combine) rebuildToolPreview();
+}
+
+void Viewport3D::mergeSelectAll() {
+    mergeBase = nullptr;
+    mergeTools.clear();
+    for (const auto& b : scene.getBodies()) {
+        if (!b->isVisible() || !b->hasOCCTShape()) continue;
+        if (!mergeBase) mergeBase = b.get();
+        else mergeTools.push_back(b.get());
+    }
+    if (mergeBase) scene.selectBody(mergeBase);
+    rebuildToolPreview();
+}
+
+// Destination transform for a merge tool: moves it onto the picked face.
+// Flat  -> the tool's extreme along the face normal rests on the plane,
+//          centered on the picked point (in-plane).
+// Centered -> the tool's center is placed exactly at the picked point.
+glm::mat4 Viewport3D::mergeToolPlacement(Body3D* tool) const {
+    glm::dvec3 n = glm::normalize(mergeFaceNormal);
+    glm::dvec3 p = mergeFacePoint;
+
+    // Tool's world AABB
+    glm::mat4 M = tool->getTransform();
+    glm::vec3 bmn = tool->getBoundsMin(), bmx = tool->getBoundsMax();
+    glm::vec3 wmin(1e9f), wmax(-1e9f);
+    for (int ci = 0; ci < 8; ++ci) {
+        glm::vec3 corner((ci & 1) ? bmx.x : bmn.x,
+                         (ci & 2) ? bmx.y : bmn.y,
+                         (ci & 4) ? bmx.z : bmn.z);
+        glm::vec3 w = M * glm::vec4(corner, 1.0f);
+        wmin = glm::min(wmin, w);
+        wmax = glm::max(wmax, w);
+    }
+    glm::dvec3 C = glm::dvec3(M * glm::vec4(tool->getCenter(), 1.0f));
+
+    if (mergeAlign == 1) {
+        // Centered on the picked point (plus offset along the normal)
+        return glm::translate(glm::mat4(1.0f),
+                              glm::vec3(p - C + n * double(mergeOffset))) * M;
+    }
+
+    // Flat on face: in-plane centering + lift so the lowest corner (along -n)
+    // rests exactly on the plane
+    double minS = 1e18;
+    for (int ci = 0; ci < 8; ++ci) {
+        glm::vec3 corner((ci & 1) ? bmx.x : bmn.x,
+                         (ci & 2) ? bmx.y : bmn.y,
+                         (ci & 4) ? bmx.z : bmn.z);
+        glm::vec3 w = M * glm::vec4(corner, 1.0f);
+        minS = std::min<double>(minS, glm::dot(glm::dvec3(w) - p, n));
+    }
+    glm::dvec3 inPlane = (p - C) - n * glm::dot(p - C, n);
+    glm::dvec3 delta = inPlane + n * (-minS + double(mergeOffset));
+    return glm::translate(glm::mat4(1.0f), glm::vec3(delta)) * M;
+}
+
+// Coincident face mate: rotate the moving body so its picked face normal
+// opposes the target face normal (rotation about its own picked face point),
+// then slide along the target normal so the two face planes coincide.
+glm::dmat4 Viewport3D::moveCoincidentTransform() const {
+    glm::dvec3 nB = glm::normalize(moveFaceNormal);
+    glm::dvec3 nA = glm::normalize(moveTgtFaceNormal);
+    glm::dvec3 targetDir = -nA;                     // face-to-face: normals oppose
+
+    glm::dvec3 axis = glm::cross(nB, targetDir);
+    double axisLen = glm::length(axis);
+    double dotv = glm::clamp(glm::dot(nB, targetDir), -1.0, 1.0);
+    double angle = std::acos(dotv);
+
+    glm::dvec3 pB = moveFacePoint;
+    glm::dmat4 TpB = glm::translate(glm::dmat4(1.0), pB);
+    glm::dmat4 R(1.0);
+    if (axisLen > 1e-9)
+        R = glm::rotate(glm::dmat4(1.0), angle, axis / axisLen);
+    else if (dotv < 0.0)
+        R = glm::rotate(glm::dmat4(1.0), glm::pi<double>(), glm::dvec3(1, 0, 0));
+
+    glm::dmat4 M = TpB * R * glm::translate(glm::dmat4(1.0), -pB) *
+                   glm::dmat4(moveBody->getTransform());
+
+    // Slide along the target normal so the two face planes coincide
+    double delta = glm::dot(moveTgtFacePoint - pB, nA);
+    return glm::translate(glm::dmat4(1.0), nA * delta) * M;
+}
+
+glm::mat4 Viewport3D::moveDestinationTransform() const {
+    glm::mat4 M = moveBody->getTransform();
+    switch (moveMode) {
+        case MoveMode::CoincidentFace:
+            if (moveFacePicked && moveTargetPicked) return glm::mat4(moveCoincidentTransform());
+            return M;
+        case MoveMode::Rotate: {
+            glm::vec3 axes[3] = {{1,0,0},{0,1,0},{0,0,1}};
+            glm::vec3 c = moveBody->getCenter();
+            glm::mat4 toC = glm::translate(glm::mat4(1.0f), c);
+            glm::mat4 rot = glm::rotate(glm::mat4(1.0f),
+                                        glm::radians(rotateAngle), axes[rotateAxis]);
+            return toC * rot * glm::inverse(toC) * M;
+        }
+        default:
+            return glm::translate(glm::mat4(1.0f), glm::vec3(moveDelta)) * M;
+    }
+}
+
+void Viewport3D::beginMoveBody() {
+    if (activeTool == Tool3DType::MoveBody) {
+        activeTool = Tool3DType::Select;
+        rebuildToolPreview();
+        return;
+    }
+    moveBody = nullptr;
+    clearMoveFaces();
+    moveDelta = glm::dvec3(0.0);
+    activeTool = Tool3DType::MoveBody;
+    if (scene.getSelectedBody()) moveBody = scene.getSelectedBody();
+    rebuildToolPreview();
+}
+
+void Viewport3D::setMoveMode(MoveMode m) {
+    if (moveMode != m) {
+        moveMode = m;
+        clearMoveFaces();
+        rebuildToolPreview();
+    }
+}
+
+bool Viewport3D::executeMoveBody() {
+    if (!moveBody) return false;
+    glm::mat4 oldT = moveBody->getTransform();
+    glm::mat4 newT = moveDestinationTransform();
+    if (newT == oldT) return false;
+    moveBody->setTransform(newT);
+    scene.getCommandManager().execute(
+        std::make_unique<TransformBodyCommand>(moveBody, oldT, newT));
+    // Keep the tool active for repeated moves; delta resets
+    moveDelta = glm::dvec3(0.0);
+    clearMoveFaces();
+    rebuildToolPreview();
+    return true;
+}
+
+bool Viewport3D::executeCombine(BoolOp op) {
+    if (!mergeBase || mergeTools.empty()) return false;
+    if (mergeHasFace && op == BoolOp::Union) {
+        // Position every tool at its face destination first (face-targeted Add)
+        for (auto* tool : mergeTools) {
+            if (tool) tool->setTransform(mergeToolPlacement(tool));
+        }
+    }
+    bool ok = scene.applyCombine(mergeBase, mergeTools, op);
+    if (ok) {
+        mergeBase = nullptr;
+        mergeTools.clear();
+        activeTool = Tool3DType::Select;
         rebuildToolPreview();
     }
     return ok;

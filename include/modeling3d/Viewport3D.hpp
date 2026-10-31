@@ -24,6 +24,8 @@ enum class Tool3DType {
     Revolve,
     Fillet,
     Boolean,        // Boolean operations on solid bodies
+    MoveBody,       // Position a body: translate / coincident face mate / rotate
+    Combine,        // SolidWorks Combine: Add / Subtract / Common (N bodies)
     CutExtrude,     // Cut-Extrude / Pocket (sketch profile cut into a body)
     Hole,           // Hole wizard lite (click a face, parametric hole)
     Pattern,        // Linear / circular pattern of the selected body
@@ -127,6 +129,14 @@ public:
     // Work plane
     void setWorkPlane(const WorkPlane3D& wp);
 
+    // Sketch plane selection (SolidWorks-style: choose the plane BEFORE
+    // drawing). 0 = XZ ground (default), 1 = XY front, 2 = YZ side.
+    int getSketchPlaneIndex() const { return sketchPlaneIndex; }
+    void setSketchPlaneIndex(int idx);
+    WorkPlane3D sketchPlaneForIndex(int idx);
+    void beginSketchOnPendingPlane();   // starts a sketch on the chosen plane
+    // Cancel an in-progress face sketch owned by Cut-Extrude
+
     // Extrude/Revolve
     float getExtrudeDistance() const { return extrudeDistance; }
     void setExtrudeDistance(float d);
@@ -152,6 +162,43 @@ public:
     Body3D* getBoolToolBody() const { return boolToolBody; }
     void clearBooleanSelection();
     bool executeBoolean();
+
+    // Merge (fuse N bodies into the first-picked one)
+    void beginCombine();
+    Body3D* getMergeBase() const { return mergeBase; }
+    const std::vector<Body3D*>& getMergeTools() const { return mergeTools; }
+    void clearMergeSelection();
+    void mergeSelectAll();   // base = first visible body, tools = the rest
+    bool executeCombine(BoolOp op);
+    enum class MoveMode { Translate, CoincidentFace, Rotate };
+    void beginMoveBody();
+    Body3D* getMoveBody() const { return moveBody; }
+    MoveMode getMoveMode() const { return moveMode; }
+    void setMoveMode(MoveMode m);
+    glm::dvec3 getMoveDelta() const { return moveDelta; }
+    void setMoveDelta(const glm::dvec3& d) { moveDelta = d; }
+    bool isMoveFacePicked() const { return moveFacePicked; }
+    bool isMoveTargetPicked() const { return moveTargetPicked; }
+    Body3D* getMoveTargetBody() const { return moveTargetBody; }
+    void clearMoveFaces() { moveFacePicked = false; moveTargetPicked = false; moveTargetBody = nullptr; }
+    int getRotateAxis() const { return rotateAxis; }
+    void setRotateAxis(int a) { rotateAxis = a; }
+    float getRotateAngle() const { return rotateAngle; }
+    void setRotateAngle(float a) { rotateAngle = a; }
+    bool executeMoveBody();
+    glm::dmat4 moveCoincidentTransform() const;
+    glm::mat4 moveDestinationTransform() const;
+
+    glm::mat4 mergeToolPlacement(Body3D* tool) const;
+
+    // Face-targeted merge: pick a face of the base, tools are MOVED onto that
+    // face (SolidWorks Move/Copy Body + Combine, condensed into one flow)
+    bool isMergeFacePicked() const { return mergeHasFace; }
+    int getMergeAlign() const { return mergeAlign; }   // 0=Flat on face, 1=Centered on point
+    void setMergeAlign(int a) { if (mergeAlign != a) { mergeAlign = a; rebuildToolPreview(); } }
+    float getMergeOffset() const { return mergeOffset; }
+    void setMergeOffset(float o) { if (std::abs(mergeOffset - o) > 1e-4) { mergeOffset = o; rebuildToolPreview(); } }
+    void clearMergeFace() { mergeHasFace = false; rebuildToolPreview(); }
 
     // Cut-Extrude / Pocket (pick body → pick its face → draw on the face grid)
     int getCutStep() const { return cutStep; }
@@ -362,6 +409,9 @@ private:
     // Selected sketch (for sketch-based ops independent of active sketch)
     Sketch3D* selectedSketch{nullptr};
 
+    // Pending sketch plane (chosen before drawing starts)
+    int sketchPlaneIndex{0};   // 0=XZ ground, 1=XY front, 2=YZ side
+
     // Mouse state
     bool middleMouseDown{false};
     bool leftMouseDown{false};
@@ -420,6 +470,29 @@ private:
     BoolOp  boolOpMode{BoolOp::Union};
     Body3D* boolBaseBody{nullptr};  // first picked — receives the result
     Body3D* boolToolBody{nullptr};  // second picked — consumed by the op
+
+    // ── Merge state ──────────────────────────────────────────────────────────
+    Body3D* mergeBase{nullptr};
+    std::vector<Body3D*> mergeTools;
+
+    // ── Move Body state ──────────────────────────────────────────────────────
+    Body3D* moveBody{nullptr};
+    MoveMode moveMode{MoveMode::Translate};
+    glm::dvec3 moveDelta{0.0};        // Translate mode (world XYZ)
+    bool moveFacePicked{false};       // Coincident: mating face on moveBody
+    glm::dvec3 moveFacePoint{0.0};
+    glm::dvec3 moveFaceNormal{0.0, 1.0, 0.0};
+    Body3D* moveTargetBody{nullptr};  // Coincident: the other body
+    bool moveTargetPicked{false};
+    glm::dvec3 moveTgtFacePoint{0.0};
+    glm::dvec3 moveTgtFaceNormal{0.0, 1.0, 0.0};
+    int rotateAxis{1};                // 0=X 1=Y 2=Z
+    float rotateAngle{0.0f};          // degrees
+    bool mergeHasFace{false};
+    glm::dvec3 mergeFacePoint{0.0};
+    glm::dvec3 mergeFaceNormal{0.0, 1.0, 0.0};
+    int mergeAlign{0};          // 0 = flat on face, 1 = centered on point
+    float mergeOffset{0.0f};    // distance above the face along its normal
 
     // ── Cut-Extrude / Hole / Pattern / Mirror state ──────────────────────────
     // Cut-Extrude flow: step 0 = pick target body, 1 = pick its face,

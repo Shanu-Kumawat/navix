@@ -345,6 +345,58 @@ bool Modeling3DScene::applyHole(Body3D* target, const glm::dvec3& center,
 }
 
 // ─────────────────────────────────────────────
+// Merge (N-body fuse)
+// ─────────────────────────────────────────────
+
+bool Modeling3DScene::applyCombine(Body3D* base, const std::vector<Body3D*>& tools,
+                                   BoolOp op) {
+    if (!base || tools.empty()) return false;
+#ifdef USE_OCCT
+    if (!base->hasOCCTShape()) return false;
+
+    TopoDS_Shape oldShape = base->getOCCTShape();
+    glm::mat4 oldTransform = base->getTransform();
+
+    std::vector<Body3D*> appliedPtrs;
+    for (Body3D* tool : tools) {
+        if (!tool || tool == base || !tool->hasOCCTShape()) continue;
+        if (base->applyBooleanFromWorldShapes(tool->getWorldShape(), op)) {
+            appliedPtrs.push_back(tool);
+        } else if (op == BoolOp::Union) {
+            // Union failing is a hard error; Subtract/Common "failing" may
+            // just mean no overlap for that tool — keep going
+            std::cerr << "[Combine] op failed on a tool, aborting" << std::endl;
+        }
+    }
+    if (appliedPtrs.empty()) {
+        std::cerr << "[Merge] nothing merged" << std::endl;
+        base->setOCCTShape(oldShape);
+        base->setTransform(oldTransform);
+        base->tessellateFromOCCT();
+        return false;
+    }
+
+    base->uploadToGPU();
+    selectBody(base);
+    base->setKind("Boolean");
+
+    static const char* opNames[] = { "Combine (Add)", "Combine (Subtract)", "Combine (Common)" };
+    std::vector<std::unique_ptr<Body3D>> detached;
+    for (Body3D* t : appliedPtrs) detached.push_back(detachBody(t));
+
+    auto cmd = std::make_unique<MergeCommand>(this, base, opNames[static_cast<int>(op)]);
+    cmd->saveOldState(oldShape, oldTransform);
+    cmd->setTools(appliedPtrs, std::move(detached));
+    cmd->setOp(op);
+    commandManager.execute(std::move(cmd));  // execute() no-op on first run
+    return true;
+#else
+    (void)base; (void)tools;
+    return false;
+#endif
+}
+
+// ─────────────────────────────────────────────
 // Linear / Circular pattern
 // ─────────────────────────────────────────────
 

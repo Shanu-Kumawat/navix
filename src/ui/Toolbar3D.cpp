@@ -101,11 +101,50 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
                 return;
             }
             if (!sketching) {
-                viewport.getScene()->beginSketch(Modeling3D::WorkPlane3D::XY());
+                viewport.beginSketchOnPendingPlane();  // chosen via the Plane selector
                 viewport.setActiveTool(Modeling3D::Tool3DType::Sketch);
             }
             viewport.setSketchDrawTool(newTool);
         };
+
+        // ── Sketch plane selector (ALWAYS visible — choose before drawing) ──
+        {
+            int planeIdx = viewport.getSketchPlaneIndex();
+            const char* planeName = (planeIdx == 0) ? "Ground (XZ)"
+                                  : (planeIdx == 1) ? "Front (XY)"
+                                                    : "Side (YZ)";
+            if (TIconBtn("plane3d", "⊡", "Sketch plane — pick the plane BEFORE drawing",
+                         sketching, ImVec2(22, 30)))
+                ImGui::OpenPopup("##PlanePickAlways");
+            ImGui::SameLine(0, 2);
+            ImGui::PushStyleColor(ImGuiCol_Text, UIColors::ACCENT);
+            ImGui::TextUnformatted(planeName);
+            ImGui::PopStyleColor();
+            ImGui::SameLine(0, 6);
+            if (ImGui::BeginPopup("##PlanePickAlways")) {
+                ImGui::PushStyleColor(ImGuiCol_Text, UIColors::ACCENT);
+                ImGui::TextUnformatted("Sketch plane:");
+                ImGui::PopStyleColor();
+                ImGui::Separator();
+                struct PlaneItem { const char* label; int idx; };
+                const PlaneItem planes[] = {
+                    { "Ground (XZ) — draw flat on the floor", 0 },
+                    { "Front  (XY) — vertical wall",          1 },
+                    { "Side   (YZ) — vertical wall",          2 },
+                };
+                for (const auto& pl : planes) {
+                    if (ImGui::MenuItem(pl.label, nullptr, planeIdx == pl.idx)) {
+                        viewport.setSketchPlaneIndex(pl.idx);
+                        appContext.consoleMessage = sketching
+                            ? "Sketch restarted on the new plane"
+                            : "Plane selected — now pick a drawing tool";
+                    }
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::SameLine(0, 6);
+            TSep();
+        }
 
         bool lineSel   = sketching && dt == Modeling3D::SketchDrawTool::Line;
         bool rectSel   = sketching && dt == Modeling3D::SketchDrawTool::Rectangle;
@@ -141,25 +180,14 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
 
         // Plane switcher — only shown while sketching, does NOT restart the sketch
         if (sketching) {
-            if (TIconBtn("plane3d", "⊡", "Change sketch plane (XY / XZ / YZ)", false, ImVec2(30, 30)))
+            if (TIconBtn("plane3d", "⊡", "Change sketch plane", false, ImVec2(30, 30)))
                 ImGui::OpenPopup("##PlanePicker3D");
             if (ImGui::BeginPopup("##PlanePicker3D")) {
                 ImGui::TextDisabled("Sketch plane:");
                 ImGui::Separator();
-                if (ImGui::MenuItem("XY  — top (default)")) {
-                    // Switch plane without losing existing sketch:
-                    // finish current, immediately begin new on target plane
-                    viewport.getScene()->finishSketch();
-                    viewport.getScene()->beginSketch(Modeling3D::WorkPlane3D::XY());
-                }
-                if (ImGui::MenuItem("XZ  — front / back")) {
-                    viewport.getScene()->finishSketch();
-                    viewport.getScene()->beginSketch(Modeling3D::WorkPlane3D::XZ());
-                }
-                if (ImGui::MenuItem("YZ  — left / right")) {
-                    viewport.getScene()->finishSketch();
-                    viewport.getScene()->beginSketch(Modeling3D::WorkPlane3D::YZ());
-                }
+                if (ImGui::MenuItem("Ground (XZ)")) viewport.setSketchPlaneIndex(0);
+                if (ImGui::MenuItem("Front (XY)"))  viewport.setSketchPlaneIndex(1);
+                if (ImGui::MenuItem("Side (YZ)"))   viewport.setSketchPlaneIndex(2);
                 ImGui::EndPopup();
             }
             ImGui::SameLine(0, 4);
@@ -235,6 +263,15 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
         }
         ImGui::EndPopup();
     }
+    ImGui::SameLine(0, 3);
+
+    if (TIconBtn("movebody3d", "⇥", "Move Body — translate / face mate / rotate",
+                 tool == Modeling3D::Tool3DType::MoveBody, btnSz))
+        viewport.beginMoveBody();
+    ImGui::SameLine(0, 3);
+    if (TIconBtn("merge3d", "⨇", "Combine — Add / Subtract / Common (N bodies)",
+                 tool == Modeling3D::Tool3DType::Combine, btnSz))
+        viewport.beginCombine();
     ImGui::SameLine(0, 3);
 
     // ── Cut-Extrude / Hole / Pattern / Mirror ─────────────────────────────────

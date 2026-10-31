@@ -94,6 +94,11 @@ public:
     // optionally fuse the mirrored copy into the target
     bool applyMirror(Body3D* target, int plane, double offset, bool fuse);
 
+    // Combine (SolidWorks-style): fuse/cut/intersect N tool bodies with the
+    // base in a single undoable step. Tools are consumed for Add/Subtract.
+    bool applyCombine(Body3D* base, const std::vector<Body3D*>& tools,
+                      BoolOp op = BoolOp::Union);
+
     // Upload all bodies to GPU
     void uploadAllToGPU();
 

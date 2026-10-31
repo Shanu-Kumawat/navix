@@ -103,56 +103,62 @@ void InputController::handleSelection(const glm::dvec2& mousePos) {
     auto& shapes = model->getShapesMutable();
 
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        Drawing::Shape* previouslySelected = canvas->getSelectedShape();
         canvas->clearSelection();
 
         std::cout << "Selection click at: (" << mousePos.x << ", " << mousePos.y << ")\n";
 
         float snapThreshold = Drawing::Constants::SNAP_THRESHOLD / canvas->getZoomLevel();
 
-        // Check bellows first
-        bool bellowsSelected = false;
+        // Hit-test topmost shape first (bellows → spring → everything else).
+        // NOTE: no selection happens inside the loops — clicking the already
+        // selected shape must DESELECT, so we decide after the hit tests.
+        Drawing::Shape* hitShape = nullptr;
+
         for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
             auto& shape = *it;
             if (shape->type == Drawing::ShapeType::BELLOWS) {
                 if (shape->isPointNear(mousePos, snapThreshold)) {
-                    canvas->selectShape(shape.get());
-                    static_cast<Drawing::Bellows*>(canvas->getSelectedShape())->isSelected = true;
-                    bellowsSelected = true;
+                    hitShape = shape.get();
                     break;
                 }
             }
         }
 
-        if (!bellowsSelected) {
-            // Check Spring2D
+        if (!hitShape) {
             for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
                 auto& shape = *it;
                 if (shape->type == Drawing::ShapeType::SPRING2D) {
                     auto* spring = static_cast<Drawing::Spring2D*>(shape.get());
                     if (spring->isPointInBoundingBox(mousePos, snapThreshold)) {
-                        canvas->selectShape(shape.get());
-                        std::cout << "Spring2D selected at (" << spring->centerX << ", " << spring->centerY << ")!\n";
+                        hitShape = shape.get();
+                        std::cout << "Spring2D hit at (" << spring->centerX << ", " << spring->centerY << ")\n";
                         break;
                     }
                 }
             }
+        }
 
-            // Check other shapes
-            if (!canvas->getSelectedShape()) {
-                for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
-                    auto& shape = *it;
-                    if (shape->type == Drawing::ShapeType::SPRING2D) continue;
-                    if (shape->isPointNear(mousePos, snapThreshold)) {
-                        canvas->selectShape(shape.get());
-                        std::cout << "Shape selected, type: " << static_cast<int>(shape->type) << "\n";
-                        if (canvas->getSelectedShape()->type == Drawing::ShapeType::BELLOWS) {
-                            static_cast<Drawing::Bellows*>(canvas->getSelectedShape())->isSelected = true;
-                        } else if (canvas->getSelectedShape()->type == Drawing::ShapeType::BALL_BEARING) {
-                            static_cast<Drawing::BallBearing*>(canvas->getSelectedShape())->isSelected = true;
-                        }
-                        break;
-                    }
+        if (!hitShape) {
+            for (auto it = shapes.rbegin(); it != shapes.rend(); ++it) {
+                auto& shape = *it;
+                if (shape->type == Drawing::ShapeType::SPRING2D) continue;
+                if (shape->isPointNear(mousePos, snapThreshold)) {
+                    hitShape = shape.get();
+                    std::cout << "Shape hit, type: " << static_cast<int>(shape->type) << "\n";
+                    break;
                 }
+            }
+        }
+
+        // Toggle: clicking the already-selected shape deselects it
+        if (hitShape && hitShape != previouslySelected) {
+            canvas->selectShape(hitShape);
+            std::cout << "Shape selected, type: " << static_cast<int>(hitShape->type) << "\n";
+            if (hitShape->type == Drawing::ShapeType::BELLOWS) {
+                static_cast<Drawing::Bellows*>(hitShape)->isSelected = true;
+            } else if (hitShape->type == Drawing::ShapeType::BALL_BEARING) {
+                static_cast<Drawing::BallBearing*>(hitShape)->isSelected = true;
             }
         }
 

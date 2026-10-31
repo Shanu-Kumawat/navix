@@ -202,6 +202,43 @@ private:
 };
 
 /**
+ * @brief Command: merge (fuse) N tool bodies into a base body.
+ * Undo restores the base shape and re-adds every tool; redo re-fuses.
+ */
+class MergeCommand : public Command3D {
+public:
+    MergeCommand(Modeling3DScene* scene, Body3D* base,
+                 const std::string& desc);
+    ~MergeCommand() override;
+
+#ifdef USE_OCCT
+    void saveOldState(const TopoDS_Shape& shape, const glm::mat4& transform) {
+        oldShape = shape; oldTransform = transform;
+    }
+    void setTools(std::vector<Body3D*> toolPtrs,
+                  std::vector<std::unique_ptr<Body3D>> detached);
+    void setOp(BoolOp o) { op = o; }
+#endif
+
+    void execute() override;
+    void undo() override;
+    std::string getDescription() const override { return description; }
+
+private:
+    Modeling3DScene* scene;
+    Body3D* basePtr{nullptr};
+    std::vector<Body3D*> toolPtrs;
+    std::vector<std::unique_ptr<Body3D>> ownedTools;  // held when applied
+    std::string description;
+    bool applied{true};
+    BoolOp op{BoolOp::Union};
+    glm::mat4 oldTransform{1.0f};
+#ifdef USE_OCCT
+    TopoDS_Shape oldShape;
+#endif
+};
+
+/**
  * @brief Command: in-place shape modification (fillet, chamfer, ...).
  *
  * The operation is applied directly by the caller; this command stores the
