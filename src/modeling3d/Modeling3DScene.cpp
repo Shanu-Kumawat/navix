@@ -426,7 +426,11 @@ bool Modeling3DScene::applyPattern(Body3D* target, PatternKind kind,
 
         auto clone = std::make_unique<Body3D>();
         clone->setOCCTShape(target->getOCCTShape());
-        clone->setTransform(target->getTransform() * off);
+        // World-space pattern transform applied AFTER the body placement
+        // (pre-multiplying). For circular patterns this rotates the placed
+        // body about the world center — T_target * off would rotate in the
+        // body's local space and land clones in wrong spots.
+        clone->setTransform(off * target->getTransform());
         clone->setColor(target->getColor());
         clone->setName(target->getName() + " (" + std::to_string(i + 1) + ")");
         clone->setKind(target->getKind() == "Body" ? "Pattern" : target->getKind());

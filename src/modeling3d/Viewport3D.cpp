@@ -1936,7 +1936,7 @@ void Viewport3D::rebuildToolPreview() {
                 }
                 auto ghost = std::make_unique<Body3D>();
                 ghost->setOCCTShape(base->getOCCTShape());
-                ghost->setTransform(base->getTransform() * off);
+                ghost->setTransform(off * base->getTransform());
                 ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f));
                 ghost->uploadToGPU();
                 toolPreviewBodies.push_back(std::move(ghost));
