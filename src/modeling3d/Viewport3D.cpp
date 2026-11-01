@@ -354,6 +354,8 @@ void Viewport3D::render(int width, int height) {
     // === Section plane indicator (on top of clipped bodies) ===
     renderSectionPlane();
 
+    renderFaceHighlights();
+
     // === All Sketches (active + finished) ===
     renderSketch();
     renderSketchPreview();
@@ -700,24 +702,34 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
             }
             // ── Move Body: pick body, then faces per mode ───────────────────
             if (activeTool == Tool3DType::MoveBody) {
-                if (!moveBody) {
+                if (movePickingBody || !moveBody) {
                     Body3D* hit = pickBody(x, y);
-                    if (hit) { moveBody = hit; scene.selectBody(hit); }
+                    if (hit) {
+                        moveBody = hit;
+                        movePickingBody = false;
+                        scene.selectBody(hit);
+                        clearMoveFaces();
+                        rebuildToolPreview();
+                    }
                     return;
                 }
                 if (moveMode == MoveMode::CoincidentFace) {
                     glm::dvec3 pt, nrm;
                     Body3D* hit = pickFace(x, y, pt, nrm);
                     if (!hit) return;
-                    if (hit == moveBody && !moveFacePicked) {
+                    if (hit == moveBody) {
+                        // Step 2: the mating face on the moving body
                         moveFacePoint = pt;
                         moveFaceNormal = glm::normalize(nrm);
                         moveFacePicked = true;
-                    } else if (hit != moveBody) {
+                        buildFacePatch(hit, pt, moveFaceNormal, moveFaceHL, moveFaceCenter);
+                    } else {
+                        // Step 4: the target face on the other body
                         moveTargetBody = hit;
                         moveTgtFacePoint = pt;
                         moveTgtFaceNormal = glm::normalize(nrm);
                         moveTargetPicked = true;
+                        buildFacePatch(hit, pt, moveTgtFaceNormal, moveTgtHL, moveTgtCenter);
                     }
                     rebuildToolPreview();
                 }
@@ -1086,9 +1098,8 @@ std::string Viewport3D::getStatusText() const {
             text = "Move Body";
             if (!moveBody) text += " | Click the body to move";
             else if (moveMode == MoveMode::CoincidentFace) {
-                if (!moveFacePicked)       text += " | Pick a face ON the moving body";
-                else if (!moveTargetPicked) text += " | Pick the target face (other body)";
-                else                       text += " | Ready - Apply";
+                if (!moveTargetPicked) text += " | Click the target face (on another body)";
+                else                   text += " | Ready - Apply";
             }
             break;
         }
@@ -1588,6 +1599,7 @@ void Viewport3D::deactivateToolState(Tool3DType previousTool) {
             break;
         case Tool3DType::MoveBody:
             moveBody = nullptr;
+            movePickingBody = false;
             clearMoveFaces();
             break;
         case Tool3DType::CutExtrude:
@@ -1856,11 +1868,12 @@ void Viewport3D::rebuildToolPreview() {
         if (moveBody && moveBody->hasOCCTShape()) {
             bool ready = (moveMode == MoveMode::Translate) ||
                          (moveMode == MoveMode::Rotate && std::abs(rotateAngle) > 1e-4) ||
-                         (moveMode == MoveMode::CoincidentFace && moveFacePicked && moveTargetPicked);
+                         (moveMode == MoveMode::CoincidentFace && moveTargetPicked);
             if (ready) {
                 auto ghost = std::make_unique<Body3D>();
                 ghost->setOCCTShape(moveBody->getOCCTShape());
                 ghost->setTransform(moveDestinationTransform());
+                ghost->tessellateFromOCCT();   // build display mesh — setOCCTShape does NOT
                 ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f));
                 ghost->uploadToGPU();
                 toolPreviewBodies.push_back(std::move(ghost));
@@ -1874,6 +1887,7 @@ void Viewport3D::rebuildToolPreview() {
                 auto ghost = std::make_unique<Body3D>();
                 ghost->setOCCTShape(tool->getOCCTShape());
                 ghost->setTransform(mergeToolPlacement(tool));
+                ghost->tessellateFromOCCT();   // build display mesh
                 ghost->setColor(glm::vec3(0.65f, 0.45f, 1.0f));
                 ghost->uploadToGPU();
                 toolPreviewBodies.push_back(std::move(ghost));
@@ -3014,33 +3028,132 @@ glm::mat4 Viewport3D::mergeToolPlacement(Body3D* tool) const {
     return glm::translate(glm::mat4(1.0f), glm::vec3(delta)) * M;
 }
 
-// Coincident face mate: rotate the moving body so its picked face normal
-// opposes the target face normal (rotation about its own picked face point),
-// then slide along the target normal so the two face planes coincide.
+// Collect the coplanar triangle patch around the picked point (same normal,
+// same plane) as a lifted world-space triangle list, plus its centroid.
+void Viewport3D::buildFacePatch(const Body3D* body, const glm::dvec3& hitPt,
+                                const glm::dvec3& nrm, std::vector<float>& outVerts,
+                                glm::dvec3& outCentroid) {
+    outVerts.clear();
+    outCentroid = hitPt;
+    if (!body) return;
+    glm::dvec3 n = glm::normalize(nrm);
+    glm::mat4 M = body->getTransform();
+    glm::vec3 bmn = body->getBoundsMin(), bmx = body->getBoundsMax();
+    double diag = glm::length(glm::dvec3(bmx - bmn));
+    double planeEps = std::max(0.02 * diag, 0.05);
+    double lift = std::max(0.02 * diag, 0.05);
+
+    const auto& verts = body->getVertices();
+    const auto& tris = body->getTriangles();
+    if (tris.empty()) return;
+
+    glm::dvec3 sum(0.0);
+    double wsum = 0.0;
+    for (const auto& t : tris) {
+        if (t.v0 >= verts.size() || t.v1 >= verts.size() || t.v2 >= verts.size()) continue;
+        glm::dvec3 a = M * glm::vec4(verts[t.v0].position, 1.0f);
+        glm::dvec3 b = M * glm::vec4(verts[t.v1].position, 1.0f);
+        glm::dvec3 c = M * glm::vec4(verts[t.v2].position, 1.0f);
+        glm::dvec3 tn = glm::normalize(glm::cross(b - a, c - a));
+        if (glm::dot(tn, n) < 0.85) continue;                       // same orientation
+        glm::dvec3 ctr = (a + b + c) / 3.0;
+        if (std::abs(glm::dot(ctr - hitPt, n)) > planeEps) continue; // same plane
+        double area = glm::length(glm::cross(b - a, c - a)) * 0.5;
+        sum += ctr * area; wsum += area;
+        for (int k = 0; k < 3; ++k) {
+            glm::dvec3 wp = (k == 0 ? a : k == 1 ? b : c) + n * lift;
+            outVerts.push_back((float)wp.x); outVerts.push_back((float)wp.y); outVerts.push_back((float)wp.z);
+        }
+    }
+    if (wsum > 0.0) outCentroid = sum / wsum;
+}
+
+void Viewport3D::renderFaceHighlights() {
+    struct HL { const std::vector<float>* verts; glm::vec3 color; };
+    HL lhs[] = {
+        { &moveFaceHL,    glm::vec3(1.0f, 0.85f, 0.20f) },  // yellow: mating face
+        { &moveTgtHL,     glm::vec3(0.30f, 0.90f, 0.50f) }, // green: target face
+        { &combineFaceHL, glm::vec3(1.0f, 0.85f, 0.20f) },
+    };
+    bool any = false;
+    for (auto& h : lhs) if (!h.verts->empty()) { any = true; break; }
+    if (!any || !modelShader) return;
+
+    float aspect = (float)fbWidth / (float)fbHeight;
+    glm::mat4 proj = glm::perspective(glm::radians(camera->Zoom), aspect, 0.1f, 20000.0f);
+    glm::mat4 view = camera->GetViewMatrix();
+    modelShader->use();
+    modelShader->setMat4("projection", proj);
+    modelShader->setMat4("view", view);
+    modelShader->setMat4("model", glm::mat4(1.0f));
+    modelShader->setInt("renderMode", 0);
+    modelShader->setInt("isSelected", 0);
+    modelShader->setVec4("clipPlane", glm::vec4(0));
+    modelShader->setFloat("ambientStrength", 1.0f);
+    modelShader->setFloat("diffuseStrength", 0.0f);
+    modelShader->setFloat("specularStrength", 0.0f);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+
+    for (auto& h : lhs) {
+        if (h.verts->empty()) continue;
+        unsigned int vao = 0, vbo = 0;
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, h.verts->size() * sizeof(float),
+                     h.verts->data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        modelShader->setVec3("objectColor", h.color);
+        modelShader->setFloat("alphaMultiplier", 0.40f);
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(h.verts->size() / 3));
+        glBindVertexArray(0);
+        glDeleteVertexArrays(1, &vao);
+        glDeleteBuffers(1, &vbo);
+    }
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+    modelShader->setFloat("alphaMultiplier", 1.0f);
+    modelShader->setFloat("ambientStrength", 0.35f);
+    modelShader->setFloat("diffuseStrength", 0.65f);
+    modelShader->setFloat("specularStrength", 0.4f);
+}
+
+// Seat-on-face: the moving body keeps its orientation; its lowest point
+// (along the target face normal) rests exactly on the target face plane,
+// centered in-plane on the picked point. Intuitive "put it on the face".
 glm::dmat4 Viewport3D::moveCoincidentTransform() const {
-    glm::dvec3 nB = glm::normalize(moveFaceNormal);
-    glm::dvec3 nA = glm::normalize(moveTgtFaceNormal);
-    glm::dvec3 targetDir = -nA;                     // face-to-face: normals oppose
+    glm::dvec3 nA = glm::normalize(moveFaceNormal);
+    glm::dvec3 nB = glm::normalize(moveTgtFaceNormal);
+    glm::dvec3 pA = moveFacePoint;
+    glm::dvec3 pB = moveTgtFacePoint;
+    glm::dmat4 AT = glm::dmat4(moveBody->getTransform());
 
-    glm::dvec3 axis = glm::cross(nB, targetDir);
-    double axisLen = glm::length(axis);
-    double dotv = glm::clamp(glm::dot(nB, targetDir), -1.0, 1.0);
-    double angle = std::acos(dotv);
+    // Face CENTERS drive the in-plane alignment (not the cursor points):
+    // the moving face centroid lands on the target face centroid.
+    glm::dvec3 fcA = moveFaceCenter;
+    glm::dvec3 fcB = moveTgtCenter;
 
-    glm::dvec3 pB = moveFacePoint;
-    glm::dmat4 TpB = glm::translate(glm::dmat4(1.0), pB);
-    glm::dmat4 R(1.0);
-    if (axisLen > 1e-9)
-        R = glm::rotate(glm::dmat4(1.0), angle, axis / axisLen);
-    else if (dotv < 0.0)
-        R = glm::rotate(glm::dmat4(1.0), glm::pi<double>(), glm::dvec3(1, 0, 0));
-
-    glm::dmat4 M = TpB * R * glm::translate(glm::dmat4(1.0), -pB) *
-                   glm::dmat4(moveBody->getTransform());
-
-    // Slide along the target normal so the two face planes coincide
-    double delta = glm::dot(moveTgtFacePoint - pB, nA);
-    return glm::translate(glm::dmat4(1.0), nA * delta) * M;
+    glm::dmat4 M;
+    if (glm::dot(nA, nB) < 0.0) {
+        // Normals oppose: place the moving face centroid on the target centroid
+        M = glm::translate(glm::dmat4(1.0), fcB - fcA) * AT;
+    } else {
+        // Same-facing normals: flip 180 deg about an in-plane axis through pA
+        glm::dvec3 helper = (std::abs(nB.x) < 0.9) ? glm::dvec3(1, 0, 0) : glm::dvec3(0, 1, 0);
+        glm::dvec3 axis = glm::normalize(glm::cross(nB, helper));
+        glm::dmat4 TpA = glm::translate(glm::dmat4(1.0), pA);
+        glm::dmat4 R = glm::rotate(glm::dmat4(1.0), glm::pi<double>(), axis);
+        glm::dvec3 fcA_rot = pA + glm::dmat3(R) * (fcA - pA);
+        M = glm::translate(glm::dmat4(1.0), fcB - fcA_rot) * TpA * R *
+            glm::translate(glm::dmat4(1.0), -pA) * AT;
+    }
+    return glm::mat4(M);
 }
 
 glm::mat4 Viewport3D::moveDestinationTransform() const {

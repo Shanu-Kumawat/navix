@@ -382,18 +382,22 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
     if (tool == Modeling3D::Tool3DType::MoveBody) {
         if (ImGui::CollapsingHeader("Move Body", ImGuiTreeNodeFlags_DefaultOpen)) {
             Body3D* mb = viewport.getMoveBody();
-            if (mb) {
+            if (mb && !viewport.isMovePickingBody()) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
                 ImGui::Text("Body: %s", mb->getName().c_str());
                 ImGui::PopStyleColor();
             } else {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-                ImGui::TextWrapped("Click the body you want to move");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+                ImGui::TextWrapped("Click the body you want to MOVE");
                 ImGui::PopStyleColor();
+            }
+            if (ImGui::SmallButton("Pick body##mv")) {
+                viewport.startMoveBodyPick();
+                viewport.clearMoveFaces();
             }
             ImGui::Spacing();
 
-            static const char* modeNames[] = { "Translate (XYZ)", "Mate to face (coincident)", "Rotate (axis + angle)" };
+            static const char* modeNames[] = { "Translate (XYZ)", "Seat on face (coincident)", "Rotate (axis + angle)" };
             int m = (int)viewport.getMoveMode();
             ImGui::PushItemWidth(-1);
             if (ImGui::Combo("##MoveMode", &m, modeNames, 3))
@@ -411,22 +415,18 @@ void PropertyPanel3D::Render(Modeling3D::Viewport3D& viewport, Core::Application
                 ready = mb && (std::abs(df[0]) + std::abs(df[1]) + std::abs(df[2]) > 1e-4);
             } else if (viewport.getMoveMode() == Modeling3D::Viewport3D::MoveMode::CoincidentFace) {
                 if (!mb) { ImGui::TextDisabled("Select a body first"); }
-                else if (!viewport.isMoveFacePicked()) {
+                else if (!viewport.isMoveTargetPicked()) {
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
-                    ImGui::TextWrapped("Click the face ON the moving body that will mate");
-                    ImGui::PopStyleColor();
-                } else if (!viewport.isMoveTargetPicked()) {
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
-                    ImGui::TextWrapped("Click the target face on the other body");
+                    ImGui::TextWrapped("Click the target face on the OTHER body.\nThe body will seat on it, centered on your click.");
                     ImGui::PopStyleColor();
                 } else {
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.5f, 1.0f));
-                    ImGui::Text("Mate with: %s", viewport.getMoveTargetBody()->getName().c_str());
+                    ImGui::Text("Seated on: %s", viewport.getMoveTargetBody()->getName().c_str());
                     ImGui::PopStyleColor();
                     ready = true;
                 }
-                if (viewport.isMoveFacePicked() || viewport.isMoveTargetPicked()) {
-                    if (ImGui::SmallButton("Re-pick faces##mv"))
+                if (viewport.isMoveTargetPicked()) {
+                    if (ImGui::SmallButton("Re-pick face##mv"))
                         viewport.clearMoveFaces();
                 }
             } else {  // Rotate

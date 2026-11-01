@@ -172,12 +172,16 @@ public:
     bool executeCombine(BoolOp op);
     enum class MoveMode { Translate, CoincidentFace, Rotate };
     void beginMoveBody();
+    void startMoveBodyPick() { movePickingBody = true; if (activeTool != Tool3DType::MoveBody) activeTool = Tool3DType::MoveBody; }
+    bool isMovePickingBody() const { return movePickingBody; }
     Body3D* getMoveBody() const { return moveBody; }
     MoveMode getMoveMode() const { return moveMode; }
     void setMoveMode(MoveMode m);
     glm::dvec3 getMoveDelta() const { return moveDelta; }
     void setMoveDelta(const glm::dvec3& d) { moveDelta = d; }
     bool isMoveFacePicked() const { return moveFacePicked; }
+    // Coplanar-patch face highlight (world-space, lifted triangles)
+    std::vector<float> moveFaceHL, moveTgtHL, combineFaceHL;
     bool isMoveTargetPicked() const { return moveTargetPicked; }
     Body3D* getMoveTargetBody() const { return moveTargetBody; }
     void clearMoveFaces() { moveFacePicked = false; moveTargetPicked = false; moveTargetBody = nullptr; }
@@ -188,6 +192,12 @@ public:
     bool executeMoveBody();
     glm::dmat4 moveCoincidentTransform() const;
     glm::mat4 moveDestinationTransform() const;
+    void renderFaceHighlights();
+    // Build a highlight mesh for the coplanar face patch containing hitPt;
+    // also returns the patch centroid (used for face-center alignment)
+    void buildFacePatch(const Body3D* body, const glm::dvec3& hitPt,
+                        const glm::dvec3& nrm, std::vector<float>& outVerts,
+                        glm::dvec3& outCentroid);
 
     glm::mat4 mergeToolPlacement(Body3D* tool) const;
 
@@ -477,15 +487,18 @@ private:
 
     // ── Move Body state ──────────────────────────────────────────────────────
     Body3D* moveBody{nullptr};
+    bool movePickingBody{false};
     MoveMode moveMode{MoveMode::Translate};
     glm::dvec3 moveDelta{0.0};        // Translate mode (world XYZ)
     bool moveFacePicked{false};       // Coincident: mating face on moveBody
     glm::dvec3 moveFacePoint{0.0};
     glm::dvec3 moveFaceNormal{0.0, 1.0, 0.0};
+    glm::dvec3 moveFaceCenter{0.0};   // coplanar patch centroid
     Body3D* moveTargetBody{nullptr};  // Coincident: the other body
     bool moveTargetPicked{false};
     glm::dvec3 moveTgtFacePoint{0.0};
     glm::dvec3 moveTgtFaceNormal{0.0, 1.0, 0.0};
+    glm::dvec3 moveTgtCenter{0.0};    // coplanar patch centroid
     int rotateAxis{1};                // 0=X 1=Y 2=Z
     float rotateAngle{0.0f};          // degrees
     bool mergeHasFace{false};
