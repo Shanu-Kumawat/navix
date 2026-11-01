@@ -748,6 +748,8 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
                         mergeFacePoint = pt;
                         mergeFaceNormal = glm::normalize(nrm);
                         mergeHasFace = true;
+                        glm::dvec3 fcIgnore;
+                        buildFacePatch(mergeBase, pt, mergeFaceNormal, combineFaceHL, fcIgnore);
                         rebuildToolPreview();
                     }
                 } else if (std::find(mergeTools.begin(), mergeTools.end(), hit) != mergeTools.end()) {
@@ -2971,7 +2973,8 @@ void Viewport3D::clearMergeSelection() {
     mergeBase = nullptr;
     mergeTools.clear();
     if (activeTool == Tool3DType::Combine) rebuildToolPreview();
-}
+ combineFaceHL.clear();
+    }
 
 void Viewport3D::mergeSelectAll() {
     mergeBase = nullptr;

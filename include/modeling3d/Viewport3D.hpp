@@ -167,7 +167,7 @@ public:
     void beginCombine();
     Body3D* getMergeBase() const { return mergeBase; }
     const std::vector<Body3D*>& getMergeTools() const { return mergeTools; }
-    void clearMergeSelection();
+    void clearMergeSelection();   // also clears combineFaceHL
     void mergeSelectAll();   // base = first visible body, tools = the rest
     bool executeCombine(BoolOp op);
     enum class MoveMode { Translate, CoincidentFace, Rotate };
