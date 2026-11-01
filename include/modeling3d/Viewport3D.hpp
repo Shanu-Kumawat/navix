@@ -33,6 +33,7 @@ enum class Tool3DType {
     Move,
     Rotate,
     Scale,
+    Pan,            // Left-drag pans the workspace
     PlacePrimitive  // NEW: waiting for user to click canvas placement point
 };
 // CutDirMode / HoleType / PatternKind enums live in Body3D.hpp (shared with

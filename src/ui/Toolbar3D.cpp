@@ -377,6 +377,10 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
     if (TIconBtn("scale3d",  "⤢", "Scale gizmo (R)",  tool == Modeling3D::Tool3DType::Scale,  btnSz))
         activateTool(viewport, Modeling3D::Tool3DType::Scale);
     ImGui::SameLine(0, 3);
+    if (TIconBtn("pan3d", "✥", "Pan — left-drag to move the workspace",
+                 tool == Modeling3D::Tool3DType::Pan, btnSz))
+        activateTool(viewport, Modeling3D::Tool3DType::Pan);
+    ImGui::SameLine(0, 3);
     TSep();
 
     // ── Undo / Redo ───────────────────────────────────────────────────────────

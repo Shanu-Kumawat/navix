@@ -717,6 +717,10 @@ void Viewport3D::handleMouseButton(int button, bool pressed, float x, float y) {
                 }
                 return;  // step 2 falls through to sketch drawing below
             }
+            // ── Pan tool: clicks do nothing (dragging is handled in move) ───
+            if (activeTool == Tool3DType::Pan) {
+                return;
+            }
             // ── Move Body: pick body, then faces per mode ───────────────────
             if (activeTool == Tool3DType::MoveBody) {
                 if (movePickingBody || !moveBody) {
@@ -872,6 +876,11 @@ void Viewport3D::handleMouseMove(float x, float y) {
         } else {
             camera->ProcessMouseMovement(dx, -dy);
         }
+    }
+
+    // Pan tool: left-drag moves the workspace (grab-style)
+    if (activeTool == Tool3DType::Pan && leftMouseDown) {
+        camera->Position += camera->Right * (-dx * 0.05f) + camera->Up * (dy * 0.05f);
     }
 
     // Right-drag: orbit outside sketch, no-op inside sketch
@@ -1112,7 +1121,18 @@ std::string Viewport3D::getStatusText() const {
                 text += " | Click the BASE body";
             }
             break;
-        case Tool3DType::Move:    text = "Move"; break;
+        case Tool3DType::Move:
+            text = "Move" + std::string(scene.getSelectedBody() ? "" : " | Select a body first");
+            break;
+        case Tool3DType::Pan:
+            text = "Pan | Left-drag to move the workspace";
+            break;
+        case Tool3DType::Rotate:
+            text = "Rotate" + std::string(scene.getSelectedBody() ? "" : " | Select a body first");
+            break;
+        case Tool3DType::Scale:
+            text = "Scale" + std::string(scene.getSelectedBody() ? "" : " | Select a body first");
+            break;
         case Tool3DType::MoveBody: {
             text = "Move Body";
             if (!moveBody) text += " | Click the body to move";
@@ -1142,8 +1162,6 @@ std::string Viewport3D::getStatusText() const {
             text = "Mirror";
             if (!scene.getSelectedBody()) text += " | Select a body first";
             break;
-        case Tool3DType::Rotate:  text = "Rotate"; break;
-        case Tool3DType::Scale:   text = "Scale"; break;
         case Tool3DType::PlacePrimitive: text = "Place Primitive"; break;
     }
 

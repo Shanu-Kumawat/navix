@@ -175,6 +175,7 @@ void LoadIconTextures() {
     {"pattern3d",   "icons/png/pattern3d.png"},
     {"merge3d",        "icons/png/merge3d.png"},
     {"movebody3d",     "icons/png/movebody3d.png"},
+    {"pan3d",          "icons/png/pan3d.png"},
     {"tree_box",      "icons/png/tree_box.png"},
     {"tree_cylinder", "icons/png/tree_cylinder.png"},
     {"tree_sphere",   "icons/png/tree_sphere.png"},
