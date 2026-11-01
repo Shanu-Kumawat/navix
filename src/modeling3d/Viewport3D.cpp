@@ -3205,7 +3205,7 @@ bool Viewport3D::executeMoveBody() {
     moveBody->setTransform(newT);
     scene.getCommandManager().execute(
         std::make_unique<TransformBodyCommand>(moveBody, oldT, newT));
-    // Keep the tool active for repeated moves; delta resets
+    // Keep the tool active for repeated moves; face picks + highlights reset
     moveDelta = glm::dvec3(0.0);
     clearMoveFaces();
     rebuildToolPreview();

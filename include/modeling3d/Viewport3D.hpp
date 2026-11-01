@@ -184,7 +184,7 @@ public:
     std::vector<float> moveFaceHL, moveTgtHL, combineFaceHL;
     bool isMoveTargetPicked() const { return moveTargetPicked; }
     Body3D* getMoveTargetBody() const { return moveTargetBody; }
-    void clearMoveFaces() { moveFacePicked = false; moveTargetPicked = false; moveTargetBody = nullptr; }
+    void clearMoveFaces() { moveFacePicked = false; moveTargetPicked = false; moveTargetBody = nullptr; moveFaceHL.clear(); moveTgtHL.clear(); }
     int getRotateAxis() const { return rotateAxis; }
     void setRotateAxis(int a) { rotateAxis = a; }
     float getRotateAngle() const { return rotateAngle; }
