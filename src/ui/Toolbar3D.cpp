@@ -269,19 +269,11 @@ void Toolbar3D::Render(Modeling3D::Viewport3D& viewport, Core::ApplicationContex
                  tool == Modeling3D::Tool3DType::MoveBody, btnSz))
         viewport.beginMoveBody();
     ImGui::SameLine(0, 3);
-    if (TIconBtn("merge3d", "⨇", "Combine — Add / Subtract / Common (N bodies)",
-                 tool == Modeling3D::Tool3DType::Combine, btnSz))
-        viewport.beginCombine();
-    ImGui::SameLine(0, 3);
 
     // ── Cut-Extrude / Hole / Pattern / Mirror ─────────────────────────────────
     if (TIconBtn("cutextrude3d", "⊘", "Cut-Extrude — cut a sketch profile into a body",
                  tool == Modeling3D::Tool3DType::CutExtrude, btnSz))
         activateTool(viewport, Modeling3D::Tool3DType::CutExtrude);
-    ImGui::SameLine(0, 3);
-    if (TIconBtn("hole3d", "⊙", "Hole — click a face, parametric hole",
-                 tool == Modeling3D::Tool3DType::Hole, btnSz))
-        viewport.beginHole();
     ImGui::SameLine(0, 3);
     if (TIconBtn("pattern3d", "⁘", "Pattern — linear / circular copies",
                  tool == Modeling3D::Tool3DType::Pattern, btnSz))

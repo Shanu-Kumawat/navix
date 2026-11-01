@@ -284,6 +284,21 @@ void Viewport3D::render(int width, int height) {
                 corners[i] = p;
             }
 
+            // Hollow-interior shading: interior walls (back faces seen through
+            // the cut) get a flat shade, distinct from the orange material caps
+            glDepthMask(GL_FALSE);
+            modelShader->setInt("renderMode", 0);
+            modelShader->setVec3("objectColor", glm::vec3(0.40f, 0.50f, 0.66f));
+            modelShader->setFloat("ambientStrength", 1.0f);
+            modelShader->setFloat("diffuseStrength", 0.0f);
+            modelShader->setFloat("specularStrength", 0.0f);
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_FRONT);               // draw back faces only
+            modelShader->setMat4("model", M);
+            body->draw();
+            glDisable(GL_CULL_FACE);
+            glDepthMask(GL_TRUE);
+
             glDepthMask(GL_FALSE);              // counting must not write depth
             glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
             glEnable(GL_STENCIL_TEST);
