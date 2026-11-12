@@ -2,7 +2,6 @@
 build/
 build_windows/
 deps/ 
-imgui
 out/
 bin/
 lib/
@@ -76,4 +75,7 @@ Thumbs.db
 *.sql
 *.sqlite 
 external/gmsh/
-tatus
+
+# Runtime state
+imgui.ini
+build/*.inp

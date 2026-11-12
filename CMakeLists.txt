@@ -328,13 +328,36 @@ endif()
 
 # Link OpenCASCADE libraries if found
 if(OpenCASCADE_FOUND)
-    target_link_libraries(drawing PUBLIC
+    # Core OCCT libraries
+    set(OCCT_CORE_LIBS
         TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep
         TKGeomAlgo TKTopAlgo TKPrim TKShHealing TKBO
-        TKBool TKFillet TKMesh TKOffset
-        # Data Exchange (OCCT 7.6 naming)
-        TKSTEP TKIGES TKSTL TKXSBase
+        TKBool TKFillet TKMesh TKOffset TKXSBase
     )
+    set(OCCT_LIBS_FOUND "")
+    foreach(lib IN LISTS OCCT_CORE_LIBS)
+        find_library(OCCT_${lib}_LIB NAMES ${lib})
+        if(OCCT_${lib}_LIB)
+            list(APPEND OCCT_LIBS_FOUND ${OCCT_${lib}_LIB})
+        else()
+            message(WARNING "OCCT library ${lib} not found - skipping")
+        endif()
+    endforeach()
+
+    # Data exchange libraries. OCCT >= 7.7 renamed them:
+    # TKSTEP -> TKDESTEP, TKIGES -> TKDEIGES, TKSTL -> TKDESTL
+    find_library(OCCT_STEP_LIB NAMES TKSTEP TKDESTEP)
+    find_library(OCCT_IGES_LIB NAMES TKIGES TKDEIGES)
+    find_library(OCCT_STL_LIB  NAMES TKSTL  TKDESTL)
+    foreach(lib IN ITEMS OCCT_STEP_LIB OCCT_IGES_LIB OCCT_STL_LIB)
+        if(${lib})
+            list(APPEND OCCT_LIBS_FOUND ${${lib}})
+        else()
+            message(WARNING "OCCT data exchange library ${lib} not found - skipping")
+        endif()
+    endforeach()
+
+    target_link_libraries(drawing PUBLIC ${OCCT_LIBS_FOUND})
     message(STATUS "OCCT libraries linked to drawing target (including data exchange)")
 endif()
 
